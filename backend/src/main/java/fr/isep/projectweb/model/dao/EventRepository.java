@@ -19,7 +19,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             WHERE LOWER(COALESCE(e.title, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(e.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(e.category, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(COALESCE(e.status, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
             ORDER BY e.startTime ASC
             """)
     List<Event> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
