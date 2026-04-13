@@ -48,6 +48,11 @@ export const constantRoutes = [
     hidden: true
   },
   {
+    path: '/forgotPassword',
+    component: () => import('@/views/forgotPassword'),
+    hidden: true
+  },
+  {
     path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),
     hidden: true
@@ -91,10 +96,10 @@ export const constantRoutes = [
     redirect: 'noredirect',
     children: [
       {
-        path: 'platform',
-        component: () => import('@/views/product-platform/list'),
-        name: 'ProductPlatform',
-        meta: { title: '产品平台', icon: 'user' }
+        path: 'mainEvent',
+        component: () => import('@/views/accessible-events/index'),
+        name: 'MainEvent',
+        meta: { title: 'Accessible-events', icon: 'user' }
       },
 
     ]

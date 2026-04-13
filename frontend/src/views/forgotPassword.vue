@@ -1,5 +1,5 @@
 <template>
-  <div class="login-page">
+  <div class="forgotPassword-page">
     <h1 class="page-title">Accessible Events Platform</h1>
     <div class="login">
       <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
@@ -14,6 +14,7 @@
           >
             <template #prefix><svg-icon icon-class="user" class="el-input__icon input-icon" /></template>
           </el-input>
+          <el-button>Send verification code</el-button>
         </el-form-item>
         <el-form-item prop="password">
           <el-input
@@ -28,7 +29,6 @@
           </el-input>
         </el-form-item>
         
-        <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;">Remember your password</el-checkbox>
         <el-form-item style="width:100%;">
           <el-button
             :loading="loading"
@@ -37,8 +37,8 @@
             style="width:100%;"
             @click.prevent="handleLogin"
           >
-            <span v-if="!loading">Log in</span>
-            <span v-else>Logging in...</span>
+            <span v-if="!loading">Verify</span>
+            <span v-else>Verifying...</span>
           </el-button>
           <div style="float: right;" v-if="register">
             <router-link class="link-type" :to="'/register'">立即注册</router-link>
@@ -50,15 +50,6 @@
         <span>{{ footerContent }}</span>
       </div>
     </div>
-    <div class="login-footer">
-      <div class="forgot">
-        <router-link class="link-type" :to="'/forgotPassword'">Forgot password?</router-link>
-      </div>
-      <div class="register">
-        <span>Don't have an account?</span>
-        <router-link class="link-type sign-up" :to="'/register'">Sign Up</router-link>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -68,7 +59,7 @@ import { encrypt, decrypt } from "@/utils/jsencrypt"
 import useUserStore from '@/store/modules/user'
 import defaultSettings from '@/settings'
 
-const title = import.meta.env.VITE_APP_TITLE
+const title = "Forgot Password"
 const footerContent = defaultSettings.footerContent
 const userStore = useUserStore()
 const route = useRoute()
@@ -152,7 +143,7 @@ getCookie()
 </script>
 
 <style lang='scss' scoped>
-.login-page {
+.forgotPassword-page {
   display: flex;
   flex-direction: column;
   justify-content: center;
