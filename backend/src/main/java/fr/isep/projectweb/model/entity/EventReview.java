@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "reviews")
-public class Review {
+@Table(name = "event_reviews")
+public class EventReview {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -37,7 +37,7 @@ public class Review {
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public Review() {
+    public EventReview() {
     }
 
     public UUID getId() {

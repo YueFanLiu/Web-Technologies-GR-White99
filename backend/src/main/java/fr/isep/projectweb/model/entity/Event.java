@@ -9,7 +9,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -46,8 +45,7 @@ public class Event {
     @Column(nullable = false)
     private Integer capacity;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal price;
+    private Double price;
 
     @Column(name = "is_virtual")
     private Boolean isVirtual;
@@ -135,11 +133,11 @@ public class Event {
         this.capacity = capacity;
     }
 
-    public BigDecimal getPrice() {
+    public Double getPrice() {
         return price;
     }
 
-    public void setPrice(BigDecimal price) {
+    public void setPrice(Double price) {
         this.price = price;
     }
 

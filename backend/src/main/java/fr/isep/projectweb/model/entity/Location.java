@@ -7,7 +7,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -31,9 +30,9 @@ public class Location {
 
     private String country;
 
-    private BigDecimal latitude;
+    private Double latitude;
 
-    private BigDecimal longitude;
+    private Double longitude;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -92,19 +91,19 @@ public class Location {
         this.country = country;
     }
 
-    public BigDecimal getLatitude() {
+    public Double getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(BigDecimal latitude) {
+    public void setLatitude(Double latitude) {
         this.latitude = latitude;
     }
 
-    public BigDecimal getLongitude() {
+    public Double getLongitude() {
         return longitude;
     }
 
-    public void setLongitude(BigDecimal longitude) {
+    public void setLongitude(Double longitude) {
         this.longitude = longitude;
     }
 
