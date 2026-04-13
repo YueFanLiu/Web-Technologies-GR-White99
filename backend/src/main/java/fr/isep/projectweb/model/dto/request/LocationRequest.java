@@ -1,16 +1,18 @@
 package fr.isep.projectweb.model.dto.request;
 
-public class CreateLocationRequest {
+import java.math.BigDecimal;
+
+public class LocationRequest {
 
     private String name;
     private String description;
     private String address;
     private String city;
     private String country;
-    private Double latitude;
-    private Double longitude;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 
-    public CreateLocationRequest() {
+    public LocationRequest() {
     }
 
     public String getName() {
@@ -53,19 +55,19 @@ public class CreateLocationRequest {
         this.country = country;
     }
 
-    public Double getLatitude() {
+    public BigDecimal getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(Double latitude) {
+    public void setLatitude(BigDecimal latitude) {
         this.latitude = latitude;
     }
 
-    public Double getLongitude() {
+    public BigDecimal getLongitude() {
         return longitude;
     }
 
-    public void setLongitude(Double longitude) {
+    public void setLongitude(BigDecimal longitude) {
         this.longitude = longitude;
     }
 }

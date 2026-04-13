@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "registrations")
-public class Registration {
+@Table(name = "event_images")
+public class EventImage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -24,16 +24,13 @@ public class Registration {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
+    private String imageUrl;
 
-    private String status;
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "registered_at", insertable = false, updatable = false)
-    private LocalDateTime registeredAt;
-
-    public Registration() {
+    public EventImage() {
     }
 
     public UUID getId() {
@@ -52,23 +49,15 @@ public class Registration {
         this.event = event;
     }
 
-    public User getUser() {
-        return user;
+    public String getImageUrl() {
+        return imageUrl;
     }
 
-    public void setUser(User user) {
-        this.user = user;
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getRegisteredAt() {
-        return registeredAt;
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }

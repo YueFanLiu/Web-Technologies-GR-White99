@@ -1,13 +1,20 @@
 package fr.isep.projectweb.controller;
 
-import fr.isep.projectweb.model.dto.request.CreateLocationRequest;
-import fr.isep.projectweb.model.dto.request.UpdateLocationRequest;
+import fr.isep.projectweb.model.dto.request.LocationRequest;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.service.LocationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,7 +32,7 @@ public class LocationController {
 
     @PostMapping
     @Operation(summary = "Create a location")
-    public Location createLocation(@RequestBody CreateLocationRequest request) {
+    public Location createLocation(@RequestBody LocationRequest request) {
         return locationService.createLocation(request);
     }
 
@@ -33,6 +40,12 @@ public class LocationController {
     @Operation(summary = "Get all locations")
     public List<Location> getAllLocations() {
         return locationService.getAllLocations();
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search locations by keyword")
+    public List<Location> searchLocations(@RequestParam String keyword) {
+        return locationService.searchLocations(keyword);
     }
 
     @GetMapping("/{id}")
@@ -43,7 +56,7 @@ public class LocationController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a location")
-    public Location updateLocation(@PathVariable UUID id, @RequestBody UpdateLocationRequest request) {
+    public Location updateLocation(@PathVariable UUID id, @RequestBody LocationRequest request) {
         return locationService.updateLocation(id, request);
     }
 

@@ -13,27 +13,30 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "registrations")
-public class Registration {
+@Table(name = "post_reviews")
+public class PostReview {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne
-    @JoinColumn(name = "event_id", nullable = false)
-    private Event event;
+    @JoinColumn(name = "post_id", nullable = false)
+    private Post post;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    private String status;
+    private Integer rating;
 
-    @Column(name = "registered_at", insertable = false, updatable = false)
-    private LocalDateTime registeredAt;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String comment;
 
-    public Registration() {
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    public PostReview() {
     }
 
     public UUID getId() {
@@ -44,12 +47,12 @@ public class Registration {
         this.id = id;
     }
 
-    public Event getEvent() {
-        return event;
+    public Post getPost() {
+        return post;
     }
 
-    public void setEvent(Event event) {
-        this.event = event;
+    public void setPost(Post post) {
+        this.post = post;
     }
 
     public User getUser() {
@@ -60,15 +63,23 @@ public class Registration {
         this.user = user;
     }
 
-    public String getStatus() {
-        return status;
+    public Integer getRating() {
+        return rating;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setRating(Integer rating) {
+        this.rating = rating;
     }
 
-    public LocalDateTime getRegisteredAt() {
-        return registeredAt;
+    public String getComment() {
+        return comment;
+    }
+
+    public void setComment(String comment) {
+        this.comment = comment;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }
