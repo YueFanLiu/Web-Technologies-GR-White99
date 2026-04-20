@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import createVitePlugins from './vite/plugins'
 
-const baseUrl = 'http://localhost:9191' // 后端接口
+const baseUrl = 'http://10.3.156.191:9192' // 后端接口
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
@@ -47,10 +47,9 @@ export default defineConfig(({ mode, command }) => {
       open: true,
       proxy: {
         // https://cn.vitejs.dev/config/#server-proxy
-        '/dev-api': {
+        '/api': {
           target: baseUrl,
           changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api/, '')
         },
          // springdoc proxy
          '^/v3/api-docs/(.*)': {

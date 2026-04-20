@@ -1,8 +1,6 @@
 <template>
   <div class="page-wrapper">
     <el-container class="full-container">
-
-
       <!-- 主体三栏布局 -->
       <el-container class="main-container">
         <!-- 左侧筛选栏 -->
