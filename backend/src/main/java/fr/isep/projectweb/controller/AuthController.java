@@ -1,10 +1,16 @@
 package fr.isep.projectweb.controller;
 
+import fr.isep.projectweb.model.dto.request.LoginRequest;
+import fr.isep.projectweb.model.dto.request.SignupRequest;
+import fr.isep.projectweb.model.dto.response.AuthResponse;
+import fr.isep.projectweb.model.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,11 +25,14 @@ public class AuthController {
 
     private final String supabaseUrl;
     private final String supabasePublishableKey;
+    private final AuthService authService;
 
     public AuthController(@Value("${supabase.url}") String supabaseUrl,
-                          @Value("${supabase.publishable-key:}") String supabasePublishableKey) {
+                          @Value("${supabase.publishable-key:}") String supabasePublishableKey,
+                          AuthService authService) {
         this.supabaseUrl = supabaseUrl;
         this.supabasePublishableKey = supabasePublishableKey;
+        this.authService = authService;
     }
 
     @GetMapping("/config")
@@ -34,6 +43,18 @@ public class AuthController {
         config.put("supabasePublishableKey", supabasePublishableKey);
         config.put("configured", !supabasePublishableKey.isBlank());
         return config;
+    }
+
+    @PostMapping("/signup")
+    @Operation(summary = "Register a user via backend-managed Supabase Auth")
+    public AuthResponse signup(@RequestBody SignupRequest request) {
+        return authService.signup(request);
+    }
+
+    @PostMapping("/login")
+    @Operation(summary = "Log in a user via backend-managed Supabase Auth")
+    public AuthResponse login(@RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 
     @GetMapping("/debug")

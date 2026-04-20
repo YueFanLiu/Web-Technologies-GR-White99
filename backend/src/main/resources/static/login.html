@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supabase Login</title>
+    <title>Login</title>
     <style>
         body {
             font-family: "Segoe UI", sans-serif;
@@ -55,8 +55,8 @@
 </head>
 <body>
 <main>
-    <h1>Supabase Login Test</h1>
-    <p>Login here, then call the backend JWT debug endpoint with the access token that Supabase issued.</p>
+    <h1>Login Test</h1>
+    <p>Login through the backend. The backend exchanges credentials with Supabase and returns the issued token.</p>
 
     <form id="login-form">
         <label>
@@ -84,98 +84,109 @@
     <p><a href="/signup.html">Go to signup page</a></p>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-    let supabaseClient;
-
-    async function loadConfig() {
-        const response = await fetch('/api/auth/config');
-        if (!response.ok) {
-            throw new Error('Failed to load backend config');
-        }
-        return response.json();
-    }
+    const ACCESS_TOKEN_KEY = 'projectweb.accessToken';
+    const REFRESH_TOKEN_KEY = 'projectweb.refreshToken';
 
     function showResult(value) {
         document.getElementById('result').textContent = JSON.stringify(value, null, 2);
     }
 
-    async function refreshTokenBox() {
-        const { data } = await supabaseClient.auth.getSession();
-        document.getElementById('token').value = data.session?.access_token ?? '';
+    function getAccessToken() {
+        return localStorage.getItem(ACCESS_TOKEN_KEY) ?? '';
     }
 
-    async function main() {
-        const config = await loadConfig();
-        if (!config.configured) {
-            showResult({
-                error: 'SUPABASE_PUBLISHABLE_KEY is missing on the backend',
-                expectedEnv: 'SUPABASE_PUBLISHABLE_KEY'
-            });
+    function refreshTokenBox() {
+        document.getElementById('token').value = getAccessToken();
+    }
+
+    function saveTokens(payload) {
+        if (payload.accessToken) {
+            localStorage.setItem(ACCESS_TOKEN_KEY, payload.accessToken);
+        }
+        if (payload.refreshToken) {
+            localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
+        }
+    }
+
+    function clearTokens() {
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
+
+    async function submitLogin(event) {
+        event.preventDefault();
+
+        const payload = {
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+        };
+
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        let body;
+        try {
+            body = await response.json();
+        } catch (error) {
+            body = { message: 'Non-JSON response', status: response.status };
+        }
+
+        if (response.ok && body.status === 'AUTHENTICATED') {
+            saveTokens(body);
+        }
+
+        refreshTokenBox();
+        showResult({
+            status: response.status,
+            body
+        });
+    }
+
+    async function callDebug() {
+        const token = getAccessToken();
+
+        if (!token) {
+            showResult({ error: 'No access token available. Login first.' });
             return;
         }
 
-        supabaseClient = window.supabase.createClient(
-            config.supabaseUrl,
-            config.supabasePublishableKey
-        );
-
-        await refreshTokenBox();
-
-        document.getElementById('login-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email,
-                password
-            });
-
-            await refreshTokenBox();
-            showResult({
-                error,
-                data
-            });
+        const response = await fetch('/api/auth/debug', {
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Bearer ${token}`
+            }
         });
 
-        document.getElementById('debug-button').addEventListener('click', async () => {
-            const { data } = await supabaseClient.auth.getSession();
-            const token = data.session?.access_token;
+        let payload;
+        try {
+            payload = await response.json();
+        } catch (error) {
+            payload = { error: 'Non-JSON response', status: response.status };
+        }
 
-            if (!token) {
-                showResult({ error: 'No access token available. Login first.' });
-                return;
-            }
-
-            const response = await fetch('/api/auth/debug', {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
-
-            let payload;
-            try {
-                payload = await response.json();
-            } catch (error) {
-                payload = { error: 'Non-JSON response', status: response.status };
-            }
-
-            showResult({
-                status: response.status,
-                body: payload
-            });
-        });
-
-        document.getElementById('logout-button').addEventListener('click', async () => {
-            const { error } = await supabaseClient.auth.signOut();
-            await refreshTokenBox();
-            showResult({ error, message: 'Signed out' });
+        showResult({
+            status: response.status,
+            body: payload
         });
     }
 
-    main().catch(error => showResult({ error: error.message }));
+    function logout() {
+        clearTokens();
+        refreshTokenBox();
+        showResult({ message: 'Stored tokens cleared' });
+    }
+
+    document.getElementById('login-form').addEventListener('submit', submitLogin);
+    document.getElementById('debug-button').addEventListener('click', callDebug);
+    document.getElementById('logout-button').addEventListener('click', logout);
+    refreshTokenBox();
 </script>
 </body>
 </html>

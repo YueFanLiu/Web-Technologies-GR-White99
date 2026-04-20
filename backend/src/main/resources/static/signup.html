@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supabase Signup</title>
+    <title>Signup</title>
     <style>
         body {
             font-family: "Segoe UI", sans-serif;
@@ -61,8 +61,8 @@
 </head>
 <body>
 <main>
-    <h1>Supabase Signup Test</h1>
-    <p class="muted">This page calls Supabase Auth directly. Set <code>SUPABASE_PUBLISHABLE_KEY</code> on the backend if config is missing.</p>
+    <h1>Signup Test</h1>
+    <p class="muted">This page sends registration data to the backend. If email confirmation is enabled, signup succeeds without logging the user in.</p>
 
     <form id="signup-form">
         <label>
@@ -75,7 +75,7 @@
         </label>
         <label>
             Password
-            <input id="password" name="password" type="password" minlength="6" required>
+            <input id="password" name="password" type="password" minlength="8" required>
         </label>
         <label>
             Role
@@ -87,68 +87,69 @@
         <button type="submit">Create account</button>
     </form>
 
+    <h2>Rules</h2>
+    <p class="muted">Email must have a valid format. Password must be at least 8 characters and include uppercase, lowercase, and a number.</p>
+
     <h2>Result</h2>
     <pre id="result">Waiting for input...</pre>
 
     <p><a href="/login.html">Go to login page</a></p>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-    async function loadConfig() {
-        const response = await fetch('/api/auth/config');
-        if (!response.ok) {
-            throw new Error('Failed to load backend config');
-        }
-        return response.json();
-    }
+    const ACCESS_TOKEN_KEY = 'projectweb.accessToken';
+    const REFRESH_TOKEN_KEY = 'projectweb.refreshToken';
 
     function showResult(value) {
         document.getElementById('result').textContent = JSON.stringify(value, null, 2);
     }
 
-    async function main() {
-        const config = await loadConfig();
-        if (!config.configured) {
-            showResult({
-                error: 'SUPABASE_PUBLISHABLE_KEY is missing on the backend',
-                expectedEnv: 'SUPABASE_PUBLISHABLE_KEY'
-            });
-            return;
+    function saveTokens(payload) {
+        if (payload.accessToken) {
+            localStorage.setItem(ACCESS_TOKEN_KEY, payload.accessToken);
+        }
+        if (payload.refreshToken) {
+            localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
+        }
+    }
+
+    async function submitSignup(event) {
+        event.preventDefault();
+
+        const payload = {
+            fullName: document.getElementById('full-name').value,
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            role: document.getElementById('role').value
+        };
+
+        const response = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        let body;
+        try {
+            body = await response.json();
+        } catch (error) {
+            body = { message: 'Non-JSON response', status: response.status };
         }
 
-        const supabaseClient = window.supabase.createClient(
-            config.supabaseUrl,
-            config.supabasePublishableKey
-        );
+        if (response.ok && body.status === 'AUTHENTICATED') {
+            saveTokens(body);
+        }
 
-        document.getElementById('signup-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const fullName = document.getElementById('full-name').value;
-            const role = document.getElementById('role').value;
-
-            const { data, error } = await supabaseClient.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        full_name: fullName,
-                        role
-                    }
-                }
-            });
-
-            showResult({
-                error,
-                data
-            });
+        showResult({
+            status: response.status,
+            body
         });
     }
 
-    main().catch(error => showResult({ error: error.message }));
+    document.getElementById('signup-form').addEventListener('submit', submitSignup);
 </script>
 </body>
 </html>

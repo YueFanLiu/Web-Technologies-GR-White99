@@ -22,7 +22,9 @@ public class SecurityConfig {
                                 "/signup.html",
                                 "/login.html",
                                 "/me.html",
-                                "/api/auth/config"
+                                "/api/auth/config",
+                                "/api/auth/signup",
+                                "/api/auth/login"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
