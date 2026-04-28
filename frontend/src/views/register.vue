@@ -3,9 +3,21 @@
     <div class="register">
       <el-form ref="registerRef" :model="registerForm" :rules="registerRules" class="register-form">
         <h3 class="title">{{ title }}</h3>
-        <el-form-item prop="username">
+
+        <el-form-item prop="fullName">
           <el-input 
-            v-model="registerForm.username" 
+            v-model="registerForm.fullName" 
+            type="text" 
+            size="large" 
+            placeholder="Full Name"
+          >
+            <template #prefix><svg-icon icon-class="user" class="el-input__icon input-icon" /></template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item prop="email">
+          <el-input 
+            v-model="registerForm.email" 
             type="text" 
             size="large" 
             auto-complete="off" 
@@ -14,6 +26,7 @@
             <template #prefix><svg-icon icon-class="user" class="el-input__icon input-icon" /></template>
           </el-input>
         </el-form-item>
+
         <el-form-item prop="password">
           <el-input
             v-model="registerForm.password"
@@ -26,6 +39,19 @@
             <template #prefix><svg-icon icon-class="password" class="el-input__icon input-icon" /></template>
           </el-input>
         </el-form-item>
+
+        <el-form-item prop="role">
+          <el-select 
+            v-model="registerForm.role" 
+            size="large" 
+            placeholder="Select Role"
+            style="width:100%"
+          >
+            <el-option label="PARENT" value="PARENT" />
+
+          </el-select>
+        </el-form-item>
+
         <el-form-item prop="confirmPassword">
           <el-input
             v-model="registerForm.confirmPassword"
@@ -64,7 +90,7 @@
 
 <script setup>
 import { ElMessageBox } from "element-plus"
-import { getCodeImg, register } from "@/api/login"
+import { register } from "@/api/login"
 import defaultSettings from '@/settings'
 
 const title = "Register Account"
@@ -73,11 +99,10 @@ const router = useRouter()
 const { proxy } = getCurrentInstance()
 
 const registerForm = ref({
-  username: "",
+  fullName:"",
+  email: "",
   password: "",
-  confirmPassword: "",
-  code: "",
-  uuid: ""
+  role: ""
 })
 
 const equalToPassword = (rule, value, callback) => {
@@ -89,9 +114,12 @@ const equalToPassword = (rule, value, callback) => {
 }
 
 const registerRules = {
-  username: [
-    { required: true, trigger: "blur", message: "Please enter your account" },
-    { min: 2, max: 20, message: "User account length must be between 2 and 20", trigger: "blur" }
+  fullName: [
+    { required: true, trigger: "blur", message: "Please enter your full name" }
+  ],
+  email: [
+    { required: true, trigger: "blur", message: "Please enter your email" },
+    { type:'email', message: "User account length must be between 2 and 20", trigger: "blur" }
   ],
   password: [
     { required: true, trigger: "blur", message: "Please enter your password" },
@@ -102,45 +130,31 @@ const registerRules = {
     { required: true, trigger: "blur", message: "Please enter your password again" },
     { required: true, validator: equalToPassword, trigger: "blur" }
   ],
+  role: [
+    { required: true, trigger: "change", message: "Please select a role" }
+  ]
 }
 
-const codeUrl = ref("")
 const loading = ref(false)
-const captchaEnabled = ref(true)
 
 function handleRegister() {
   proxy.$refs.registerRef.validate(valid => {
     if (valid) {
       loading.value = true
       register(registerForm.value).then(res => {
-        const username = registerForm.value.username
-        ElMessageBox.alert("<font color='red'>Congratulations, your account " + username + " Registration successful！</font>", "System prompt", {
-          dangerouslyUseHTMLString: true,
-          type: "success",
+        ElMessageBox.alert("Registration successful!", "Success", {
+          type: "success"
         }).then(() => {
           router.push("/login")
-        }).catch(() => {})
+        })
       }).catch(() => {
         loading.value = false
-        if (captchaEnabled) {
-          getCode()
-        }
-      })
+        })
     }
   })
 }
 
-function getCode() {
-  getCodeImg().then(res => {
-    captchaEnabled.value = res.captchaEnabled === undefined ? true : res.captchaEnabled
-    if (captchaEnabled.value) {
-      codeUrl.value = "data:image/gif;base64," + res.img
-      registerForm.value.uuid = res.uuid
-    }
-  })
-}
 
-getCode()
 </script>
 
 <style lang='scss' scoped>

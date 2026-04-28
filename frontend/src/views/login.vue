@@ -4,9 +4,9 @@
     <div class="login">
       <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
         <h3 class="title">{{ title }}</h3>
-        <el-form-item prop="username">
+        <el-form-item prop="email">
           <el-input
-            v-model="loginForm.username"
+            v-model="loginForm.email"
             type="text"
             size="large"
             auto-complete="off"
@@ -76,16 +76,18 @@ const router = useRouter()
 const { proxy } = getCurrentInstance()
 
 const loginForm = ref({
-  username: "",
+  email: "",
   password: "",
-  rememberMe: false,
-  code: "",
-  uuid: ""
 })
 
 const loginRules = {
-  username: [{ required: true, trigger: "blur", message: "Please enter your account" }],
-  password: [{ required: true, trigger: "blur", message: "Please enter your password" }],
+  email: [
+    { required: true, trigger: "blur", message: "Please enter your email" },
+    { type: 'email', message: "Please enter a valid email address", trigger: "blur" }
+  ],
+  password: [
+    { required: true, trigger: "blur", message: "Please enter your password" }
+  ],
 }
 
 const codeUrl = ref("")
@@ -106,12 +108,12 @@ function handleLogin() {
       loading.value = true
       // 勾选了需要记住密码设置在 cookie 中设置记住用户名和密码
       if (loginForm.value.rememberMe) {
-        Cookies.set("username", loginForm.value.username, { expires: 30 })
+        Cookies.set("email", loginForm.value.email, { expires: 30 })
         Cookies.set("password", encrypt(loginForm.value.password), { expires: 30 })
         Cookies.set("rememberMe", loginForm.value.rememberMe, { expires: 30 })
       } else {
         // 否则移除
-        Cookies.remove("username")
+        Cookies.remove("email")
         Cookies.remove("password")
         Cookies.remove("rememberMe")
       }
@@ -124,7 +126,8 @@ function handleLogin() {
           }
           return acc
         }, {})
-        router.push({ path: redirect.value || "/", query: otherQueryParams })
+        loading.value = false
+        router.push("/product/mainEvent")
       }).catch(() => {
         loading.value = false
 
@@ -137,11 +140,11 @@ function handleLogin() {
 
 
 function getCookie() {
-  const username = Cookies.get("username")
+  const email = Cookies.get("email")
   const password = Cookies.get("password")
   const rememberMe = Cookies.get("rememberMe")
   loginForm.value = {
-    username: username === undefined ? loginForm.value.username : username,
+    email: email === undefined ? loginForm.value.email : email,
     password: password === undefined ? loginForm.value.password : decrypt(password),
     rememberMe: rememberMe === undefined ? false : Boolean(rememberMe)
   }

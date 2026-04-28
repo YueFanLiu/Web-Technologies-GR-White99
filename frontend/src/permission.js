@@ -19,15 +19,15 @@ const isWhiteList = (path) => {
 
 router.beforeEach((to, from, next) => {
   NProgress.start()
-  /*if (getToken()) {
+  if (getToken()) {
     to.meta.title && useSettingsStore().setTitle(to.meta.title)
-    if (to.path === '/login') {
-      next({ path: '/' })
-      NProgress.done()
-    } else if (isWhiteList(to.path)) {
+    //if (to.path === '/login') {
+      //next({ path: '/product/mainEvent' })
+     // NProgress.done()}
+    if (isWhiteList(to.path)) {
       next()
     } else {
-      if (useUserStore().roles.length === 0) {
+      /*if (useUserStore().roles.length === 0) {
         isRelogin.show = true
         // 判断当前用户是否已拉取完user_info信息
         useUserStore().getInfo().then(() => {
@@ -44,12 +44,13 @@ router.beforeEach((to, from, next) => {
         }).catch(err => {
           useUserStore().logOut().then(() => {
             ElMessage.error(err)
-            next({ path: '/' })
+            next({ path: '/product/mainEvent' })
           })
         })
       } else {
         next()
-      }
+      }*/
+      next()
     }
   } else {
     // 没有token
@@ -57,17 +58,17 @@ router.beforeEach((to, from, next) => {
       // 在免登录白名单，直接进入
       next()
     } else {
-      next(`/login?redirect=${to.fullPath}`) // 否则全部重定向到登录页
-      NProgress.done()
-    }   
-  }*/
-   if (to.meta.title) {
+      next(`/login`) // 否则全部重定向到登录页
+      
+    }
+  }
+   /*if (to.meta.title) {
     useSettingsStore().setTitle(to.meta.title)
   }
   
   // ✅ 直接允许所有访问，不检查token
   next()
-  NProgress.done()
+  NProgress.done()*/
 })
 
 router.afterEach(() => {
