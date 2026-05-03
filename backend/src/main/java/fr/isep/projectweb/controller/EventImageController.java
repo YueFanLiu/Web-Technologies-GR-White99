@@ -1,7 +1,7 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.ImageRequest;
-import fr.isep.projectweb.model.entity.EventImage;
+import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.service.EventImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,13 +30,13 @@ public class EventImageController {
 
     @GetMapping
     @Operation(summary = "Get all images for an event")
-    public List<EventImage> getEventImages(@PathVariable UUID eventId) {
+    public List<ImageResponse> getEventImages(@PathVariable UUID eventId) {
         return eventImageService.getByEventId(eventId);
     }
 
     @PostMapping
     @Operation(summary = "Add an image to an event")
-    public EventImage createEventImage(@PathVariable UUID eventId, @RequestBody ImageRequest request) {
+    public ImageResponse createEventImage(@PathVariable UUID eventId, @RequestBody ImageRequest request) {
         return eventImageService.create(eventId, request);
     }
 

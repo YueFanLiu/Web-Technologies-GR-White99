@@ -1,13 +1,13 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.RegistrationRequest;
-import fr.isep.projectweb.model.entity.Registration;
-import fr.isep.projectweb.model.entity.User;
+import fr.isep.projectweb.model.dto.response.RegistrationResponse;
 import fr.isep.projectweb.model.service.RegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,38 +33,38 @@ public class RegistrationController {
 
     @PostMapping
     @Operation(summary = "Create a registration for an event")
-    public Registration createRegistration(@RequestBody RegistrationRequest request,
-                                           @AuthenticationPrincipal User user) {
-        return registrationService.createRegistration(request, user);
+    public RegistrationResponse createRegistration(@RequestBody RegistrationRequest request,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        return registrationService.createRegistration(request, jwt);
     }
 
     @GetMapping
     @Operation(summary = "Get all registrations")
-    public List<Registration> getAllRegistrations() {
+    public List<RegistrationResponse> getAllRegistrations() {
         return registrationService.getAllRegistrations();
     }
 
     @GetMapping("/event/{eventId}")
     @Operation(summary = "Get registrations by event id")
-    public List<Registration> getRegistrationsByEventId(@PathVariable UUID eventId) {
+    public List<RegistrationResponse> getRegistrationsByEventId(@PathVariable UUID eventId) {
         return registrationService.getRegistrationsByEventId(eventId);
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Get registrations by user id")
-    public List<Registration> getRegistrationsByUserId(@PathVariable UUID userId) {
+    public List<RegistrationResponse> getRegistrationsByUserId(@PathVariable UUID userId) {
         return registrationService.getRegistrationsByUserId(userId);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get one registration by id")
-    public Registration getRegistrationById(@PathVariable UUID id) {
+    public RegistrationResponse getRegistrationById(@PathVariable UUID id) {
         return registrationService.getRegistrationById(id);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a registration")
-    public Registration updateRegistration(@PathVariable UUID id, @RequestBody RegistrationRequest request) {
+    public RegistrationResponse updateRegistration(@PathVariable UUID id, @RequestBody RegistrationRequest request) {
         return registrationService.updateRegistration(id, request);
     }
 

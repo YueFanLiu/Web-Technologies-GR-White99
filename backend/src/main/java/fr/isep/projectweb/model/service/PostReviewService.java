@@ -3,10 +3,11 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.PostRepository;
 import fr.isep.projectweb.model.dao.PostReviewRepository;
 import fr.isep.projectweb.model.dto.request.ReviewRequest;
+import fr.isep.projectweb.model.dto.response.ReviewResponse;
 import fr.isep.projectweb.model.entity.Post;
 import fr.isep.projectweb.model.entity.PostReview;
-import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -18,29 +19,36 @@ public class PostReviewService {
 
     private final PostReviewRepository postReviewRepository;
     private final PostRepository postRepository;
+    private final CurrentUserService currentUserService;
 
-    public PostReviewService(PostReviewRepository postReviewRepository, PostRepository postRepository) {
+    public PostReviewService(PostReviewRepository postReviewRepository,
+                             PostRepository postRepository,
+                             CurrentUserService currentUserService) {
         this.postReviewRepository = postReviewRepository;
         this.postRepository = postRepository;
+        this.currentUserService = currentUserService;
     }
 
-    public List<PostReview> getByPostId(UUID postId) {
+    public List<ReviewResponse> getByPostId(UUID postId) {
         findPost(postId);
-        return postReviewRepository.findByPostIdOrderByCreatedAtDesc(postId);
+        return postReviewRepository.findByPostIdOrderByCreatedAtDesc(postId)
+                .stream()
+                .map(ResponseMapper::toPostReviewResponse)
+                .toList();
     }
 
-    public PostReview create(UUID postId, ReviewRequest request, User user) {
+    public ReviewResponse create(UUID postId, ReviewRequest request, Jwt jwt) {
         PostReview review = new PostReview();
         review.setPost(findPost(postId));
-        review.setUser(user);
+        review.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(review, request);
-        return postReviewRepository.save(review);
+        return ResponseMapper.toPostReviewResponse(postReviewRepository.save(review));
     }
 
-    public PostReview update(UUID postId, UUID reviewId, ReviewRequest request) {
+    public ReviewResponse update(UUID postId, UUID reviewId, ReviewRequest request) {
         PostReview review = findReview(postId, reviewId);
         applyRequest(review, request);
-        return postReviewRepository.save(review);
+        return ResponseMapper.toPostReviewResponse(postReviewRepository.save(review));
     }
 
     public void delete(UUID postId, UUID reviewId) {

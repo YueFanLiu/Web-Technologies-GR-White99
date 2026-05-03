@@ -3,6 +3,7 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dao.LocationImageRepository;
 import fr.isep.projectweb.model.dto.request.ImageRequest;
+import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.LocationImage;
 import org.springframework.http.HttpStatus;
@@ -23,18 +24,21 @@ public class LocationImageService {
         this.locationDAO = locationDAO;
     }
 
-    public List<LocationImage> getByLocationId(UUID locationId) {
+    public List<ImageResponse> getByLocationId(UUID locationId) {
         findLocation(locationId);
-        return locationImageRepository.findByLocationIdOrderByCreatedAtAsc(locationId);
+        return locationImageRepository.findByLocationIdOrderByCreatedAtAsc(locationId)
+                .stream()
+                .map(ResponseMapper::toLocationImageResponse)
+                .toList();
     }
 
-    public LocationImage create(UUID locationId, ImageRequest request) {
+    public ImageResponse create(UUID locationId, ImageRequest request) {
         validateImageUrl(request.getImageUrl());
 
         LocationImage image = new LocationImage();
         image.setLocation(findLocation(locationId));
         image.setImageUrl(request.getImageUrl().trim());
-        return locationImageRepository.save(image);
+        return ResponseMapper.toLocationImageResponse(locationImageRepository.save(image));
     }
 
     public void delete(UUID locationId, UUID imageId) {

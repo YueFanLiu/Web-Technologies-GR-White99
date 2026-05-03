@@ -1,7 +1,7 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.ImageRequest;
-import fr.isep.projectweb.model.entity.PostImage;
+import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.service.PostImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,13 +30,13 @@ public class PostImageController {
 
     @GetMapping
     @Operation(summary = "Get all images for a post")
-    public List<PostImage> getPostImages(@PathVariable UUID postId) {
+    public List<ImageResponse> getPostImages(@PathVariable UUID postId) {
         return postImageService.getByPostId(postId);
     }
 
     @PostMapping
     @Operation(summary = "Add an image to a post")
-    public PostImage createPostImage(@PathVariable UUID postId, @RequestBody ImageRequest request) {
+    public ImageResponse createPostImage(@PathVariable UUID postId, @RequestBody ImageRequest request) {
         return postImageService.create(postId, request);
     }
 

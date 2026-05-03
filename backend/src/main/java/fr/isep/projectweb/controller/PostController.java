@@ -1,13 +1,13 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.PostRequest;
-import fr.isep.projectweb.model.entity.Post;
-import fr.isep.projectweb.model.entity.User;
+import fr.isep.projectweb.model.dto.response.PostResponse;
 import fr.isep.projectweb.model.service.PostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,49 +34,49 @@ public class PostController {
 
     @PostMapping
     @Operation(summary = "Create a post")
-    public Post createPost(@RequestBody PostRequest request, @AuthenticationPrincipal User user) {
-        return postService.createPost(request, user);
+    public PostResponse createPost(@RequestBody PostRequest request, @AuthenticationPrincipal Jwt jwt) {
+        return postService.createPost(request, jwt);
     }
 
     @GetMapping
     @Operation(summary = "Get all posts")
-    public List<Post> getAllPosts() {
+    public List<PostResponse> getAllPosts() {
         return postService.getAllPosts();
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Get posts by user id")
-    public List<Post> getPostsByUserId(@PathVariable UUID userId) {
+    public List<PostResponse> getPostsByUserId(@PathVariable UUID userId) {
         return postService.getPostsByUserId(userId);
     }
 
     @GetMapping("/location/{locationId}")
     @Operation(summary = "Get posts by location id")
-    public List<Post> getPostsByLocationId(@PathVariable UUID locationId) {
+    public List<PostResponse> getPostsByLocationId(@PathVariable UUID locationId) {
         return postService.getPostsByLocationId(locationId);
     }
 
     @GetMapping("/event/{eventId}")
     @Operation(summary = "Get posts by event id")
-    public List<Post> getPostsByEventId(@PathVariable UUID eventId) {
+    public List<PostResponse> getPostsByEventId(@PathVariable UUID eventId) {
         return postService.getPostsByEventId(eventId);
     }
 
     @GetMapping("/search")
     @Operation(summary = "Search posts by keyword")
-    public List<Post> searchPosts(@RequestParam String keyword) {
+    public List<PostResponse> searchPosts(@RequestParam String keyword) {
         return postService.searchPosts(keyword);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get one post by id")
-    public Post getPostById(@PathVariable UUID id) {
+    public PostResponse getPostById(@PathVariable UUID id) {
         return postService.getPostById(id);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a post")
-    public Post updatePost(@PathVariable UUID id, @RequestBody PostRequest request) {
+    public PostResponse updatePost(@PathVariable UUID id, @RequestBody PostRequest request) {
         return postService.updatePost(id, request);
     }
 

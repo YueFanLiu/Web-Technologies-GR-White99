@@ -1,7 +1,7 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.LocationRequest;
-import fr.isep.projectweb.model.entity.Location;
+import fr.isep.projectweb.model.dto.response.LocationResponse;
 import fr.isep.projectweb.model.service.LocationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,31 +32,31 @@ public class LocationController {
 
     @PostMapping
     @Operation(summary = "Create a location")
-    public Location createLocation(@RequestBody LocationRequest request) {
+    public LocationResponse createLocation(@RequestBody LocationRequest request) {
         return locationService.createLocation(request);
     }
 
     @GetMapping
     @Operation(summary = "Get all locations")
-    public List<Location> getAllLocations() {
+    public List<LocationResponse> getAllLocations() {
         return locationService.getAllLocations();
     }
 
     @GetMapping("/search")
     @Operation(summary = "Search locations by keyword")
-    public List<Location> searchLocations(@RequestParam String keyword) {
+    public List<LocationResponse> searchLocations(@RequestParam String keyword) {
         return locationService.searchLocations(keyword);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get one location by id")
-    public Location getLocationById(@PathVariable UUID id) {
+    public LocationResponse getLocationById(@PathVariable UUID id) {
         return locationService.getLocationById(id);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a location")
-    public Location updateLocation(@PathVariable UUID id, @RequestBody LocationRequest request) {
+    public LocationResponse updateLocation(@PathVariable UUID id, @RequestBody LocationRequest request) {
         return locationService.updateLocation(id, request);
     }
 

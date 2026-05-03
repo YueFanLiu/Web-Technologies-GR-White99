@@ -2,6 +2,7 @@ package fr.isep.projectweb.model.service;
 
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dto.request.LocationRequest;
+import fr.isep.projectweb.model.dto.response.LocationResponse;
 import fr.isep.projectweb.model.entity.Location;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,7 @@ public class LocationService {
         this.locationDAO = locationDAO;
     }
 
-    public Location createLocation(LocationRequest request) {
+    public LocationResponse createLocation(LocationRequest request) {
         Location location = new Location();
         location.setName(request.getName());
         location.setDescription(request.getDescription());
@@ -32,27 +33,33 @@ public class LocationService {
         location.setLatitude(request.getLatitude());
         location.setLongitude(request.getLongitude());
 
-        return locationDAO.save(location);
+        return ResponseMapper.toLocationResponse(locationDAO.save(location));
     }
 
-    public List<Location> getAllLocations() {
-        return locationDAO.findAll();
+    public List<LocationResponse> getAllLocations() {
+        return locationDAO.findAll()
+                .stream()
+                .map(ResponseMapper::toLocationResponse)
+                .toList();
     }
 
-    public List<Location> searchLocations(String keyword) {
+    public List<LocationResponse> searchLocations(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Keyword must not be blank");
         }
 
         String normalizedKeyword = keyword.trim();
-        return locationDAO.searchByKeyword(normalizedKeyword, PageRequest.of(0, SEARCH_RESULT_LIMIT));
+        return locationDAO.searchByKeyword(normalizedKeyword, PageRequest.of(0, SEARCH_RESULT_LIMIT))
+                .stream()
+                .map(ResponseMapper::toLocationResponse)
+                .toList();
     }
 
-    public Location getLocationById(UUID id) {
-        return findLocationById(id);
+    public LocationResponse getLocationById(UUID id) {
+        return ResponseMapper.toLocationResponse(findLocationById(id));
     }
 
-    public Location updateLocation(UUID id, LocationRequest request) {
+    public LocationResponse updateLocation(UUID id, LocationRequest request) {
         Location location = findLocationById(id);
         location.setName(request.getName());
         location.setDescription(request.getDescription());
@@ -62,7 +69,7 @@ public class LocationService {
         location.setLatitude(request.getLatitude());
         location.setLongitude(request.getLongitude());
 
-        return locationDAO.save(location);
+        return ResponseMapper.toLocationResponse(locationDAO.save(location));
     }
 
     public void deleteLocation(UUID id) {

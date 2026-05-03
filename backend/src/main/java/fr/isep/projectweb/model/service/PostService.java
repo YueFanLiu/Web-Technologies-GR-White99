@@ -4,12 +4,13 @@ import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dao.PostRepository;
 import fr.isep.projectweb.model.dto.request.PostRequest;
+import fr.isep.projectweb.model.dto.response.PostResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.Post;
-import fr.isep.projectweb.model.entity.User;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,52 +25,72 @@ public class PostService {
     private final PostRepository postRepository;
     private final LocationDAO locationDAO;
     private final EventRepository eventRepository;
+    private final CurrentUserService currentUserService;
 
-    public PostService(PostRepository postRepository, LocationDAO locationDAO, EventRepository eventRepository) {
+    public PostService(PostRepository postRepository,
+                       LocationDAO locationDAO,
+                       EventRepository eventRepository,
+                       CurrentUserService currentUserService) {
         this.postRepository = postRepository;
         this.locationDAO = locationDAO;
         this.eventRepository = eventRepository;
+        this.currentUserService = currentUserService;
     }
 
-    public Post createPost(PostRequest request, User user) {
+    public PostResponse createPost(PostRequest request, Jwt jwt) {
         Post post = new Post();
-        post.setUser(user);
+        post.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(post, request);
-        return postRepository.save(post);
+        return ResponseMapper.toPostResponse(postRepository.save(post));
     }
 
-    public List<Post> getAllPosts() {
-        return postRepository.findAll();
+    public List<PostResponse> getAllPosts() {
+        return postRepository.findAll()
+                .stream()
+                .map(ResponseMapper::toPostResponse)
+                .toList();
     }
 
-    public List<Post> getPostsByUserId(UUID userId) {
-        return postRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public List<PostResponse> getPostsByUserId(UUID userId) {
+        return postRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(ResponseMapper::toPostResponse)
+                .toList();
     }
 
-    public List<Post> getPostsByLocationId(UUID locationId) {
-        return postRepository.findByLocationIdOrderByCreatedAtDesc(locationId);
+    public List<PostResponse> getPostsByLocationId(UUID locationId) {
+        return postRepository.findByLocationIdOrderByCreatedAtDesc(locationId)
+                .stream()
+                .map(ResponseMapper::toPostResponse)
+                .toList();
     }
 
-    public List<Post> getPostsByEventId(UUID eventId) {
-        return postRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+    public List<PostResponse> getPostsByEventId(UUID eventId) {
+        return postRepository.findByEventIdOrderByCreatedAtDesc(eventId)
+                .stream()
+                .map(ResponseMapper::toPostResponse)
+                .toList();
     }
 
-    public List<Post> searchPosts(String keyword) {
+    public List<PostResponse> searchPosts(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Keyword must not be blank");
         }
 
-        return postRepository.searchByKeyword(keyword.trim(), PageRequest.of(0, SEARCH_RESULT_LIMIT));
+        return postRepository.searchByKeyword(keyword.trim(), PageRequest.of(0, SEARCH_RESULT_LIMIT))
+                .stream()
+                .map(ResponseMapper::toPostResponse)
+                .toList();
     }
 
-    public Post getPostById(UUID id) {
-        return findPostById(id);
+    public PostResponse getPostById(UUID id) {
+        return ResponseMapper.toPostResponse(findPostById(id));
     }
 
-    public Post updatePost(UUID id, PostRequest request) {
+    public PostResponse updatePost(UUID id, PostRequest request) {
         Post post = findPostById(id);
         applyRequest(post, request);
-        return postRepository.save(post);
+        return ResponseMapper.toPostResponse(postRepository.save(post));
     }
 
     public void deletePost(UUID id) {

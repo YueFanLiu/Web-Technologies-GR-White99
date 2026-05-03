@@ -1,7 +1,7 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.ImageRequest;
-import fr.isep.projectweb.model.entity.LocationImage;
+import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.service.LocationImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,13 +30,13 @@ public class LocationImageController {
 
     @GetMapping
     @Operation(summary = "Get all images for a location")
-    public List<LocationImage> getLocationImages(@PathVariable UUID locationId) {
+    public List<ImageResponse> getLocationImages(@PathVariable UUID locationId) {
         return locationImageService.getByLocationId(locationId);
     }
 
     @PostMapping
     @Operation(summary = "Add an image to a location")
-    public LocationImage createLocationImage(@PathVariable UUID locationId, @RequestBody ImageRequest request) {
+    public ImageResponse createLocationImage(@PathVariable UUID locationId, @RequestBody ImageRequest request) {
         return locationImageService.create(locationId, request);
     }
 

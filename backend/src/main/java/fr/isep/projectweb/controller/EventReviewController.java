@@ -1,13 +1,13 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.ReviewRequest;
-import fr.isep.projectweb.model.entity.EventReview;
-import fr.isep.projectweb.model.entity.User;
+import fr.isep.projectweb.model.dto.response.ReviewResponse;
 import fr.isep.projectweb.model.service.EventReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,23 +33,23 @@ public class EventReviewController {
 
     @GetMapping
     @Operation(summary = "Get all reviews for an event")
-    public List<EventReview> getEventReviews(@PathVariable UUID eventId) {
+    public List<ReviewResponse> getEventReviews(@PathVariable UUID eventId) {
         return eventReviewService.getByEventId(eventId);
     }
 
     @PostMapping
     @Operation(summary = "Add a review to an event")
-    public EventReview createEventReview(@PathVariable UUID eventId,
-                                         @RequestBody ReviewRequest request,
-                                         @AuthenticationPrincipal User user) {
-        return eventReviewService.create(eventId, request, user);
+    public ReviewResponse createEventReview(@PathVariable UUID eventId,
+                                            @RequestBody ReviewRequest request,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        return eventReviewService.create(eventId, request, jwt);
     }
 
     @PutMapping("/{reviewId}")
     @Operation(summary = "Update a review for an event")
-    public EventReview updateEventReview(@PathVariable UUID eventId,
-                                         @PathVariable UUID reviewId,
-                                         @RequestBody ReviewRequest request) {
+    public ReviewResponse updateEventReview(@PathVariable UUID eventId,
+                                            @PathVariable UUID reviewId,
+                                            @RequestBody ReviewRequest request) {
         return eventReviewService.update(eventId, reviewId, request);
     }
 

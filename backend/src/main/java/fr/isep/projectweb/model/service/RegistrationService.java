@@ -3,10 +3,11 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.RegistrationRepository;
 import fr.isep.projectweb.model.dto.request.RegistrationRequest;
+import fr.isep.projectweb.model.dto.response.RegistrationResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Registration;
-import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -18,39 +19,52 @@ public class RegistrationService {
 
     private final RegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
+    private final CurrentUserService currentUserService;
 
-    public RegistrationService(RegistrationRepository registrationRepository, EventRepository eventRepository) {
+    public RegistrationService(RegistrationRepository registrationRepository,
+                               EventRepository eventRepository,
+                               CurrentUserService currentUserService) {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
+        this.currentUserService = currentUserService;
     }
 
-    public Registration createRegistration(RegistrationRequest request, User user) {
+    public RegistrationResponse createRegistration(RegistrationRequest request, Jwt jwt) {
         Registration registration = new Registration();
-        registration.setUser(user);
+        registration.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(registration, request);
-        return registrationRepository.save(registration);
+        return ResponseMapper.toRegistrationResponse(registrationRepository.save(registration));
     }
 
-    public List<Registration> getAllRegistrations() {
-        return registrationRepository.findAll();
+    public List<RegistrationResponse> getAllRegistrations() {
+        return registrationRepository.findAll()
+                .stream()
+                .map(ResponseMapper::toRegistrationResponse)
+                .toList();
     }
 
-    public List<Registration> getRegistrationsByEventId(UUID eventId) {
-        return registrationRepository.findByEventIdOrderByRegisteredAtDesc(eventId);
+    public List<RegistrationResponse> getRegistrationsByEventId(UUID eventId) {
+        return registrationRepository.findByEventIdOrderByRegisteredAtDesc(eventId)
+                .stream()
+                .map(ResponseMapper::toRegistrationResponse)
+                .toList();
     }
 
-    public List<Registration> getRegistrationsByUserId(UUID userId) {
-        return registrationRepository.findByUserIdOrderByRegisteredAtDesc(userId);
+    public List<RegistrationResponse> getRegistrationsByUserId(UUID userId) {
+        return registrationRepository.findByUserIdOrderByRegisteredAtDesc(userId)
+                .stream()
+                .map(ResponseMapper::toRegistrationResponse)
+                .toList();
     }
 
-    public Registration getRegistrationById(UUID id) {
-        return findRegistrationById(id);
+    public RegistrationResponse getRegistrationById(UUID id) {
+        return ResponseMapper.toRegistrationResponse(findRegistrationById(id));
     }
 
-    public Registration updateRegistration(UUID id, RegistrationRequest request) {
+    public RegistrationResponse updateRegistration(UUID id, RegistrationRequest request) {
         Registration registration = findRegistrationById(id);
         applyRequest(registration, request);
-        return registrationRepository.save(registration);
+        return ResponseMapper.toRegistrationResponse(registrationRepository.save(registration));
     }
 
     public void deleteRegistration(UUID id) {

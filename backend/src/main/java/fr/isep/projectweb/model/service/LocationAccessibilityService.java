@@ -3,6 +3,7 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.LocationAccessibilityRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dto.request.LocationAccessibilityRequest;
+import fr.isep.projectweb.model.dto.response.LocationAccessibilityResponse;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.LocationAccessibility;
 import org.springframework.http.HttpStatus;
@@ -23,13 +24,14 @@ public class LocationAccessibilityService {
         this.locationDAO = locationDAO;
     }
 
-    public LocationAccessibility getByLocationId(UUID locationId) {
+    public LocationAccessibilityResponse getByLocationId(UUID locationId) {
         ensureLocationExists(locationId);
         return locationAccessibilityRepository.findByLocationId(locationId)
+                .map(ResponseMapper::toLocationAccessibilityResponse)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location accessibility not found"));
     }
 
-    public LocationAccessibility create(UUID locationId, LocationAccessibilityRequest request) {
+    public LocationAccessibilityResponse create(UUID locationId, LocationAccessibilityRequest request) {
         Location location = findLocation(locationId);
 
         if (locationAccessibilityRepository.findByLocationId(locationId).isPresent()) {
@@ -39,15 +41,15 @@ public class LocationAccessibilityService {
         LocationAccessibility accessibility = new LocationAccessibility();
         accessibility.setLocation(location);
         applyRequest(accessibility, request);
-        return locationAccessibilityRepository.save(accessibility);
+        return ResponseMapper.toLocationAccessibilityResponse(locationAccessibilityRepository.save(accessibility));
     }
 
-    public LocationAccessibility update(UUID locationId, LocationAccessibilityRequest request) {
+    public LocationAccessibilityResponse update(UUID locationId, LocationAccessibilityRequest request) {
         LocationAccessibility accessibility = locationAccessibilityRepository.findByLocationId(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location accessibility not found"));
 
         applyRequest(accessibility, request);
-        return locationAccessibilityRepository.save(accessibility);
+        return ResponseMapper.toLocationAccessibilityResponse(locationAccessibilityRepository.save(accessibility));
     }
 
     public void delete(UUID locationId) {

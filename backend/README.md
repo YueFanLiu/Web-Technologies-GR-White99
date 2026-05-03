@@ -145,7 +145,7 @@ mvnw.cmd spring-boot:run
 ### 3. Access the API
 
 ```
-http://localhost:9191
+http://localhost:9192
 ```
 
 ---
@@ -173,7 +173,7 @@ The frontend is located in the `/frontend` directory.
 The frontend communicates with the backend via HTTP requests:
 
 ```
-http://localhost:9191/api/...
+http://localhost:9192/api/...
 ```
 
 ---
@@ -202,4 +202,3 @@ http://localhost:9191/api/...
 ##  License
 
 This project is developed for educational purposes.
-

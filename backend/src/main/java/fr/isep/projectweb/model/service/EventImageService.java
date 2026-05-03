@@ -3,6 +3,7 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dto.request.ImageRequest;
+import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import org.springframework.http.HttpStatus;
@@ -23,18 +24,21 @@ public class EventImageService {
         this.eventRepository = eventRepository;
     }
 
-    public List<EventImage> getByEventId(UUID eventId) {
+    public List<ImageResponse> getByEventId(UUID eventId) {
         findEvent(eventId);
-        return eventImageRepository.findByEventIdOrderByCreatedAtAsc(eventId);
+        return eventImageRepository.findByEventIdOrderByCreatedAtAsc(eventId)
+                .stream()
+                .map(ResponseMapper::toEventImageResponse)
+                .toList();
     }
 
-    public EventImage create(UUID eventId, ImageRequest request) {
+    public ImageResponse create(UUID eventId, ImageRequest request) {
         validateImageUrl(request.getImageUrl());
 
         EventImage image = new EventImage();
         image.setEvent(findEvent(eventId));
         image.setImageUrl(request.getImageUrl().trim());
-        return eventImageRepository.save(image);
+        return ResponseMapper.toEventImageResponse(eventImageRepository.save(image));
     }
 
     public void delete(UUID eventId, UUID imageId) {

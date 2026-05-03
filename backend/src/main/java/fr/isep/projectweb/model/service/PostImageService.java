@@ -3,6 +3,7 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.PostImageRepository;
 import fr.isep.projectweb.model.dao.PostRepository;
 import fr.isep.projectweb.model.dto.request.ImageRequest;
+import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.entity.Post;
 import fr.isep.projectweb.model.entity.PostImage;
 import org.springframework.http.HttpStatus;
@@ -23,18 +24,21 @@ public class PostImageService {
         this.postRepository = postRepository;
     }
 
-    public List<PostImage> getByPostId(UUID postId) {
+    public List<ImageResponse> getByPostId(UUID postId) {
         findPost(postId);
-        return postImageRepository.findByPostIdOrderByCreatedAtAsc(postId);
+        return postImageRepository.findByPostIdOrderByCreatedAtAsc(postId)
+                .stream()
+                .map(ResponseMapper::toPostImageResponse)
+                .toList();
     }
 
-    public PostImage create(UUID postId, ImageRequest request) {
+    public ImageResponse create(UUID postId, ImageRequest request) {
         validateImageUrl(request.getImageUrl());
 
         PostImage image = new PostImage();
         image.setPost(findPost(postId));
         image.setImageUrl(request.getImageUrl().trim());
-        return postImageRepository.save(image);
+        return ResponseMapper.toPostImageResponse(postImageRepository.save(image));
     }
 
     public void delete(UUID postId, UUID imageId) {

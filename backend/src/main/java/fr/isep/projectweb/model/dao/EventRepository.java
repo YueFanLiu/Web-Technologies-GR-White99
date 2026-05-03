@@ -21,11 +21,11 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             SELECT e
             FROM Event e
             WHERE (:keyword IS NULL
-                    OR LOWER(COALESCE(e.title, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                    OR LOWER(COALESCE(e.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                    OR LOWER(COALESCE(e.category, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
-              AND (:category IS NULL OR LOWER(e.category) = LOWER(:category))
-              AND (:status IS NULL OR LOWER(e.status) = LOWER(:status))
+                    OR LOWER(COALESCE(e.title, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(e.description, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(e.category, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
+              AND (:category IS NULL OR LOWER(e.category) = LOWER(CAST(:category AS string)))
+              AND (:status IS NULL OR LOWER(e.status) = LOWER(CAST(:status AS string)))
               AND (:locationId IS NULL OR e.location.id = :locationId)
               AND (:upcomingOnly = false OR e.endTime >= CURRENT_TIMESTAMP)
             ORDER BY e.startTime ASC

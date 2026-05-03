@@ -1,7 +1,7 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.LocationAccessibilityRequest;
-import fr.isep.projectweb.model.entity.LocationAccessibility;
+import fr.isep.projectweb.model.dto.response.LocationAccessibilityResponse;
 import fr.isep.projectweb.model.service.LocationAccessibilityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,21 +30,21 @@ public class LocationAccessibilityController {
 
     @GetMapping
     @Operation(summary = "Get accessibility information for a location")
-    public LocationAccessibility getAccessibility(@PathVariable UUID locationId) {
+    public LocationAccessibilityResponse getAccessibility(@PathVariable UUID locationId) {
         return locationAccessibilityService.getByLocationId(locationId);
     }
 
     @PostMapping
     @Operation(summary = "Create accessibility information for a location")
-    public LocationAccessibility createAccessibility(@PathVariable UUID locationId,
-                                                     @RequestBody LocationAccessibilityRequest request) {
+    public LocationAccessibilityResponse createAccessibility(@PathVariable UUID locationId,
+                                                             @RequestBody LocationAccessibilityRequest request) {
         return locationAccessibilityService.create(locationId, request);
     }
 
     @PutMapping
     @Operation(summary = "Update accessibility information for a location")
-    public LocationAccessibility updateAccessibility(@PathVariable UUID locationId,
-                                                     @RequestBody LocationAccessibilityRequest request) {
+    public LocationAccessibilityResponse updateAccessibility(@PathVariable UUID locationId,
+                                                             @RequestBody LocationAccessibilityRequest request) {
         return locationAccessibilityService.update(locationId, request);
     }
 

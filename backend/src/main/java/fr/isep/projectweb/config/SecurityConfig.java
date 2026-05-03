@@ -16,11 +16,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/locations/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/api/locations/**",
                                 "/signup.html",
                                 "/login.html",
                                 "/me.html",

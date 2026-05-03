@@ -1,13 +1,13 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.ReviewRequest;
-import fr.isep.projectweb.model.entity.PostReview;
-import fr.isep.projectweb.model.entity.User;
+import fr.isep.projectweb.model.dto.response.ReviewResponse;
 import fr.isep.projectweb.model.service.PostReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,23 +33,23 @@ public class PostReviewController {
 
     @GetMapping
     @Operation(summary = "Get all reviews for a post")
-    public List<PostReview> getPostReviews(@PathVariable UUID postId) {
+    public List<ReviewResponse> getPostReviews(@PathVariable UUID postId) {
         return postReviewService.getByPostId(postId);
     }
 
     @PostMapping
     @Operation(summary = "Add a review to a post")
-    public PostReview createPostReview(@PathVariable UUID postId,
-                                       @RequestBody ReviewRequest request,
-                                       @AuthenticationPrincipal User user) {
-        return postReviewService.create(postId, request, user);
+    public ReviewResponse createPostReview(@PathVariable UUID postId,
+                                           @RequestBody ReviewRequest request,
+                                           @AuthenticationPrincipal Jwt jwt) {
+        return postReviewService.create(postId, request, jwt);
     }
 
     @PutMapping("/{reviewId}")
     @Operation(summary = "Update a review for a post")
-    public PostReview updatePostReview(@PathVariable UUID postId,
-                                       @PathVariable UUID reviewId,
-                                       @RequestBody ReviewRequest request) {
+    public ReviewResponse updatePostReview(@PathVariable UUID postId,
+                                           @PathVariable UUID reviewId,
+                                           @RequestBody ReviewRequest request) {
         return postReviewService.update(postId, reviewId, request);
     }
 

@@ -3,10 +3,11 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
 import fr.isep.projectweb.model.dto.request.ReviewRequest;
+import fr.isep.projectweb.model.dto.response.ReviewResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventReview;
-import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -18,29 +19,36 @@ public class EventReviewService {
 
     private final EventReviewRepository eventReviewRepository;
     private final EventRepository eventRepository;
+    private final CurrentUserService currentUserService;
 
-    public EventReviewService(EventReviewRepository eventReviewRepository, EventRepository eventRepository) {
+    public EventReviewService(EventReviewRepository eventReviewRepository,
+                              EventRepository eventRepository,
+                              CurrentUserService currentUserService) {
         this.eventReviewRepository = eventReviewRepository;
         this.eventRepository = eventRepository;
+        this.currentUserService = currentUserService;
     }
 
-    public List<EventReview> getByEventId(UUID eventId) {
+    public List<ReviewResponse> getByEventId(UUID eventId) {
         findEvent(eventId);
-        return eventReviewRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+        return eventReviewRepository.findByEventIdOrderByCreatedAtDesc(eventId)
+                .stream()
+                .map(ResponseMapper::toEventReviewResponse)
+                .toList();
     }
 
-    public EventReview create(UUID eventId, ReviewRequest request, User user) {
+    public ReviewResponse create(UUID eventId, ReviewRequest request, Jwt jwt) {
         EventReview review = new EventReview();
         review.setEvent(findEvent(eventId));
-        review.setUser(user);
+        review.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(review, request);
-        return eventReviewRepository.save(review);
+        return ResponseMapper.toEventReviewResponse(eventReviewRepository.save(review));
     }
 
-    public EventReview update(UUID eventId, UUID reviewId, ReviewRequest request) {
+    public ReviewResponse update(UUID eventId, UUID reviewId, ReviewRequest request) {
         EventReview review = findReview(eventId, reviewId);
         applyRequest(review, request);
-        return eventReviewRepository.save(review);
+        return ResponseMapper.toEventReviewResponse(eventReviewRepository.save(review));
     }
 
     public void delete(UUID eventId, UUID reviewId) {
