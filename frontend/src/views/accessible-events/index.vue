@@ -80,7 +80,7 @@
           </div>
 
           <!-- 活动卡片列表（模拟数据） -->
-          <div class="activity-list">
+          <div class="activity-list" v-loading="loading">
             <div class="activity-card" v-for="(item, index) in activityList" :key="index">
               <div class="card-image">
                 <img :src="item.image" alt="activity" />
@@ -97,13 +97,14 @@
 
                 <div class="card-footer">
                   <div class="rating">
-                    <el-rate v-model="item.rating" disabled show-score text-color="#ff9900" score-template="4.8"></el-rate>
+                    <el-rate v-model="item.rating" disabled show-score text-color="#ff9900" :score-template="String(item.rating || 0)"></el-rate>
                     <span>{{ item.reviews }} reviews</span>
                   </div>
                   <el-button type="primary" @click="goToDetails(item)">View Details</el-button>
                 </div>
               </div>
             </div>
+            <el-empty v-if="!loading && activityList.length === 0" description="No events found" />
           </div>
         </el-main>
 
@@ -145,12 +146,17 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import {useRouter} from 'vue-router'
+import { onMounted, ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { listEvents } from '@/api/events'
 
 const router = useRouter()
-const goToDetails = (item) =>{
-  router.push('/product/eventDetails')
+const goToDetails = (item) => {
+  router.push({
+    path: '/product/eventDetails',
+    query: item.id ? { id: item.id } : {}
+  })
 }
 // 筛选表单
 const form = reactive({
@@ -161,63 +167,88 @@ const form = reactive({
 })
 
 // 中间活动列表模拟数据
-const activityList = ref([
-  {
-    image: 'https://picsum.photos/id/102/200/150',
-    title: 'Adventure Playground Day',
-    recommended: true,
-    date: 'Saturday, April 25, 2026',
-    time: '10:00 AM - 2:00 PM',
-    locationName: 'Greenwood Park',
-    locationAddress: '123 Park Lane, Cityville',
-    rating: 4.8,
-    reviews: 18
-  },
-  {
-    image: 'https://picsum.photos/id/103/200/150',
-    title: 'Music & Fun Meetup',
-    recommended: false,
-    date: 'Sunday, April 26, 2026',
-    time: '3:00 PM',
-    locationName: 'Harmony Community Center',
-    locationAddress: '456 Oak St, Cityville',
-    rating: 4.7,
-    reviews: 12
-  },
-  {
-    image: 'https://picsum.photos/id/104/200/150',
-    title: 'Inclusive Family Picnic',
-    recommended: false,
-    date: 'Saturday, May 2, 2026',
-    time: '11:00 AM - 1:00 PM',
-    locationName: 'Meadow View Park',
-    locationAddress: '789 River Rd, Cityville',
-    rating: 4.5,
-    reviews: 8
-  }
-])
+const loading = ref(false)
+const activityList = ref([])
 
 // 右侧热门活动模拟数据
-const popularEvents = ref([
-  {
-    image: 'https://picsum.photos/id/102/80/60',
-    title: 'Adventure Playground Day',
-    date: 'Saturday, April 25, 2026',
-    time: '10:00 AM - 2:00 PM'
-  },
-  {
-    image: 'https://picsum.photos/id/104/80/60',
-    title: 'Inclusive Family Picnic',
-    date: 'Saturday, May 2, 2026',
-    time: '11:00 AM - 1:00 PM'
-  },
-  {
-    image: 'https://picsum.photos/id/105/80/60',
-    title: 'Sensory-Friendly Art Workshop',
-    date: 'Sunday, May 3, 2026',
-    time: '2:00 PM - 4:00 PM'
+const popularEvents = ref([])
+
+function formatDate(value) {
+  if (!value) return 'Date TBA'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Date TBA'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+function formatTime(startValue, endValue) {
+  if (!startValue) return 'Time TBA'
+  const start = new Date(startValue)
+  if (Number.isNaN(start.getTime())) return 'Time TBA'
+
+  const options = {
+    hour: 'numeric',
+    minute: '2-digit'
   }
-])
+  const startText = start.toLocaleTimeString('en-US', options)
+
+  if (!endValue) return startText
+  const end = new Date(endValue)
+  if (Number.isNaN(end.getTime())) return startText
+  return `${startText} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function fallbackImage(id, width = 220, height = 150) {
+  const seed = encodeURIComponent(id || 'event')
+  return `https://picsum.photos/seed/${seed}/${width}/${height}`
+}
+
+function mapEvent(event, index) {
+  const location = event.location || {}
+  const image = event.coverImageUrl || event.imageUrls?.[0] || fallbackImage(event.id || index)
+
+  return {
+    id: event.id,
+    image,
+    title: event.title || 'Untitled event',
+    recommended: index === 0,
+    date: formatDate(event.startTime),
+    time: formatTime(event.startTime, event.endTime),
+    locationName: location.name || (event.isVirtual ? 'Online event' : 'Location TBA'),
+    locationAddress: [location.address, location.city, location.country].filter(Boolean).join(', ') || 'Address TBA',
+    rating: Number(event.averageRating || 0),
+    reviews: Number(event.reviewCount || 0)
+  }
+}
+
+async function loadEvents() {
+  loading.value = true
+  try {
+    const events = await listEvents({
+      upcomingOnly: true,
+      limit: 20
+    })
+    const mappedEvents = Array.isArray(events) ? events.map(mapEvent) : []
+    activityList.value = mappedEvents
+    popularEvents.value = mappedEvents.slice(0, 3).map(item => ({
+      image: item.image,
+      title: item.title,
+      date: item.date,
+      time: item.time
+    }))
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load events')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadEvents)
 </script>
 
 <style scoped lang="scss">

@@ -110,12 +110,12 @@ service.interceptors.response.use(res => {
   },
   error => {
     console.log('err' + error)
-    let { message } = error
+    let message = error?.response?.data?.message || error?.response?.data?.msg || error?.message
     if (message == "Network Error") {
       message = "后端接口连接异常"
-    } else if (message.includes("timeout")) {
+    } else if (message && message.includes("timeout")) {
       message = "系统接口请求超时"
-    } else if (message.includes("Request failed with status code")) {
+    } else if (message && message.includes("Request failed with status code")) {
       message = "系统接口" + message.slice(-3) + "异常"
     }
     ElMessage({ message: message, type: 'error', duration: 5 * 1000 })

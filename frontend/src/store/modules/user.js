@@ -1,6 +1,6 @@
 import router from '@/router'
 import { ElMessageBox, } from 'element-plus'
-import { login, logout, getInfo } from '@/api/login'
+import { login, getInfo } from '@/api/login'
 import { getToken, setToken, removeToken } from '@/utils/auth'
 import { isHttp, isEmpty } from "@/utils/validate"
 import defAva from '@/assets/images/profile.jpg'
@@ -72,16 +72,16 @@ const useUserStore = defineStore(
       },
       // 退出系统
       logOut() {
-        return new Promise((resolve, reject) => {
-          logout(this.token).then(() => {
-            this.token = ''
-            this.roles = []
-            this.permissions = []
-            removeToken()
-            resolve()
-          }).catch(error => {
-            reject(error)
-          })
+        return new Promise((resolve) => {
+          this.token = ''
+          this.roles = []
+          this.permissions = []
+          this.id = ''
+          this.name = ''
+          this.nickName = ''
+          this.avatar = ''
+          removeToken()
+          resolve()
         })
       }
     }

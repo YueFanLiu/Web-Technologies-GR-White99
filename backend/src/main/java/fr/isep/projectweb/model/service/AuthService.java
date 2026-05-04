@@ -76,6 +76,32 @@ public class AuthService {
         return response;
     }
 
+    public AuthResponse verifyEmail(String tokenHash, String type) {
+        String normalizedTokenHash = normalize(tokenHash);
+        if (normalizedTokenHash == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token hash must not be blank");
+        }
+
+        String normalizedType = normalize(type);
+        if (normalizedType == null) {
+            normalizedType = "signup";
+        }
+
+        Map<String, Object> payload = supabaseAuthService.verifyEmail(normalizedTokenHash, normalizedType);
+        String accessToken = requiredString(payload.get("access_token"), "Supabase verify response is missing access_token");
+
+        Jwt jwt = jwtDecoder.decode(accessToken);
+        currentUserService.getOrCreateCurrentUser(jwt);
+
+        AuthResponse response = baseSuccessResponse("AUTHENTICATED", "Email verified successfully");
+        response.setEmail(jwt.getClaimAsString("email"));
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(optionalString(payload.get("refresh_token")));
+        response.setExpiresIn(optionalInteger(payload.get("expires_in")));
+        response.setUser(buildUserSummary(payload.get("user"), jwt));
+        return response;
+    }
+
     private AuthResponse toSignupResponse(Map<String, Object> payload, String email) {
         AuthResponse response;
         String accessToken = optionalString(payload.get("access_token"));
