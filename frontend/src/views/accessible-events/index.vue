@@ -71,6 +71,10 @@
           <div class="activity-header">
             <h3>Activity List</h3>
             <div class="header-controls">
+              <el-button type="success" icon="el-icon-plus" @click="openCreateDialog">
+                Create Activity
+              </el-button>
+
               <el-button-group>
                 <el-button icon="el-icon-arrow-left" size="small"></el-button>
                 <el-button size="small">Today</el-button>
@@ -142,12 +146,56 @@
       </el-container>
     </el-container>
   </div>
+
+  <el-dialog v-model="dialogVisible" title="Create New Activity" width="500px">
+    <el-form :model="eventForm" label-width="120px">
+      <el-form-item label="Title">
+        <el-input v-model="eventForm.title" placeholder="Please enter activity title" />
+      </el-form-item>
+
+      <el-form-item label="Description">
+        <el-input v-model="eventForm.description" type="textarea" rows="3" />
+      </el-form-item>
+
+      <el-form-item label="Category">
+        <el-select v-model="eventForm.category" placeholder="select category">
+          <el-option label="concert" value="concert" />
+          <el-option label="workshop" value="workshop" />
+          <el-option label="outdoor" value="outdoor" />
+        </el-select>
+      </el-form-item>
+
+      <el-form-item label="Start Time">
+        <el-input v-model="eventForm.startTime" placeholder="2025-12-25T14:00:00" />
+      </el-form-item>
+      <el-form-item label="End Time">
+        <el-input v-model="eventForm.endTime" placeholder="2025-12-25T18:00:00" />
+      </el-form-item>
+
+      <el-form-item label="Capacity">
+        <el-input v-model="eventForm.capacity" type="number" />
+      </el-form-item>
+      <el-form-item label="Price">
+        <el-input v-model="eventForm.price" type="number" />
+      </el-form-item>
+
+      <el-form-item label="Location ID">
+        <el-input v-model="eventForm.locationId" placeholder="UUID" />
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <el-button @click="dialogVisible = false">Cancel</el-button>
+      <el-button type="primary" @click="handleCreateEvent">Confirm Create</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import {useRouter} from 'vue-router'
-
+import { listEvent,createEvent } from '@/api/events'
+import {ElMessage} from 'element-plus'
 const router = useRouter()
 const goToDetails = (item) =>{
   router.push('/product/eventDetails')
@@ -161,63 +209,79 @@ const form = reactive({
 })
 
 // 中间活动列表模拟数据
-const activityList = ref([
-  {
-    image: 'https://picsum.photos/id/102/200/150',
-    title: 'Adventure Playground Day',
-    recommended: true,
-    date: 'Saturday, April 25, 2026',
-    time: '10:00 AM - 2:00 PM',
-    locationName: 'Greenwood Park',
-    locationAddress: '123 Park Lane, Cityville',
-    rating: 4.8,
-    reviews: 18
-  },
-  {
-    image: 'https://picsum.photos/id/103/200/150',
-    title: 'Music & Fun Meetup',
-    recommended: false,
-    date: 'Sunday, April 26, 2026',
-    time: '3:00 PM',
-    locationName: 'Harmony Community Center',
-    locationAddress: '456 Oak St, Cityville',
-    rating: 4.7,
-    reviews: 12
-  },
-  {
-    image: 'https://picsum.photos/id/104/200/150',
-    title: 'Inclusive Family Picnic',
-    recommended: false,
-    date: 'Saturday, May 2, 2026',
-    time: '11:00 AM - 1:00 PM',
-    locationName: 'Meadow View Park',
-    locationAddress: '789 River Rd, Cityville',
-    rating: 4.5,
-    reviews: 8
-  }
-])
+const activityList = ref([])
 
 // 右侧热门活动模拟数据
-const popularEvents = ref([
-  {
-    image: 'https://picsum.photos/id/102/80/60',
-    title: 'Adventure Playground Day',
-    date: 'Saturday, April 25, 2026',
-    time: '10:00 AM - 2:00 PM'
-  },
-  {
-    image: 'https://picsum.photos/id/104/80/60',
-    title: 'Inclusive Family Picnic',
-    date: 'Saturday, May 2, 2026',
-    time: '11:00 AM - 1:00 PM'
-  },
-  {
-    image: 'https://picsum.photos/id/105/80/60',
-    title: 'Sensory-Friendly Art Workshop',
-    date: 'Sunday, May 3, 2026',
-    time: '2:00 PM - 4:00 PM'
+const popularEvents = ref([])
+const loading = ref(false)
+
+const dialogVisible = ref(false)
+const eventForm = reactive({
+  title: '',
+  description: '', 
+  category: '',
+  startTime: '',
+  endTime: '',
+  capacity: 10,
+  price: 0,
+  isVirtual: false,
+  status: 'PUBLISHED',
+  locationId: ''
+})
+const openCreateDialog = () => {
+  dialogVisible.value = true
+}
+const handleCreateEvent = async () => {
+  try {
+      const postData = {
+        title: eventForm.title,
+        description: eventForm.description,
+        category: eventForm.category,
+        startTime: eventForm.startTime,
+        endTime: eventForm.endTime,
+        capacity: eventForm.capacity,
+        price: eventForm.price,
+        isVirtual: false,
+        status: "PUBLISHED",
+        locationId: eventForm.locationId
+      }
+    await createEvent(postData)
+    ElMessage.success('Activity created successfully!')
+    dialogVisible.value = false
+    fetchEvents()
+  } catch (error) {
+    console.error('Create failed:', error)
+    ElMessage.error('Creation failed')
   }
-])
+}
+
+const fetchEvents = async () => {
+  loading.value = true
+  try {
+    const params = {
+      location: form.location,
+      dateRange: form.dateRange,
+      activityType: form.activityType.join(','),
+      accessibility: form.accessibility.join(',')
+    }
+    
+    const response = await listEvent(params)
+    
+    if (response && response.data) {
+      const events = response.data.rows || response.data
+      activityList.value = transformEventData(events)
+      popularEvents.value = transformToPopularEvents(activityList.value.slice(0, 3))
+    }
+  } catch (error) {
+    console.error('error:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchEvents()
+})
 </script>
 
 <style scoped lang="scss">

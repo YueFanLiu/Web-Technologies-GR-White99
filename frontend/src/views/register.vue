@@ -48,7 +48,7 @@
             style="width:100%"
           >
             <el-option label="PARENT" value="PARENT" />
-
+            <el-option label="ORGANIZER" value="ORGANIZER" />
           </el-select>
         </el-form-item>
 

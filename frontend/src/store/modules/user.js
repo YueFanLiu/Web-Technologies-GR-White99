@@ -25,8 +25,8 @@ const useUserStore = defineStore(
 
         return new Promise((resolve, reject) => {
           login(userInfo).then(res => {
-            setToken(res.token)
-            this.token = res.token
+            setToken(res.accessToken)
+            this.token = res.accessToken
             resolve()
           }).catch(error => {
             reject(error)
