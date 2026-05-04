@@ -62,13 +62,31 @@ public class SupabaseAuthService {
         return post("/token?grant_type=password", payload);
     }
 
+    public Map<String, Object> forgotPassword(String email, String redirectTo) {
+        ensureConfigured();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("email", email);
+
+        String path = "/recover";
+        if (redirectTo != null && !redirectTo.isBlank()) {
+            path += "?redirect_to={redirectTo}";
+        }
+
+        return post(path, payload, redirectTo);
+    }
+
     private Map<String, Object> post(String path, Map<String, Object> payload) {
+        return post(path, payload, null);
+    }
+
+    private Map<String, Object> post(String path, Map<String, Object> payload, String redirectTo) {
         try {
-            return restClient.post()
-                    .uri(authBasePath + path)
-                    .body(payload)
-                    .retrieve()
-                    .body(MAP_TYPE);
+            RestClient.RequestBodyUriSpec request = restClient.post();
+            RestClient.RequestBodySpec bodySpec = redirectTo != null && !redirectTo.isBlank()
+                    ? request.uri(authBasePath + path, redirectTo)
+                    : request.uri(authBasePath + path);
+            return bodySpec.body(payload).retrieve().body(MAP_TYPE);
         } catch (RestClientResponseException exception) {
             Map<String, Object> errorBody = exception.getResponseBodyAs(MAP_TYPE);
             String message = firstNonBlank(

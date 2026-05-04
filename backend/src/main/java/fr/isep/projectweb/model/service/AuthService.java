@@ -1,6 +1,7 @@
 package fr.isep.projectweb.model.service;
 
 import fr.isep.projectweb.model.dto.request.LoginRequest;
+import fr.isep.projectweb.model.dto.request.ForgotPasswordRequest;
 import fr.isep.projectweb.model.dto.request.SignupRequest;
 import fr.isep.projectweb.model.dto.response.AuthResponse;
 import org.springframework.http.HttpStatus;
@@ -58,6 +59,20 @@ public class AuthService {
         response.setRefreshToken(optionalString(payload.get("refresh_token")));
         response.setExpiresIn(optionalInteger(payload.get("expires_in")));
         response.setUser(buildUserSummary(payload.get("user"), jwt));
+        return response;
+    }
+
+    public AuthResponse forgotPassword(ForgotPasswordRequest request) {
+        String email = normalizeAndValidateEmail(request.getEmail());
+        String redirectTo = normalizeOptionalUrl(request.getRedirectTo());
+
+        supabaseAuthService.forgotPassword(email, redirectTo);
+
+        AuthResponse response = baseSuccessResponse(
+                "PASSWORD_RESET_EMAIL_SENT",
+                "Password reset email sent"
+        );
+        response.setEmail(email);
         return response;
     }
 
@@ -201,6 +216,10 @@ public class AuthService {
         }
         String trimmed = value.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String normalizeOptionalUrl(String value) {
+        return normalize(value);
     }
 
     private String optionalString(Object value) {

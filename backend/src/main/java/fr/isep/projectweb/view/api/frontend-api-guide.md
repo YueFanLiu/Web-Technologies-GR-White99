@@ -194,6 +194,30 @@ Response body:
 }
 ```
 
+### POST /api/auth/forgot-password
+
+Public. Sends a Supabase password reset email. `redirectTo` is optional; when provided, Supabase uses it as the page opened from the reset email link.
+
+Request body:
+
+```json
+{
+  "email": "alice@example.com",
+  "redirectTo": "http://localhost:5173/reset-password"
+}
+```
+
+Response body:
+
+```json
+{
+  "success": true,
+  "status": "PASSWORD_RESET_EMAIL_SENT",
+  "message": "Password reset email sent",
+  "email": "alice@example.com"
+}
+```
+
 ## Current User
 
 ### GET /api/users/me

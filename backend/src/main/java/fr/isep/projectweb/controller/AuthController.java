@@ -1,5 +1,6 @@
 package fr.isep.projectweb.controller;
 
+import fr.isep.projectweb.model.dto.request.ForgotPasswordRequest;
 import fr.isep.projectweb.model.dto.request.LoginRequest;
 import fr.isep.projectweb.model.dto.request.SignupRequest;
 import fr.isep.projectweb.model.dto.response.AuthResponse;
@@ -55,6 +56,12 @@ public class AuthController {
     @Operation(summary = "Log in a user via backend-managed Supabase Auth")
     public AuthResponse login(@RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Send a Supabase password reset email")
+    public AuthResponse forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request);
     }
 
     @GetMapping("/debug")
