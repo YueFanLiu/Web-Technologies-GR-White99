@@ -8,6 +8,7 @@ import fr.isep.projectweb.model.entity.Post;
 import fr.isep.projectweb.model.entity.PostImage;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -18,10 +19,14 @@ public class PostImageService {
 
     private final PostImageRepository postImageRepository;
     private final PostRepository postRepository;
+    private final SupabaseStorageService supabaseStorageService;
 
-    public PostImageService(PostImageRepository postImageRepository, PostRepository postRepository) {
+    public PostImageService(PostImageRepository postImageRepository,
+                            PostRepository postRepository,
+                            SupabaseStorageService supabaseStorageService) {
         this.postImageRepository = postImageRepository;
         this.postRepository = postRepository;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     public List<ImageResponse> getByPostId(UUID postId) {
@@ -38,6 +43,16 @@ public class PostImageService {
         PostImage image = new PostImage();
         image.setPost(findPost(postId));
         image.setImageUrl(request.getImageUrl().trim());
+        return ResponseMapper.toPostImageResponse(postImageRepository.save(image));
+    }
+
+    public ImageResponse upload(UUID postId, MultipartFile file, String authorizationHeader) {
+        Post post = findPost(postId);
+        String imageUrl = supabaseStorageService.uploadPostImage(postId, file, authorizationHeader);
+
+        PostImage image = new PostImage();
+        image.setPost(post);
+        image.setImageUrl(imageUrl);
         return ResponseMapper.toPostImageResponse(postImageRepository.save(image));
     }
 

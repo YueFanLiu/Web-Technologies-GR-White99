@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -165,7 +166,7 @@ public class EventService {
         if (request.getCapacity() == null || request.getCapacity() < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Capacity must be at least 1");
         }
-        if (request.getPrice() != null && request.getPrice() < 0) {
+        if (request.getPrice() != null && request.getPrice().compareTo(BigDecimal.ZERO) < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Price must not be negative");
         }
         if (request.getLocationId() == null) {

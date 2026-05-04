@@ -6,7 +6,7 @@ Base URL in local development:
 http://localhost:9192
 ```
 
-All request and response bodies are JSON. For protected endpoints, add:
+Most request and response bodies are JSON. For protected JSON endpoints, add:
 
 ```http
 Authorization: Bearer <accessToken>
@@ -22,6 +22,9 @@ GET /api/posts/**
 ```
 
 Write endpoints generally need login.
+
+Image upload endpoints use `multipart/form-data` instead of JSON. Do not manually set the `Content-Type` header for `FormData`; the browser adds the boundary automatically.
+Only JPEG and PNG files are accepted. The backend rejects other image formats.
 
 ## Frontend Fetch Pattern
 
@@ -75,6 +78,9 @@ Important frontend rules:
 - `GET /api/events/**`, `GET /api/locations/**`, and `GET /api/posts/**` can be called without token.
 - Protected `GET` endpoints still need `Authorization`, for example `/api/users/me`, `/api/users/{id}`, `/api/registrations`, and `/api/auth/debug`.
 - `DELETE` endpoints return `204 No Content`, so the frontend must not call `res.json()` for successful delete responses.
+- Multipart image upload endpoints return JSON containing the Supabase public URL.
+- Image delete endpoints currently delete the database image record only. The public file object in Supabase Storage is not removed by the backend.
+- There is no `PUT` endpoint for event/location/post image records. To replace an image, delete the old image record and upload or add a new one.
 - Spring Security `401/403` responses may not always use the custom JSON error shape. The helper at the end of this document handles that.
 
 Error response shape:
@@ -202,6 +208,7 @@ Response body:
   "email": "alice@example.com",
   "fullName": "Alice Dupont",
   "phone": "+33123456789",
+  "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
   "role": "ORGANIZER",
   "createdAt": "2026-05-03T12:00:00",
   "updatedAt": "2026-05-03T12:00:00"
@@ -223,6 +230,48 @@ Request body:
 
 Response body: `UserProfileResponse`.
 
+### POST /api/users/me/avatar
+
+Protected. Uploads the current user's avatar to Supabase Storage under `images/userAvatar/{userId}/...`, saves the returned public URL in `users.photo`, and returns `UserProfileResponse`.
+
+Request body: `multipart/form-data`
+
+```text
+file=<image file>
+```
+
+Frontend example:
+
+```js
+const formData = new FormData();
+formData.append("file", file);
+
+const res = await fetch("http://localhost:9192/api/users/me/avatar", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${accessToken}`
+  },
+  body: formData
+});
+
+const profile = await res.json();
+```
+
+Response body:
+
+```json
+{
+  "id": "uuid",
+  "email": "alice@example.com",
+  "fullName": "Alice Dupont",
+  "phone": "+33123456789",
+  "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
+  "role": "ORGANIZER",
+  "createdAt": "2026-05-03T12:00:00",
+  "updatedAt": "2026-05-03T12:00:00"
+}
+```
+
 ### GET /api/users/{id}
 
 Protected.
@@ -233,6 +282,7 @@ Response body:
 {
   "id": "uuid",
   "fullName": "Alice Dupont",
+  "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
   "role": "ORGANIZER"
 }
 ```
@@ -377,9 +427,9 @@ Response body:
 ]
 ```
 
-### POST /api/events/{eventId}/images
+### POST /api/events/{eventId}/images JSON
 
-Protected.
+Protected. Adds an existing image URL without uploading a file.
 
 Request body:
 
@@ -391,9 +441,46 @@ Request body:
 
 Response body: `ImageResponse`.
 
+### POST /api/events/{eventId}/images multipart
+
+Protected. With `multipart/form-data`, uploads the file to Supabase Storage under `images/eventImages/{eventId}/...`, saves the public URL in `event_images.image_url`, and returns `ImageResponse`.
+
+Request body: `multipart/form-data`
+
+```text
+file=<image file>
+```
+
+Frontend example:
+
+```js
+const formData = new FormData();
+formData.append("file", file);
+
+const res = await fetch(`http://localhost:9192/api/events/${eventId}/images`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${accessToken}`
+  },
+  body: formData
+});
+
+const image = await res.json();
+```
+
+Response body:
+
+```json
+{
+  "id": "uuid",
+  "imageUrl": "https://project.supabase.co/storage/v1/object/public/images/eventImages/event-id/image.jpg",
+  "createdAt": "2026-05-03T12:00:00"
+}
+```
+
 ### DELETE /api/events/{eventId}/images/{imageId}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Deletes the image database record. Response body empty, status `204 No Content`.
 
 ## Event Reviews
 
@@ -517,9 +604,9 @@ Protected. Response body empty, status `204 No Content`.
 
 Public. Returns `ImageResponse[]`.
 
-### POST /api/locations/{locationId}/images
+### POST /api/locations/{locationId}/images JSON
 
-Protected.
+Protected. Adds an existing image URL without uploading a file.
 
 Request body:
 
@@ -531,9 +618,46 @@ Request body:
 
 Response body: `ImageResponse`.
 
+### POST /api/locations/{locationId}/images multipart
+
+Protected. With `multipart/form-data`, uploads the file to Supabase Storage under `images/locationImages/{locationId}/...`, saves the public URL in `location_images.image_url`, and returns `ImageResponse`.
+
+Request body: `multipart/form-data`
+
+```text
+file=<image file>
+```
+
+Frontend example:
+
+```js
+const formData = new FormData();
+formData.append("file", file);
+
+const res = await fetch(`http://localhost:9192/api/locations/${locationId}/images`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${accessToken}`
+  },
+  body: formData
+});
+
+const image = await res.json();
+```
+
+Response body:
+
+```json
+{
+  "id": "uuid",
+  "imageUrl": "https://project.supabase.co/storage/v1/object/public/images/locationImages/location-id/image.jpg",
+  "createdAt": "2026-05-03T12:00:00"
+}
+```
+
 ### DELETE /api/locations/{locationId}/images/{imageId}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Deletes the image database record. Response body empty, status `204 No Content`.
 
 ## Location Accessibility
 
@@ -704,9 +828,9 @@ Protected. Response body empty, status `204 No Content`.
 
 Public. Returns `ImageResponse[]`.
 
-### POST /api/posts/{postId}/images
+### POST /api/posts/{postId}/images JSON
 
-Protected.
+Protected. Adds an existing image URL without uploading a file.
 
 Request body:
 
@@ -718,9 +842,46 @@ Request body:
 
 Response body: `ImageResponse`.
 
+### POST /api/posts/{postId}/images multipart
+
+Protected. With `multipart/form-data`, uploads the file to Supabase Storage under `images/postImages/{postId}/...`, saves the public URL in `post_images.image_url`, and returns `ImageResponse`.
+
+Request body: `multipart/form-data`
+
+```text
+file=<image file>
+```
+
+Frontend example:
+
+```js
+const formData = new FormData();
+formData.append("file", file);
+
+const res = await fetch(`http://localhost:9192/api/posts/${postId}/images`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${accessToken}`
+  },
+  body: formData
+});
+
+const image = await res.json();
+```
+
+Response body:
+
+```json
+{
+  "id": "uuid",
+  "imageUrl": "https://project.supabase.co/storage/v1/object/public/images/postImages/post-id/image.jpg",
+  "createdAt": "2026-05-03T12:00:00"
+}
+```
+
 ### DELETE /api/posts/{postId}/images/{imageId}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Deletes the image database record. Response body empty, status `204 No Content`.
 
 ## Post Reviews
 
@@ -878,6 +1039,30 @@ function apiPut(path, body, token) {
 function apiDelete(path, token) {
   return apiRequest(path, { method: "DELETE", token });
 }
+
+async function uploadImage(path, file, token) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      ...(token ? { "Authorization": `Bearer ${token}` } : {})
+    },
+    body: formData
+  });
+
+  const data = await readResponseBody(res);
+  if (!res.ok) {
+    throw {
+      status: res.status,
+      message: data?.message || res.statusText || "Upload failed",
+      body: data
+    };
+  }
+
+  return data;
+}
 ```
 
 Helper applicability:
@@ -887,6 +1072,7 @@ Helper applicability:
 - Use `apiPost(path, body, accessToken)` for protected create endpoints.
 - Use `apiPut(path, body, accessToken)` for protected update endpoints.
 - Use `apiDelete(path, accessToken)` for protected delete endpoints; it returns `null` on `204 No Content`.
+- Use `uploadImage(path, file, accessToken)` for multipart upload endpoints such as `/api/users/me/avatar`, `/api/events/{eventId}/images`, `/api/locations/{locationId}/images`, and `/api/posts/{postId}/images`.
 
 Endpoints that should not use these helpers:
 

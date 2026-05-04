@@ -23,6 +23,9 @@ public class User {
 
     private String phone;
 
+    @Column(columnDefinition = "TEXT")
+    private String photo;
+
     @Column(nullable = false)
     private String role;
 
@@ -65,6 +68,14 @@ public class User {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getPhoto() {
+        return photo;
+    }
+
+    public void setPhoto(String photo) {
+        this.photo = photo;
     }
 
     public String getRole() {

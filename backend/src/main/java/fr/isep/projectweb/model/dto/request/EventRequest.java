@@ -1,5 +1,6 @@
 package fr.isep.projectweb.model.dto.request;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -11,7 +12,7 @@ public class EventRequest {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Integer capacity;
-    private Double price;
+    private BigDecimal price;
     private Boolean isVirtual;
     private String status;
     private UUID locationId;
@@ -64,11 +65,11 @@ public class EventRequest {
         this.capacity = capacity;
     }
 
-    public Double getPrice() {
+    public BigDecimal getPrice() {
         return price;
     }
 
-    public void setPrice(Double price) {
+    public void setPrice(BigDecimal price) {
         this.price = price;
     }
 

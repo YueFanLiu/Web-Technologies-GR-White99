@@ -8,6 +8,7 @@ import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.LocationImage;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -18,10 +19,14 @@ public class LocationImageService {
 
     private final LocationImageRepository locationImageRepository;
     private final LocationDAO locationDAO;
+    private final SupabaseStorageService supabaseStorageService;
 
-    public LocationImageService(LocationImageRepository locationImageRepository, LocationDAO locationDAO) {
+    public LocationImageService(LocationImageRepository locationImageRepository,
+                                LocationDAO locationDAO,
+                                SupabaseStorageService supabaseStorageService) {
         this.locationImageRepository = locationImageRepository;
         this.locationDAO = locationDAO;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     public List<ImageResponse> getByLocationId(UUID locationId) {
@@ -38,6 +43,16 @@ public class LocationImageService {
         LocationImage image = new LocationImage();
         image.setLocation(findLocation(locationId));
         image.setImageUrl(request.getImageUrl().trim());
+        return ResponseMapper.toLocationImageResponse(locationImageRepository.save(image));
+    }
+
+    public ImageResponse upload(UUID locationId, MultipartFile file, String authorizationHeader) {
+        Location location = findLocation(locationId);
+        String imageUrl = supabaseStorageService.uploadLocationImage(locationId, file, authorizationHeader);
+
+        LocationImage image = new LocationImage();
+        image.setLocation(location);
+        image.setImageUrl(imageUrl);
         return ResponseMapper.toLocationImageResponse(locationImageRepository.save(image));
     }
 

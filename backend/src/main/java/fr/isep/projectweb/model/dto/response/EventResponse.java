@@ -1,5 +1,6 @@
 package fr.isep.projectweb.model.dto.response;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -13,7 +14,7 @@ public class EventResponse {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Integer capacity;
-    private Double price;
+    private BigDecimal price;
     private Boolean isVirtual;
     private String status;
     private UserSummary organizer;
@@ -81,11 +82,11 @@ public class EventResponse {
         this.capacity = capacity;
     }
 
-    public Double getPrice() {
+    public BigDecimal getPrice() {
         return price;
     }
 
-    public void setPrice(Double price) {
+    public void setPrice(BigDecimal price) {
         this.price = price;
     }
 
@@ -205,8 +206,8 @@ public class EventResponse {
         private String address;
         private String city;
         private String country;
-        private Double latitude;
-        private Double longitude;
+        private BigDecimal latitude;
+        private BigDecimal longitude;
 
         public UUID getId() {
             return id;
@@ -248,19 +249,19 @@ public class EventResponse {
             this.country = country;
         }
 
-        public Double getLatitude() {
+        public BigDecimal getLatitude() {
             return latitude;
         }
 
-        public void setLatitude(Double latitude) {
+        public void setLatitude(BigDecimal latitude) {
             this.latitude = latitude;
         }
 
-        public Double getLongitude() {
+        public BigDecimal getLongitude() {
             return longitude;
         }
 
-        public void setLongitude(Double longitude) {
+        public void setLongitude(BigDecimal longitude) {
             this.longitude = longitude;
         }
     }

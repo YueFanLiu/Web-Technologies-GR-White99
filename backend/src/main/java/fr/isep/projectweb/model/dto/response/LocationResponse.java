@@ -1,5 +1,6 @@
 package fr.isep.projectweb.model.dto.response;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -11,8 +12,8 @@ public class LocationResponse {
     private String address;
     private String city;
     private String country;
-    private Double latitude;
-    private Double longitude;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -64,19 +65,19 @@ public class LocationResponse {
         this.country = country;
     }
 
-    public Double getLatitude() {
+    public BigDecimal getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(Double latitude) {
+    public void setLatitude(BigDecimal latitude) {
         this.latitude = latitude;
     }
 
-    public Double getLongitude() {
+    public BigDecimal getLongitude() {
         return longitude;
     }
 
-    public void setLongitude(Double longitude) {
+    public void setLongitude(BigDecimal longitude) {
         this.longitude = longitude;
     }
 
