@@ -1,5 +1,7 @@
 package fr.isep.projectweb.model.service;
 
+import fr.isep.projectweb.model.algorithm.recommendation.event.EventRecommendationFeatures;
+import fr.isep.projectweb.model.algorithm.recommendation.event.EventRecommendationScorer;
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
@@ -17,7 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -25,6 +30,7 @@ import java.util.UUID;
 public class EventService {
 
     private static final int SEARCH_RESULT_LIMIT = 20;
+    private static final int MAIN_PAGE_CANDIDATE_LIMIT = 100;
     private static final int DEFAULT_MAIN_PAGE_LIMIT = 20;
     private static final int MAX_MAIN_PAGE_LIMIT = 100;
     private static final String ORGANIZER_ROLE = "ORGANIZER";
@@ -34,17 +40,20 @@ public class EventService {
     private final EventReviewRepository eventReviewRepository;
     private final LocationDAO locationDAO;
     private final CurrentUserService currentUserService;
+    private final EventRecommendationScorer eventRecommendationScorer;
 
     public EventService(EventRepository eventRepository,
                         EventImageRepository eventImageRepository,
                         EventReviewRepository eventReviewRepository,
                         LocationDAO locationDAO,
-                        CurrentUserService currentUserService) {
+                        CurrentUserService currentUserService,
+                        EventRecommendationScorer eventRecommendationScorer) {
         this.eventRepository = eventRepository;
         this.eventImageRepository = eventImageRepository;
         this.eventReviewRepository = eventReviewRepository;
         this.locationDAO = locationDAO;
         this.currentUserService = currentUserService;
+        this.eventRecommendationScorer = eventRecommendationScorer;
     }
 
     public EventResponse createEvent(EventRequest request, Jwt jwt) {
@@ -66,16 +75,31 @@ public class EventService {
                                                  Integer limit) {
         int resultLimit = normalizeLimit(limit);
         boolean filterUpcoming = upcomingOnly == null || upcomingOnly;
+        String normalizedKeyword = normalizeOptional(keyword);
+        LocalDateTime now = LocalDateTime.now();
+
         return eventRepository.findForMainPage(
-                        normalizeOptional(keyword),
+                        normalizedKeyword,
                         normalizeOptional(category),
                         normalizeOptional(status),
                         locationId,
                         filterUpcoming,
-                        PageRequest.of(0, resultLimit)
+                        PageRequest.of(0, MAIN_PAGE_CANDIDATE_LIMIT)
                 )
                 .stream()
-                .map(event -> toResponse(event, false))
+                .map(event -> new ScoredEvent(
+                        event,
+                        eventRecommendationScorer.score(toRecommendationFeatures(event, normalizedKeyword, now))
+                ))
+                .sorted(Comparator
+                        .comparingDouble(ScoredEvent::score)
+                        .reversed()
+                        .thenComparing(scored -> scored.event().getStartTime(),
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(scored -> normalizeSortText(scored.event().getTitle()))
+                        .thenComparing(scored -> scored.event().getId()))
+                .limit(resultLimit)
+                .map(scored -> toResponse(scored.event(), false))
                 .toList();
     }
 
@@ -179,6 +203,39 @@ public class EventService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found"));
     }
 
+    private EventRecommendationFeatures toRecommendationFeatures(Event event,
+                                                                 String keyword,
+                                                                 LocalDateTime now) {
+        EventRecommendationFeatures features = new EventRecommendationFeatures();
+        Location location = event.getLocation();
+        UUID eventId = event.getId();
+
+        features.setKeyword(keyword);
+        features.setTitle(event.getTitle());
+        features.setDescription(event.getDescription());
+        features.setCategory(event.getCategory());
+
+        features.setHasLocation(location != null);
+        if (location != null) {
+            features.setLocationName(location.getName());
+            features.setLocationCity(location.getCity());
+        }
+
+        features.setNow(now);
+        features.setStartTime(event.getStartTime());
+        features.setEndTime(event.getEndTime());
+        features.setStatus(event.getStatus());
+        features.setCapacity(event.getCapacity());
+        features.setPrice(event.getPrice());
+        features.setVirtualEvent(event.getIsVirtual());
+
+        features.setAverageRating(eventReviewRepository.averageRatingByEventId(eventId));
+        features.setReviewCount(eventReviewRepository.countByEventId(eventId));
+        features.setImageCount(eventImageRepository.countByEventId(eventId));
+
+        return features;
+    }
+
     private void ensureOrganizer(User user) {
         if (!ORGANIZER_ROLE.equalsIgnoreCase(user.getRole())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only organizers can manage events");
@@ -212,6 +269,13 @@ public class EventService {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizeSortText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private EventResponse toResponse(Event event, boolean includeAllImages) {
@@ -274,5 +338,8 @@ public class EventService {
                 .stream()
                 .map(EventImage::getImageUrl)
                 .toList();
+    }
+
+    private record ScoredEvent(Event event, double score) {
     }
 }

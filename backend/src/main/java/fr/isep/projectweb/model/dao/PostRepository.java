@@ -17,6 +17,29 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
 
     List<Post> findByEventIdOrderByCreatedAtDesc(UUID eventId);
 
+    long countByLocationId(UUID locationId);
+
+    @Query("""
+            SELECT p
+            FROM Post p
+            WHERE (:keyword IS NULL
+                    OR LOWER(COALESCE(p.title, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(p.content, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(p.location.name, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(p.location.city, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(p.event.title, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(p.event.category, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
+              AND (:status IS NULL OR LOWER(p.status) = LOWER(CAST(:status AS string)))
+              AND (:locationId IS NULL OR p.location.id = :locationId)
+              AND (:eventId IS NULL OR p.event.id = :eventId)
+            ORDER BY p.createdAt DESC
+            """)
+    List<Post> findForMainFeed(@Param("keyword") String keyword,
+                               @Param("status") String status,
+                               @Param("locationId") UUID locationId,
+                               @Param("eventId") UUID eventId,
+                               Pageable pageable);
+
     @Query("""
             SELECT p
             FROM Post p

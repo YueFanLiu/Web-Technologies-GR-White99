@@ -317,6 +317,11 @@ Response body:
 
 Public.
 
+Returns the main activity page events using recommendation ranking. The backend
+first applies the filters below, then scores the candidate events with keyword
+relevance, upcoming time value, status, ratings, review count, images, and event
+profile completeness. Results are returned in recommendation order.
+
 Optional query params:
 
 ```text
@@ -590,6 +595,8 @@ Public. Returns one `LocationResponse`.
 
 Public. Returns `LocationResponse[]`.
 
+The response shape is unchanged, but the order now uses the location recommendation score first. The score currently considers keyword relevance, linked event/post activity, accessibility flags, image count, and profile completeness. If two locations have the same score, they are ordered by name, then by id.
+
 ### POST /api/locations
 
 Protected.
@@ -754,6 +761,26 @@ Protected. Response body empty, status `204 No Content`.
 
 Public.
 
+Returns the main community feed using recommendation ranking. The backend first
+applies the filters below, then scores candidate posts with keyword relevance,
+freshness, related event timing, status, ratings, review count, images, and
+context completeness. Results are returned in recommendation order.
+
+When `keyword` is provided, this endpoint searches post title/content plus
+related `location.name`, `location.city`, `event.title`, and `event.category`.
+For example, `keyword=paris` can return posts whose own text does not contain
+`paris` if their related location is in Paris.
+
+Optional query params:
+
+```text
+keyword=hello
+status=PUBLISHED
+locationId=uuid
+eventId=uuid
+limit=20
+```
+
 Response body:
 
 ```json
@@ -800,7 +827,12 @@ Public. Returns one `PostResponse`.
 
 ### GET /api/posts/search?keyword=hello
 
-Public. Returns `PostResponse[]`.
+Public. Legacy keyword search. Returns `PostResponse[]`.
+
+This endpoint searches only post `title` and `content`, then returns matches by
+creation time. It does not search related location or event fields. For
+recommendation ranking and location/event keyword matching, use
+`GET /api/posts?keyword=hello`.
 
 ### GET /api/posts/user/{userId}
 

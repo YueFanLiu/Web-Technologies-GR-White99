@@ -11,6 +11,8 @@ public interface EventImageRepository extends JpaRepository<EventImage, UUID> {
 
     List<EventImage> findByEventIdOrderByCreatedAtAsc(UUID eventId);
 
+    long countByEventId(UUID eventId);
+
     Optional<EventImage> findFirstByEventIdOrderByCreatedAtAsc(UUID eventId);
 
     Optional<EventImage> findByIdAndEventId(UUID id, UUID eventId);

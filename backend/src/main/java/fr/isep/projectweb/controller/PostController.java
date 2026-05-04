@@ -39,9 +39,20 @@ public class PostController {
     }
 
     @GetMapping
-    @Operation(summary = "Get all posts")
-    public List<PostResponse> getAllPosts() {
-        return postService.getAllPosts();
+    @Operation(
+            summary = "Get recommended posts for the main community feed",
+            description = """
+                    Returns a recommendation-ranked feed. Optional keyword searches post title/content plus related \
+                    location name/city and related event title/category. Use this endpoint for the main post feed and \
+                    contextual discovery, for example keyword=paris can match posts attached to Paris locations.
+                    """
+    )
+    public List<PostResponse> getAllPosts(@RequestParam(required = false) String keyword,
+                                          @RequestParam(required = false) String status,
+                                          @RequestParam(required = false) UUID locationId,
+                                          @RequestParam(required = false) UUID eventId,
+                                          @RequestParam(required = false) Integer limit) {
+        return postService.getMainFeedPosts(keyword, status, locationId, eventId, limit);
     }
 
     @GetMapping("/user/{userId}")
@@ -63,7 +74,14 @@ public class PostController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Search posts by keyword")
+    @Operation(
+            summary = "Search posts by post text only",
+            description = """
+                    Legacy keyword search. This endpoint only searches the post title and content, then returns matches \
+                    ordered by creation time. It does not search related location or event fields. For recommendation \
+                    ranking and location/event keyword matches, use GET /api/posts with the keyword query parameter.
+                    """
+    )
     public List<PostResponse> searchPosts(@RequestParam String keyword) {
         return postService.searchPosts(keyword);
     }

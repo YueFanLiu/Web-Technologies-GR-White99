@@ -11,5 +11,7 @@ public interface PostImageRepository extends JpaRepository<PostImage, UUID> {
 
     List<PostImage> findByPostIdOrderByCreatedAtAsc(UUID postId);
 
+    long countByPostId(UUID postId);
+
     Optional<PostImage> findByIdAndPostId(UUID id, UUID postId);
 }
