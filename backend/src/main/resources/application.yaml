@@ -4,10 +4,14 @@ server:
 supabase:
   url: ${SUPABASE_URL:https://mbtrnkskilrkzvqqqpbi.supabase.co}
   publishable-key: ${SUPABASE_PUBLISHABLE_KEY:sb_publishable_vZtXByaiPlWZ0rjNKfaxdg_lv3EgD_8}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  storage:
+    images-bucket: ${SUPABASE_IMAGES_BUCKET:images}
+    max-image-size-bytes: ${SUPABASE_MAX_IMAGE_SIZE_BYTES:2097152}
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://aws-1-eu-west-1.pooler.supabase.com:6543/postgres}
+    url: ${DB_URL:jdbc:postgresql://aws-1-eu-west-1.pooler.supabase.com:6543/postgres?prepareThreshold=0}
     username: ${DB_USERNAME:postgres.mbtrnkskilrkzvqqqpbi}
     password: ${DB_PASSWORD:uY83VHkkj8SwrPU2}
     driver-class-name: org.postgresql.Driver

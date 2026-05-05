@@ -55,3 +55,18 @@ export function getCodeImg() {
     timeout: 20000
   })
 }
+
+// 忘记密码：发送 Supabase password reset email
+export function forgotPassword(data) {
+  return request({
+    url: '/api/auth/forgot-password',
+    headers: {
+      isToken: false,
+      repeatSubmit: false
+    },
+    method: 'post',
+    data: {
+      email: data.email
+    }
+  })
+}

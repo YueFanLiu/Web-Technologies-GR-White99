@@ -6,6 +6,7 @@ public class PublicUserResponse {
 
     private UUID id;
     private String fullName;
+    private String photo;
     private String role;
 
     public UUID getId() {
@@ -22,6 +23,14 @@ public class PublicUserResponse {
 
     public void setFullName(String fullName) {
         this.fullName = fullName;
+    }
+
+    public String getPhoto() {
+        return photo;
+    }
+
+    public void setPhoto(String photo) {
+        this.photo = photo;
     }
 
     public String getRole() {

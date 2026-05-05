@@ -8,6 +8,7 @@ import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
@@ -17,10 +18,14 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
+    private final SupabaseStorageService supabaseStorageService;
 
-    public UserService(UserRepository userRepository, CurrentUserService currentUserService) {
+    public UserService(UserRepository userRepository,
+                       CurrentUserService currentUserService,
+                       SupabaseStorageService supabaseStorageService) {
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     public UserProfileResponse getMyProfile(Jwt jwt) {
@@ -30,6 +35,13 @@ public class UserService {
     public UserProfileResponse updateMyProfile(Jwt jwt, UpdateMyProfileRequest request) {
         User user = currentUserService.getOrCreateCurrentUser(jwt);
         applyUpdate(user, request);
+        return toUserProfileResponse(userRepository.save(user));
+    }
+
+    public UserProfileResponse uploadMyAvatar(Jwt jwt, MultipartFile file, String authorizationHeader) {
+        User user = currentUserService.getOrCreateCurrentUser(jwt);
+        String photoUrl = supabaseStorageService.uploadUserAvatar(user.getId(), file, authorizationHeader);
+        user.setPhoto(photoUrl);
         return toUserProfileResponse(userRepository.save(user));
     }
 
@@ -62,6 +74,7 @@ public class UserService {
         response.setEmail(user.getEmail());
         response.setFullName(user.getFullName());
         response.setPhone(user.getPhone());
+        response.setPhoto(user.getPhoto());
         response.setRole(user.getRole());
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
@@ -72,6 +85,7 @@ public class UserService {
         PublicUserResponse response = new PublicUserResponse();
         response.setId(user.getId());
         response.setFullName(user.getFullName());
+        response.setPhoto(user.getPhoto());
         response.setRole(user.getRole());
         return response;
     }

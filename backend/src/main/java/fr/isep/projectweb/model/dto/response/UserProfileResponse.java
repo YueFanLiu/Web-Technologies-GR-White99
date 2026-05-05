@@ -9,6 +9,7 @@ public class UserProfileResponse {
     private String email;
     private String fullName;
     private String phone;
+    private String photo;
     private String role;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -43,6 +44,14 @@ public class UserProfileResponse {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getPhoto() {
+        return photo;
+    }
+
+    public void setPhoto(String photo) {
+        this.photo = photo;
     }
 
     public String getRole() {

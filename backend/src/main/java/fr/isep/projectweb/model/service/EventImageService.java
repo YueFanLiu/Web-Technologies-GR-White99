@@ -8,6 +8,7 @@ import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -18,10 +19,14 @@ public class EventImageService {
 
     private final EventImageRepository eventImageRepository;
     private final EventRepository eventRepository;
+    private final SupabaseStorageService supabaseStorageService;
 
-    public EventImageService(EventImageRepository eventImageRepository, EventRepository eventRepository) {
+    public EventImageService(EventImageRepository eventImageRepository,
+                             EventRepository eventRepository,
+                             SupabaseStorageService supabaseStorageService) {
         this.eventImageRepository = eventImageRepository;
         this.eventRepository = eventRepository;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     public List<ImageResponse> getByEventId(UUID eventId) {
@@ -38,6 +43,16 @@ public class EventImageService {
         EventImage image = new EventImage();
         image.setEvent(findEvent(eventId));
         image.setImageUrl(request.getImageUrl().trim());
+        return ResponseMapper.toEventImageResponse(eventImageRepository.save(image));
+    }
+
+    public ImageResponse upload(UUID eventId, MultipartFile file, String authorizationHeader) {
+        Event event = findEvent(eventId);
+        String imageUrl = supabaseStorageService.uploadEventImage(eventId, file, authorizationHeader);
+
+        EventImage image = new EventImage();
+        image.setEvent(event);
+        image.setImageUrl(imageUrl);
         return ResponseMapper.toEventImageResponse(eventImageRepository.save(image));
     }
 
