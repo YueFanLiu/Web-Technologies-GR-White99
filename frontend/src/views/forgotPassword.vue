@@ -1,146 +1,103 @@
 <template>
   <div class="forgotPassword-page">
     <h1 class="page-title">Accessible Events Platform</h1>
-    <div class="login">
-      <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
+
+    <div class="forgotPassword">
+      <el-form
+          ref="forgotPasswordRef"
+          :model="forgotPasswordForm"
+          :rules="forgotPasswordRules"
+          class="forgotPassword-form"
+      >
         <h3 class="title">{{ title }}</h3>
-        <el-form-item prop="username">
+
+        <el-form-item prop="email">
           <el-input
-            v-model="loginForm.username"
-            type="text"
-            size="large"
-            auto-complete="off"
-            placeholder="Enter your email"
+              v-model="forgotPasswordForm.email"
+              type="text"
+              size="large"
+              auto-complete="off"
+              placeholder="Enter your email"
+              @keyup.enter="handleforgotPassword"
           >
-            <template #prefix><svg-icon icon-class="user" class="el-input__icon input-icon" /></template>
+            <template #prefix>
+              <svg-icon icon-class="user" class="el-input__icon input-icon" />
+            </template>
           </el-input>
-          <el-button>Send verification code</el-button>
+
+          <!-- 验证码按钮，当前版本暂时不需要 -->
+          <!-- <el-button>Send verification code</el-button> -->
         </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            v-model="loginForm.password"
-            type="password"
-            size="large"
-            auto-complete="off"
-            placeholder="Enter your password"
-            @keyup.enter="handleLogin"
-          >
-            <template #prefix><svg-icon icon-class="password" class="el-input__icon input-icon" /></template>
-          </el-input>
-        </el-form-item>
-        
+
+        <p class="forgotPassword-tip">
+          We'll send a password reset link to your email.
+        </p>
+
         <el-form-item style="width:100%;">
           <el-button
-            :loading="loading"
-            size="large"
-            type="primary"
-            style="width:100%;"
-            @click.prevent="handleLogin"
+              :loading="loading"
+              size="large"
+              type="primary"
+              style="width:100%;"
+              @click.prevent="handleforgotPassword"
           >
-            <span v-if="!loading">Verify</span>
-            <span v-else>Verifying...</span>
+            <span v-if="!loading">Send Reset Link</span>
+            <span v-else>Sending...</span>
           </el-button>
-          <div style="float: right;" v-if="register">
-            <router-link class="link-type" :to="'/register'">立即注册</router-link>
-          </div>
         </el-form-item>
+
+        <div class="back-login">
+          <span>Already have an account?</span>
+          <router-link class="link-type" :to="'/login'"> Sign In</router-link>
+        </div>
       </el-form>
-      <!--  底部  -->
-      <div class="el-login-footer">
-        <span>{{ footerContent }}</span>
-      </div>
+
+<!--      forgotPassword-footer 和 el-forgotPassword-footer 是两个不同类-->
+      <div class="el-forgotPassword-footer">
+              <span>{{ footerContent }}</span>
+            </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import Cookies from "js-cookie"
-import { encrypt, decrypt } from "@/utils/jsencrypt"
-import useUserStore from '@/store/modules/user'
-import defaultSettings from '@/settings'
+import { ElMessage } from "element-plus"
+import { forgotPassword } from "@/api/login"
+import defaultSettings from "@/settings"
 
 const title = "Forgot Password"
 const footerContent = defaultSettings.footerContent
-const userStore = useUserStore()
-const route = useRoute()
-const router = useRouter()
 const { proxy } = getCurrentInstance()
 
-const loginForm = ref({
-  username: "",
-  password: "",
-  rememberMe: false,
-  code: "",
-  uuid: ""
+const forgotPasswordForm = ref({
+  email: ""
 })
 
-const loginRules = {
-  username: [{ required: true, trigger: "blur", message: "Please enter your account" }],
-  password: [{ required: true, trigger: "blur", message: "Please enter your password" }],
+const forgotPasswordRules = {
+  email: [
+    { required: true, trigger: "blur", message: "Please enter your email" },
+    { type: "email", trigger: "blur", message: "Please enter a valid email address" }
+  ]
 }
 
-const codeUrl = ref("")
 const loading = ref(false)
-// 验证码开关
-const captchaEnabled = ref(true)
-// 注册开关
-const register = ref(false)
-const redirect = ref(undefined)
 
-watch(route, (newRoute) => {
-    redirect.value = newRoute.query && newRoute.query.redirect
-}, { immediate: true })
-
-function handleLogin() {
-  proxy.$refs.loginRef.validate(valid => {
+// 接 API —— forgotPassword
+function handleforgotPassword() {
+  proxy.$refs.forgotPasswordRef.validate(valid => {
     if (valid) {
       loading.value = true
-      // 勾选了需要记住密码设置在 cookie 中设置记住用户名和密码
-      if (loginForm.value.rememberMe) {
-        Cookies.set("username", loginForm.value.username, { expires: 30 })
-        Cookies.set("password", encrypt(loginForm.value.password), { expires: 30 })
-        Cookies.set("rememberMe", loginForm.value.rememberMe, { expires: 30 })
-      } else {
-        // 否则移除
-        Cookies.remove("username")
-        Cookies.remove("password")
-        Cookies.remove("rememberMe")
-      }
-      // 调用action的登录方法
-      userStore.login(loginForm.value).then(() => {
-        const query = route.query
-        const otherQueryParams = Object.keys(query).reduce((acc, cur) => {
-          if (cur !== "redirect") {
-            acc[cur] = query[cur]
-          }
-          return acc
-        }, {})
-        router.push({ path: redirect.value || "/", query: otherQueryParams })
-      }).catch(() => {
+
+      forgotPassword(forgotPasswordForm.value).then(() => {
+        ElMessage.success("Password reset email has been sent. Please check your inbox.")
+      }).finally(() => {
         loading.value = false
-
-
       })
     }
   })
 }
-
-
-
-function getCookie() {
-  const username = Cookies.get("username")
-  const password = Cookies.get("password")
-  const rememberMe = Cookies.get("rememberMe")
-  loginForm.value = {
-    username: username === undefined ? loginForm.value.username : username,
-    password: password === undefined ? loginForm.value.password : decrypt(password),
-    rememberMe: rememberMe === undefined ? false : Boolean(rememberMe)
-  }
-}
-
-
-getCookie()
 </script>
+
 
 <style lang='scss' scoped>
 .forgotPassword-page {
@@ -159,7 +116,7 @@ getCookie()
   color: #707070;
 }
 
-.login-form {
+.forgotPassword-form {
   border-radius: 6px;
   background: #ffffff;
   width: 400px;
@@ -177,12 +134,12 @@ getCookie()
     margin-left: 0px;
   }
 }
-.login-tip {
+.forgotPassword-tip {
   font-size: 13px;
   text-align: center;
   color: #bfbfbf;
 }
-.login-code {
+.forgotPassword-code {
   width: 33%;
   height: 40px;
   float: right;
@@ -191,7 +148,7 @@ getCookie()
     vertical-align: middle;
   }
 }
-.el-login-footer {
+.el-forgotPassword-footer {
   height: 40px;
   line-height: 40px;
   position: fixed;
@@ -203,7 +160,7 @@ getCookie()
   font-size: 12px;
   letter-spacing: 1px;
 }
-.login-code-img {
+.forgotPassword-code-img {
   height: 40px;
   padding-left: 12px;
 }
@@ -214,11 +171,17 @@ getCookie()
   margin-bottom: 30px;
   font-weight: 500;
 }
-.login-footer{
+.forgotPassword-footer{
   margin-top: 24px;
   text-align: center;
   font-size: 16px;
   line-height: 1.8; 
+  color: #333;
+}
+.back-login {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 14px;
   color: #333;
 }
 </style>
