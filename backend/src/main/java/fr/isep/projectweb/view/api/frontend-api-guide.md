@@ -194,7 +194,7 @@ Response body:
 }
 ```
 
-### POST /api/auth/forgot-password
+    ### POST /api/auth/forgot-password
 
 Public. Sends a Supabase password reset email. `redirectTo` is optional; when provided, Supabase uses it as the page opened from the reset email link.
 This backend endpoint only starts the password recovery flow. It does not receive the new password and it does not update the password itself.
