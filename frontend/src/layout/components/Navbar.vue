@@ -175,7 +175,7 @@ async function toggleTheme(event) {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  height: 60px;
+  height: 40px;
   background: #f8f9ff;
   border-bottom: 1px solid #eee;
 
