@@ -83,26 +83,25 @@
             </div>
           </div>
 
-          <!-- 活动卡片列表（模拟数据） -->
           <div class="activity-list">
             <div class="activity-card" v-for="(item, index) in activityList" :key="index">
               <div class="card-image">
-                <img :src="item.image" alt="activity" />
+                <img :src="item.coverImageUrl" alt="activity" />
               </div>
               <div class="card-info">
                 <div class="card-header">
                   <h4>{{ item.title }}</h4>
                   <el-tag type="primary" v-if="item.recommended">Recommended</el-tag>
                 </div>
-                <p><i class="el-icon-date"></i> {{ item.date }}</p>
-                <p><i class="el-icon-time"></i> {{ item.time }}</p>
-                <p><i class="el-icon-location"></i> {{ item.locationName }}</p>
-                <p><i class="el-icon-location-outline"></i> {{ item.locationAddress }}</p>
+                <p><i class="el-icon-date"></i> {{ item.startTime }}</p>
+                <p><i class="el-icon-time"></i> {{ item.endTime }}</p>
+                <p><i class="el-icon-location"></i> {{ item.location.name }}</p>
+                <p><i class="el-icon-location-outline"></i> {{ item.location.address }}</p>
 
                 <div class="card-footer">
                   <div class="rating">
-                    <el-rate v-model="item.rating" disabled show-score text-color="#ff9900" score-template="4.8"></el-rate>
-                    <span>{{ item.reviews }} reviews</span>
+                    <el-rate v-model="item.averageRating" disabled show-score text-color="#ff9900"></el-rate>
+                    <span>{{ item.reviewCount }} reviews</span>
                   </div>
                   <el-button type="primary" @click="goToDetails(item)">View Details</el-button>
                 </div>
@@ -134,11 +133,11 @@
             </div>
 
             <div class="event-item" v-for="(item, index) in popularEvents" :key="index">
-              <img :src="item.image" alt="event" class="event-thumb" />
+              <img :src="item.coverImageUrl" alt="event" class="event-thumb" />
               <div class="event-info">
                 <p class="event-title">{{ item.title }}</p>
-                <p class="event-meta">{{ item.date }}</p>
-                <p class="event-meta">{{ item.time }}</p>
+                <p class="event-meta">{{ item.startTime }}</p>
+                <p class="event-meta">{{ item.endTime }}</p>
               </div>
             </div>
           </div>
@@ -266,11 +265,10 @@ const fetchEvents = async () => {
     }
     
     const response = await listEvent(params)
-    
-    if (response && response.data) {
-      const events = response.data.rows || response.data
-      activityList.value = transformEventData(events)
-      popularEvents.value = transformToPopularEvents(activityList.value.slice(0, 3))
+
+    if (response && response.length > 0) {
+      activityList.value = response
+      popularEvents.value = activityList.value.slice(0,3)
     }
   } catch (error) {
     console.error('error:', error)
