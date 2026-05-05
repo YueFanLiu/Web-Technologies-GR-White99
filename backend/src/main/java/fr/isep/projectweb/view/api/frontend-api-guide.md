@@ -194,6 +194,95 @@ Response body:
 }
 ```
 
+    ### POST /api/auth/forgot-password
+
+Public. Sends a Supabase password reset email. `redirectTo` is optional; when provided, Supabase uses it as the page opened from the reset email link.
+This backend endpoint only starts the password recovery flow. It does not receive the new password and it does not update the password itself.
+
+Request body:
+
+```json
+{
+  "email": "alice@example.com",
+  "redirectTo": "http://localhost:5173/reset-password"
+}
+```
+
+Response body:
+
+```json
+{
+  "success": true,
+  "status": "PASSWORD_RESET_EMAIL_SENT",
+  "message": "Password reset email sent",
+  "email": "alice@example.com"
+}
+```
+
+Frontend flow:
+
+1. On the "forgot password" page, call the backend endpoint above:
+
+```js
+await apiPost("/api/auth/forgot-password", {
+  email,
+  redirectTo: `${window.location.origin}/reset-password`
+});
+```
+
+2. Supabase sends the password reset email. The `redirectTo` URL must be allowed in Supabase Auth URL Configuration, for example `http://localhost:5173/reset-password` in local development.
+
+3. The user clicks the email link. Supabase redirects the browser to `redirectTo` with the password recovery information in the URL. The frontend page at `/reset-password` must initialize the same Supabase client used by the app.
+
+4. On the `/reset-password` page, listen for the Supabase password recovery auth event. When it fires, show the new-password form:
+
+```js
+const {
+  data: { subscription }
+} = supabase.auth.onAuthStateChange((event, session) => {
+  if (event !== "PASSWORD_RECOVERY") return;
+
+  // Enable/show the reset-password form.
+  // Supabase has restored a recovery session from the email link.
+});
+```
+
+5. When the user submits the new password, call `updateUser`. The frontend does not manually send the email token to the backend; Supabase uses the recovery session created from the email link:
+
+```js
+async function submitNewPassword(newPassword) {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    throw new Error("Password recovery session is missing or expired");
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+```
+
+Swagger verification:
+
+- Open `POST /api/auth/forgot-password`.
+- Use this request body:
+
+```json
+{
+  "email": "alice@example.com",
+  "redirectTo": "http://localhost:5173/reset-password"
+}
+```
+
+- A successful Swagger response only proves that the backend accepted the request and Supabase accepted the recovery email request.
+- To verify the full password change, open the email, click the reset link, land on the frontend `/reset-password` page, and confirm that `supabase.auth.updateUser({ password: newPassword })` succeeds.
+- Swagger cannot verify the final password update with the current backend API because there is no backend endpoint that accepts `token + newPassword`. The final update is done by the Supabase JavaScript client using the recovery session from the email link.
+
 ## Current User
 
 ### GET /api/users/me
@@ -292,6 +381,11 @@ Response body:
 ### GET /api/events
 
 Public.
+
+Returns the main activity page events using recommendation ranking. The backend
+first applies the filters below, then scores the candidate events with keyword
+relevance, upcoming time value, status, ratings, review count, images, and event
+profile completeness. Results are returned in recommendation order.
 
 Optional query params:
 
@@ -566,6 +660,8 @@ Public. Returns one `LocationResponse`.
 
 Public. Returns `LocationResponse[]`.
 
+The response shape is unchanged, but the order now uses the location recommendation score first. The score currently considers keyword relevance, linked event/post activity, accessibility flags, image count, and profile completeness. If two locations have the same score, they are ordered by name, then by id.
+
 ### POST /api/locations
 
 Protected.
@@ -730,6 +826,26 @@ Protected. Response body empty, status `204 No Content`.
 
 Public.
 
+Returns the main community feed using recommendation ranking. The backend first
+applies the filters below, then scores candidate posts with keyword relevance,
+freshness, related event timing, status, ratings, review count, images, and
+context completeness. Results are returned in recommendation order.
+
+When `keyword` is provided, this endpoint searches post title/content plus
+related `location.name`, `location.city`, `event.title`, and `event.category`.
+For example, `keyword=paris` can return posts whose own text does not contain
+`paris` if their related location is in Paris.
+
+Optional query params:
+
+```text
+keyword=hello
+status=PUBLISHED
+locationId=uuid
+eventId=uuid
+limit=20
+```
+
 Response body:
 
 ```json
@@ -776,7 +892,12 @@ Public. Returns one `PostResponse`.
 
 ### GET /api/posts/search?keyword=hello
 
-Public. Returns `PostResponse[]`.
+Public. Legacy keyword search. Returns `PostResponse[]`.
+
+This endpoint searches only post `title` and `content`, then returns matches by
+creation time. It does not search related location or event fields. For
+recommendation ranking and location/event keyword matching, use
+`GET /api/posts?keyword=hello`.
 
 ### GET /api/posts/user/{userId}
 

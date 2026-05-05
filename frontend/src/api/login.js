@@ -28,6 +28,17 @@ export function register(data) {
   })
 }
 
+export function verifyEmail(data) {
+  return request({
+    url: '/api/auth/verify-email',
+    headers: {
+      isToken: false
+    },
+    method: 'post',
+    data
+  })
+}
+
 // 获取用户详细信息
 export function getInfo() {
   return request({

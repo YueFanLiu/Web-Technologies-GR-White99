@@ -15,6 +15,7 @@ public interface LocationDAO extends JpaRepository<Location, UUID> {
             SELECT l
             FROM Location l
             WHERE LOWER(COALESCE(l.name, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(COALESCE(l.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(l.address, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(l.city, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(l.country, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))

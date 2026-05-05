@@ -1,7 +1,9 @@
 package fr.isep.projectweb.controller;
 
+import fr.isep.projectweb.model.dto.request.ForgotPasswordRequest;
 import fr.isep.projectweb.model.dto.request.LoginRequest;
 import fr.isep.projectweb.model.dto.request.SignupRequest;
+import fr.isep.projectweb.model.dto.request.VerifyEmailRequest;
 import fr.isep.projectweb.model.dto.response.AuthResponse;
 import fr.isep.projectweb.model.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,6 +57,18 @@ public class AuthController {
     @Operation(summary = "Log in a user via backend-managed Supabase Auth")
     public AuthResponse login(@RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Send a Supabase password reset email")
+    public AuthResponse forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request);
+    }
+
+    @PostMapping("/verify-email")
+    @Operation(summary = "Verify an email confirmation token hash")
+    public AuthResponse verifyEmail(@RequestBody VerifyEmailRequest request) {
+        return authService.verifyEmail(request.getTokenHash(), request.getType());
     }
 
     @GetMapping("/debug")

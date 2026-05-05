@@ -83,7 +83,8 @@
             </div>
           </div>
 
-          <div class="activity-list">
+          <!-- 活动卡片列表（模拟数据） -->
+          <div class="activity-list" v-loading="loading">
             <div class="activity-card" v-for="(item, index) in activityList" :key="index">
               <div class="card-image">
                 <img :src="item.coverImageUrl" alt="activity" />
@@ -107,6 +108,7 @@
                 </div>
               </div>
             </div>
+            <el-empty v-if="!loading && activityList.length === 0" description="No events found" />
           </div>
         </el-main>
 
@@ -191,13 +193,17 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import {useRouter} from 'vue-router'
-import { listEvent,createEvent } from '@/api/events'
-import {ElMessage} from 'element-plus'
+import { onMounted, ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { listEvents } from '@/api/events'
+
 const router = useRouter()
-const goToDetails = (item) =>{
-  router.push('/product/eventDetails')
+const goToDetails = (item) => {
+  router.push({
+    path: '/product/eventDetails',
+    query: item.id ? { id: item.id } : {}
+  })
 }
 // 筛选表单
 const form = reactive({
@@ -208,78 +214,88 @@ const form = reactive({
 })
 
 // 中间活动列表模拟数据
+const loading = ref(false)
 const activityList = ref([])
 
 // 右侧热门活动模拟数据
 const popularEvents = ref([])
-const loading = ref(false)
 
-const dialogVisible = ref(false)
-const eventForm = reactive({
-  title: '',
-  description: '', 
-  category: '',
-  startTime: '',
-  endTime: '',
-  capacity: 10,
-  price: 0,
-  isVirtual: false,
-  status: 'PUBLISHED',
-  locationId: ''
-})
-const openCreateDialog = () => {
-  dialogVisible.value = true
+function formatDate(value) {
+  if (!value) return 'Date TBA'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Date TBA'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
 }
-const handleCreateEvent = async () => {
-  try {
-      const postData = {
-        title: eventForm.title,
-        description: eventForm.description,
-        category: eventForm.category,
-        startTime: eventForm.startTime,
-        endTime: eventForm.endTime,
-        capacity: eventForm.capacity,
-        price: eventForm.price,
-        isVirtual: false,
-        status: "PUBLISHED",
-        locationId: eventForm.locationId
-      }
-    await createEvent(postData)
-    ElMessage.success('Activity created successfully!')
-    dialogVisible.value = false
-    fetchEvents()
-  } catch (error) {
-    console.error('Create failed:', error)
-    ElMessage.error('Creation failed')
+
+function formatTime(startValue, endValue) {
+  if (!startValue) return 'Time TBA'
+  const start = new Date(startValue)
+  if (Number.isNaN(start.getTime())) return 'Time TBA'
+
+  const options = {
+    hour: 'numeric',
+    minute: '2-digit'
+  }
+  const startText = start.toLocaleTimeString('en-US', options)
+
+  if (!endValue) return startText
+  const end = new Date(endValue)
+  if (Number.isNaN(end.getTime())) return startText
+  return `${startText} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function fallbackImage(id, width = 220, height = 150) {
+  const seed = encodeURIComponent(id || 'event')
+  return `https://picsum.photos/seed/${seed}/${width}/${height}`
+}
+
+function mapEvent(event, index) {
+  const location = event.location || {}
+  const image = event.coverImageUrl || event.imageUrls?.[0] || fallbackImage(event.id || index)
+
+  return {
+    id: event.id,
+    image,
+    title: event.title || 'Untitled event',
+    recommended: index === 0,
+    date: formatDate(event.startTime),
+    time: formatTime(event.startTime, event.endTime),
+    locationName: location.name || (event.isVirtual ? 'Online event' : 'Location TBA'),
+    locationAddress: [location.address, location.city, location.country].filter(Boolean).join(', ') || 'Address TBA',
+    rating: Number(event.averageRating || 0),
+    reviews: Number(event.reviewCount || 0)
   }
 }
 
-const fetchEvents = async () => {
+async function loadEvents() {
   loading.value = true
   try {
-    const params = {
-      location: form.location,
-      dateRange: form.dateRange,
-      activityType: form.activityType.join(','),
-      accessibility: form.accessibility.join(',')
-    }
-    
-    const response = await listEvent(params)
-
-    if (response && response.length > 0) {
-      activityList.value = response
-      popularEvents.value = activityList.value.slice(0,3)
-    }
+    const events = await listEvents({
+      upcomingOnly: true,
+      limit: 20
+    })
+    const mappedEvents = Array.isArray(events) ? events.map(mapEvent) : []
+    activityList.value = mappedEvents
+    popularEvents.value = mappedEvents.slice(0, 3).map(item => ({
+      image: item.image,
+      title: item.title,
+      date: item.date,
+      time: item.time
+    }))
   } catch (error) {
-    console.error('error:', error)
+    console.error(error)
+    ElMessage.error('Failed to load events')
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  fetchEvents()
-})
+onMounted(loadEvents)
 </script>
 
 <style scoped lang="scss">

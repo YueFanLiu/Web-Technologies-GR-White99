@@ -1,6 +1,7 @@
 package fr.isep.projectweb.model.service;
 
 import fr.isep.projectweb.model.dto.request.LoginRequest;
+import fr.isep.projectweb.model.dto.request.ForgotPasswordRequest;
 import fr.isep.projectweb.model.dto.request.SignupRequest;
 import fr.isep.projectweb.model.dto.response.AuthResponse;
 import org.springframework.http.HttpStatus;
@@ -54,6 +55,46 @@ public class AuthService {
 
         AuthResponse response = baseSuccessResponse("AUTHENTICATED", "Login successful");
         response.setEmail(email);
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(optionalString(payload.get("refresh_token")));
+        response.setExpiresIn(optionalInteger(payload.get("expires_in")));
+        response.setUser(buildUserSummary(payload.get("user"), jwt));
+        return response;
+    }
+
+    public AuthResponse forgotPassword(ForgotPasswordRequest request) {
+        String email = normalizeAndValidateEmail(request.getEmail());
+        String redirectTo = normalizeOptionalUrl(request.getRedirectTo());
+
+        supabaseAuthService.forgotPassword(email, redirectTo);
+
+        AuthResponse response = baseSuccessResponse(
+                "PASSWORD_RESET_EMAIL_SENT",
+                "Password reset email sent"
+        );
+        response.setEmail(email);
+        return response;
+    }
+
+    public AuthResponse verifyEmail(String tokenHash, String type) {
+        String normalizedTokenHash = normalize(tokenHash);
+        if (normalizedTokenHash == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token hash must not be blank");
+        }
+
+        String normalizedType = normalize(type);
+        if (normalizedType == null) {
+            normalizedType = "signup";
+        }
+
+        Map<String, Object> payload = supabaseAuthService.verifyEmail(normalizedTokenHash, normalizedType);
+        String accessToken = requiredString(payload.get("access_token"), "Supabase verify response is missing access_token");
+
+        Jwt jwt = jwtDecoder.decode(accessToken);
+        currentUserService.getOrCreateCurrentUser(jwt);
+
+        AuthResponse response = baseSuccessResponse("AUTHENTICATED", "Email verified successfully");
+        response.setEmail(jwt.getClaimAsString("email"));
         response.setAccessToken(accessToken);
         response.setRefreshToken(optionalString(payload.get("refresh_token")));
         response.setExpiresIn(optionalInteger(payload.get("expires_in")));
@@ -201,6 +242,10 @@ public class AuthService {
         }
         String trimmed = value.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String normalizeOptionalUrl(String value) {
+        return normalize(value);
     }
 
     private String optionalString(Object value) {

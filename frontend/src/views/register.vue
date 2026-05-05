@@ -137,19 +137,34 @@ const registerRules = {
 
 const loading = ref(false)
 
+function resolveApiMessage(error, fallbackMessage) {
+  return error?.response?.data?.message
+    || error?.response?.data?.msg
+    || error?.message
+    || fallbackMessage
+}
+
 function handleRegister() {
   proxy.$refs.registerRef.validate(valid => {
     if (valid) {
       loading.value = true
       register(registerForm.value).then(res => {
-        ElMessageBox.alert("Registration successful!", "Success", {
+        const message = res?.message || "Registration request sent. Please check your email to verify your account."
+        ElMessageBox.alert(message, "Email Verification Required", {
           type: "success"
         }).then(() => {
           router.push("/login")
         })
-      }).catch(() => {
+      }).catch(error => {
         loading.value = false
-        })
+        ElMessageBox.alert(
+          resolveApiMessage(error, "Registration request failed. Please try again later."),
+          "Registration Failed",
+          {
+            type: "error"
+          }
+        )
+      })
     }
   })
 }

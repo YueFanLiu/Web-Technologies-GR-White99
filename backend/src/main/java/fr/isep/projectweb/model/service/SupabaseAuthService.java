@@ -1,7 +1,8 @@
 package fr.isep.projectweb.model.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -17,15 +18,16 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 @Service
 public class SupabaseAuthService {
 
-    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
-            new ParameterizedTypeReference<>() {};
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
     private final String supabasePublishableKey;
     private final String authBasePath;
 
     public SupabaseAuthService(@Value("${supabase.url}") String supabaseUrl,
                                @Value("${supabase.publishable-key:}") String supabasePublishableKey) {
+        this.objectMapper = new ObjectMapper();
         this.restClient = RestClient.builder()
                 .baseUrl(supabaseUrl)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -62,19 +64,49 @@ public class SupabaseAuthService {
         return post("/token?grant_type=password", payload);
     }
 
+    public Map<String, Object> forgotPassword(String email, String redirectTo) {
+        ensureConfigured();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("email", email);
+
+        String path = "/recover";
+        if (redirectTo != null && !redirectTo.isBlank()) {
+            path += "?redirect_to={redirectTo}";
+        }
+
+        return post(path, payload, redirectTo);
+    }
+
+    public Map<String, Object> verifyEmail(String tokenHash, String type) {
+        ensureConfigured();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("token_hash", tokenHash);
+        payload.put("type", type);
+
+        return post("/verify", payload);
+    }
+
     private Map<String, Object> post(String path, Map<String, Object> payload) {
+        return post(path, payload, null);
+    }
+
+    private Map<String, Object> post(String path, Map<String, Object> payload, String redirectTo) {
         try {
-            return restClient.post()
-                    .uri(authBasePath + path)
-                    .body(payload)
-                    .retrieve()
-                    .body(MAP_TYPE);
+            RestClient.RequestBodyUriSpec request = restClient.post();
+            RestClient.RequestBodySpec bodySpec = redirectTo != null && !redirectTo.isBlank()
+                    ? request.uri(authBasePath + path, redirectTo)
+                    : request.uri(authBasePath + path);
+            String responseBody = bodySpec.body(payload).retrieve().body(String.class);
+            return parseResponseBody(responseBody);
         } catch (RestClientResponseException exception) {
-            Map<String, Object> errorBody = exception.getResponseBodyAs(MAP_TYPE);
+            Map<String, Object> errorBody = parseResponseBodyOrEmpty(exception.getResponseBodyAsString());
             String message = firstNonBlank(
                     asString(errorBody != null ? errorBody.get("msg") : null),
                     asString(errorBody != null ? errorBody.get("error_description") : null),
                     asString(errorBody != null ? errorBody.get("message") : null),
+                    exception.getResponseBodyAsString(),
                     "Supabase authentication request failed"
             );
             throw new ResponseStatusException(
@@ -84,6 +116,30 @@ public class SupabaseAuthService {
             );
         } catch (Exception exception) {
             throw new ResponseStatusException(BAD_GATEWAY, "Unable to contact Supabase Auth", exception);
+        }
+    }
+
+    private Map<String, Object> parseResponseBody(String responseBody) {
+        Map<String, Object> parsed = parseResponseBodyOrEmpty(responseBody);
+        if (!parsed.isEmpty()) {
+            return parsed;
+        }
+
+        throw new ResponseStatusException(
+                BAD_GATEWAY,
+                firstNonBlank(responseBody, "Supabase authentication response was empty or not JSON")
+        );
+    }
+
+    private Map<String, Object> parseResponseBodyOrEmpty(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return Map.of();
+        }
+
+        try {
+            return objectMapper.readValue(responseBody, MAP_TYPE);
+        } catch (Exception ignored) {
+            return Map.of();
         }
     }
 

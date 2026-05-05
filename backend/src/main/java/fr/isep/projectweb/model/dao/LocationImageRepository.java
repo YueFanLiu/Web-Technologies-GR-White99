@@ -11,5 +11,7 @@ public interface LocationImageRepository extends JpaRepository<LocationImage, UU
 
     List<LocationImage> findByLocationIdOrderByCreatedAtAsc(UUID locationId);
 
+    long countByLocationId(UUID locationId);
+
     Optional<LocationImage> findByIdAndLocationId(UUID id, UUID locationId);
 }

@@ -17,6 +17,16 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     List<Event> findByLocationIdOrderByStartTimeAsc(UUID locationId);
 
+    long countByLocationId(UUID locationId);
+
+    @Query("""
+            SELECT COUNT(e)
+            FROM Event e
+            WHERE e.location.id = :locationId
+              AND e.endTime >= CURRENT_TIMESTAMP
+            """)
+    long countUpcomingByLocationId(@Param("locationId") UUID locationId);
+
     @Query("""
             SELECT e
             FROM Event e
