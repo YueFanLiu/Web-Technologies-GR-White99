@@ -171,10 +171,16 @@
       </el-form-item>
 
       <el-form-item label="Start Time">
-        <el-input v-model="eventForm.startTime" placeholder="2025-12-25T14:00:00" />
+        <el-date-picker v-model="eventForm.startTime" type="datetime" 
+          placeholder="Select start time" value-format="YYYY-MM-DDTHH:mm:ss" 
+          format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
+        />
       </el-form-item>
       <el-form-item label="End Time">
-        <el-input v-model="eventForm.endTime" placeholder="2025-12-25T18:00:00" />
+        <el-date-picker v-model="eventForm.endTime" type="datetime" 
+          placeholder="Select end time" value-format="YYYY-MM-DDTHH:mm:ss" 
+          format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
+        />
       </el-form-item>
 
       <el-form-item label="Capacity">
@@ -288,15 +294,15 @@ function mapEvent(event, index) {
 const fetchEvents = async () => {
   loading.value = true
   try {
-    // 只传非空参数
-    const params = {}
-    if (form.location) params.location = form.location
-    if (form.dateRange) params.dateRange = form.dateRange
-    if (form.activityType.length) params.activityType = form.activityType.join(',')
-    if (form.accessibility.length) params.accessibility = form.accessibility.join(',')
+    const params = {
+      limit: 1000,
+      upcomingOnly: false
+    }
+    if (form.category) params.category = form.category
+    if (form.keyword) params.keyword = form.keyword
+    if (form.status) params.status = form.status
 
     const res = await listEvent(params)
-    
     const events = Array.isArray(res) ? res : []
     const mappedEvents = events.map(mapEvent)
     activityList.value = mappedEvents
