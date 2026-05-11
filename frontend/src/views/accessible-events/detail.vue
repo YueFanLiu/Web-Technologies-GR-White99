@@ -96,7 +96,7 @@
           <el-button circle size="small" @click="decreaseCount">-</el-button>
           <span class="count">{{ childCount }}</span>
           <el-button circle size="small" @click="increaseCount">+</el-button>
-          <el-button type="primary" class="book-btn">Book Now</el-button>
+          <el-button type="primary" class="book-btn" @click="goBookActivity">Book Now</el-button>
         </div>
 
         <div class="spots-left">
@@ -167,7 +167,7 @@
 
 <script setup>
 import {ref, onMounted} from 'vue'
-import {useRoute} from 'vue-router'
+import {useRoute, useRouter} from 'vue-router'
 import {ElMessage} from 'element-plus'
 import {
   getEventDetail,
@@ -189,6 +189,7 @@ import {
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const eventId = route.query.id
 const loading = ref(false)
 const eventDetail = ref({})
@@ -233,6 +234,10 @@ const decreaseCount = () => {
   if (childCount.value > 1) {
     childCount.value--
   }
+}
+
+const goBookActivity = () => {
+  router.push('/product/bookActivity')
 }
 
 onMounted(() => {

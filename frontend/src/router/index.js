@@ -107,6 +107,54 @@ export const constantRoutes = [
         name: 'eventDetails',
         meta: { title: 'Event-details', icon: 'user' }
       },
+      {
+        path: 'bookActivity',
+        component: () => import('@/views/accessible-events/booking.vue'),
+        name: 'BookActivity',
+        meta: { title: 'Book Activity', icon: 'date' }
+      },
+      {
+        path: 'bookingConfirmation',
+        component: () => import('@/views/accessible-events/BookingConfirmation.vue'),
+        name: 'BookingConfirmation',
+        meta: { title: 'Booking Confirmation', icon: 'success' }
+      },
+      {
+        path: 'writeReview',
+        component: () => import('@/views/accessible-events/WriteReview.vue'),
+        name: 'WriteReview',
+        meta: { title: 'Write Review', icon: 'edit' }
+      },
+      {
+        path: 'createActivity',
+        component: () => import('@/views/manager/createactivity.vue'),
+        name: 'CreateActivity',
+        meta: { title: 'Create Activity', icon: 'plus' }
+      },
+      {
+        path: 'manageActivity',
+        component: () => import('@/views/manager/manageactivity.vue'),
+        name: 'ManageActivity',
+        meta: { title: 'Manage Activity', icon: 'edit' }
+      },
+      {
+        path: 'attendeeList',
+        component: () => import('@/views/manager/AttendeeList.vue'),
+        name: 'AttendeeList',
+        meta: { title: 'Attendee List', icon: 'user' }
+      },
+      {
+        path: 'mainPost',
+        component: () => import('@/views/post/mainpost.vue'),
+        name: 'MainPost',
+        meta: { title: 'My Posts', icon: 'post' }
+      },
+      {
+        path: 'createPost',
+        component: () => import('@/views/post/createpost.vue'),
+        name: 'CreatePost',
+        meta: { title: 'Create Post', icon: 'edit' }
+      },
 
     ]
   },
