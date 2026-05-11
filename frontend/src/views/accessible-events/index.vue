@@ -56,7 +56,7 @@
                   </el-checkbox-group>
                 </div>
 
-                <el-button type="primary" style="width: 100%; margin-top: 15px;">Apply Filters</el-button>
+                <el-button type="primary" style="width: 100%; margin-top: 15px;" @click="fetchEvents">Apply Filters</el-button>
               </el-collapse-item>
             </el-collapse>
 
@@ -196,7 +196,7 @@
 import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { listEvents } from '@/api/events'
+import { listEvent, createEvent } from '@/api/events/index.js'
 
 const router = useRouter()
 const goToDetails = (item) => {
@@ -205,6 +205,7 @@ const goToDetails = (item) => {
     query: item.id ? { id: item.id } : {}
   })
 }
+
 // 筛选表单
 const form = reactive({
   location: 'cityville',
@@ -213,13 +214,11 @@ const form = reactive({
   accessibility: []
 })
 
-// 中间活动列表模拟数据
 const loading = ref(false)
 const activityList = ref([])
-
-// 右侧热门活动模拟数据
 const popularEvents = ref([])
 
+// 格式化时间、日期、图片
 function formatDate(value) {
   if (!value) return 'Date TBA'
   const date = new Date(value)
@@ -237,12 +236,8 @@ function formatTime(startValue, endValue) {
   const start = new Date(startValue)
   if (Number.isNaN(start.getTime())) return 'Time TBA'
 
-  const options = {
-    hour: 'numeric',
-    minute: '2-digit'
-  }
+  const options = { hour: 'numeric', minute: '2-digit' }
   const startText = start.toLocaleTimeString('en-US', options)
-
   if (!endValue) return startText
   const end = new Date(endValue)
   if (Number.isNaN(end.getTime())) return startText
@@ -254,6 +249,7 @@ function fallbackImage(id, width = 220, height = 150) {
   return `https://picsum.photos/seed/${seed}/${width}/${height}`
 }
 
+// 数据映射
 function mapEvent(event, index) {
   const location = event.location || {}
   const image = event.coverImageUrl || event.imageUrls?.[0] || fallbackImage(event.id || index)
@@ -272,35 +268,77 @@ function mapEvent(event, index) {
   }
 }
 
-async function loadEvents() {
+// 获取活动列表
+const fetchEvents = async () => {
   loading.value = true
   try {
-    const events = await listEvents({
-      upcomingOnly: true,
-      limit: 20
-    })
+    const params = {
+      location: form.location,
+      dateRange: form.dateRange,
+      activityType: form.activityType.join(','),
+      accessibility: form.accessibility.join(',')
+    }
+    
+    const events = await listEvent(params)
     const mappedEvents = Array.isArray(events) ? events.map(mapEvent) : []
+    
     activityList.value = mappedEvents
-    popularEvents.value = mappedEvents.slice(0, 3).map(item => ({
-      image: item.image,
-      title: item.title,
-      date: item.date,
-      time: item.time
-    }))
+    popularEvents.value = mappedEvents.slice(0, 3)
   } catch (error) {
-    console.error(error)
+    console.error('error:', error)
     ElMessage.error('Failed to load events')
   } finally {
     loading.value = false
   }
 }
 
-onMounted(loadEvents)
+// ==================== 创建活动功能（从前面代码完整移植）====================
+const dialogVisible = ref(false)
+const eventForm = reactive({
+  title: '',
+  description: '',
+  category: '',
+  startTime: '',
+  endTime: '',
+  capacity: 10,
+  price: 0,
+  locationId: ''
+})
+
+const openCreateDialog = () => {
+  dialogVisible.value = true
+}
+
+const handleCreateEvent = async () => {
+  try {
+    const postData = {
+      title: eventForm.title,
+      description: eventForm.description,
+      category: eventForm.category,
+      startTime: eventForm.startTime,
+      endTime: eventForm.endTime,
+      capacity: eventForm.capacity,
+      price: eventForm.price,
+      isVirtual: false,
+      status: "PUBLISHED",
+      locationId: eventForm.locationId
+    }
+    await createEvent(postData)
+    ElMessage.success('Activity created successfully!')
+    dialogVisible.value = false
+    fetchEvents()
+  } catch (error) {
+    console.error('Create failed:', error)
+    ElMessage.error('Creation failed')
+  }
+}
+
+onMounted(() => {
+  fetchEvents()
+})
 </script>
 
 <style scoped lang="scss">
-
-
 .page-wrapper {
   width: 100%;
   height: 100vh;
@@ -309,20 +347,6 @@ onMounted(loadEvents)
 .full-container {
   height: 100%;
   width: 100%;
-}
-.page-header {
-  padding: 0 !important; 
-  background-color: #fff;
-  border-bottom: 1px solid #e4e7ed;
-  .logo {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 600;
-    color: #303133;
-  }
-  .header-menu {
-    border-bottom: none;
-  }
 }
 .main-container {
   height: calc(100vh - 60px);
