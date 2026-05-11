@@ -86,6 +86,10 @@
           <!-- 活动卡片列表（模拟数据） -->
           <div class="activity-list" v-loading="loading">
             <div class="activity-card" v-for="(item, index) in activityList" :key="index">
+              <div class="delete-btn">
+                <el-button type="danger" size="mini" @click.stop="handleDelete(item.id)">Delete</el-button>
+                <el-button type="primary" size="mini" @click.stop="openEditDialog(item)">Edit</el-button>
+              </div>
               <div class="card-image">
                 <img :src="item.image" alt="activity" />
               </div>
@@ -148,7 +152,7 @@
     </el-container>
   </div>
 
-  <el-dialog v-model="dialogVisible" title="Create New Activity" width="500px">
+  <el-dialog v-model="dialogVisible" :title="isEdit ? 'Edit Activity' : 'Create New Activity'" width="500px">
     <el-form :model="eventForm" label-width="120px">
       <el-form-item label="Title">
         <el-input v-model="eventForm.title" placeholder="Please enter activity title" />
@@ -167,10 +171,16 @@
       </el-form-item>
 
       <el-form-item label="Start Time">
-        <el-input v-model="eventForm.startTime" placeholder="2025-12-25T14:00:00" />
+        <el-date-picker v-model="eventForm.startTime" type="datetime" 
+          placeholder="Select start time" value-format="YYYY-MM-DDTHH:mm:ss" 
+          format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
+        />
       </el-form-item>
       <el-form-item label="End Time">
-        <el-input v-model="eventForm.endTime" placeholder="2025-12-25T18:00:00" />
+        <el-date-picker v-model="eventForm.endTime" type="datetime" 
+          placeholder="Select end time" value-format="YYYY-MM-DDTHH:mm:ss" 
+          format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
+        />
       </el-form-item>
 
       <el-form-item label="Capacity">
@@ -187,7 +197,9 @@
 
     <template #footer>
       <el-button @click="dialogVisible = false">Cancel</el-button>
-      <el-button type="primary" @click="handleCreateEvent">Confirm Create</el-button>
+      <el-button type="primary" @click="isEdit ? handleUpdateEvent() : handleCreateEvent()">
+        {{ isEdit ? 'Confirm Update' : 'Confirm Create' }}
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -195,14 +207,14 @@
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { listEvent, createEvent } from '@/api/events/index.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { listEvent, createEvent, delEvent, updateEvent } from '@/api/events/index.js'
 
 const router = useRouter()
 const goToDetails = (item) => {
   router.push({
     path: '/product/eventDetails',
-    query: item.id ? { id: item.id } : {}
+    query: { id: item.id }
   })
 }
 
@@ -217,6 +229,8 @@ const form = reactive({
 const loading = ref(false)
 const activityList = ref([])
 const popularEvents = ref([])
+const isEdit = ref(false)
+const currentEventId = ref(null)
 
 // 格式化时间、日期、图片
 function formatDate(value) {
@@ -230,6 +244,7 @@ function formatDate(value) {
     day: 'numeric'
   })
 }
+
 
 function formatTime(startValue, endValue) {
   if (!startValue) return 'Time TBA'
@@ -264,7 +279,14 @@ function mapEvent(event, index) {
     locationName: location.name || (event.isVirtual ? 'Online event' : 'Location TBA'),
     locationAddress: [location.address, location.city, location.country].filter(Boolean).join(', ') || 'Address TBA',
     rating: Number(event.averageRating || 0),
-    reviews: Number(event.reviewCount || 0)
+    reviews: Number(event.reviewCount || 0),
+    description: event.description || '',
+    category: event.category || '',
+    startTime: event.startTime || '',
+    endTime: event.endTime || '',
+    capacity: event.capacity || 10,
+    price: event.price || 0,
+    location: location
   }
 }
 
@@ -273,15 +295,16 @@ const fetchEvents = async () => {
   loading.value = true
   try {
     const params = {
-      location: form.location,
-      dateRange: form.dateRange,
-      activityType: form.activityType.join(','),
-      accessibility: form.accessibility.join(',')
+      limit: 1000,
+      upcomingOnly: false
     }
-    
-    const events = await listEvent(params)
-    const mappedEvents = Array.isArray(events) ? events.map(mapEvent) : []
-    
+    if (form.category) params.category = form.category
+    if (form.keyword) params.keyword = form.keyword
+    if (form.status) params.status = form.status
+
+    const res = await listEvent(params)
+    const events = Array.isArray(res) ? res : []
+    const mappedEvents = events.map(mapEvent)
     activityList.value = mappedEvents
     popularEvents.value = mappedEvents.slice(0, 3)
   } catch (error) {
@@ -292,7 +315,6 @@ const fetchEvents = async () => {
   }
 }
 
-// ==================== 创建活动功能（从前面代码完整移植）====================
 const dialogVisible = ref(false)
 const eventForm = reactive({
   title: '',
@@ -305,8 +327,81 @@ const eventForm = reactive({
   locationId: ''
 })
 
-const openCreateDialog = () => {
+const openEditDialog = (item) => {
+  isEdit.value = true
+  currentEventId.value = item.id
+  
+  eventForm.title = item.title
+  eventForm.description = item.description || ''
+  eventForm.category = item.category || ''
+  eventForm.startTime = item.startTime || ''
+  eventForm.endTime = item.endTime || ''
+  eventForm.capacity = item.capacity || 10
+  eventForm.price = item.price || 0
+  eventForm.locationId = item.location?.id || ''
+  
   dialogVisible.value = true
+}
+
+const openCreateDialog = () => {
+  isEdit.value = false
+  currentEventId.value = null
+  Object.assign(eventForm, {
+    title: '', description: '', category: '',
+    startTime: '', endTime: '', capacity: 10,
+    price: 0, locationId: ''
+  })
+  dialogVisible.value = true
+}
+
+
+// 更新活动
+const handleUpdateEvent = async () => {
+  try {
+    const postData = {
+      title: eventForm.title,
+      description: eventForm.description,
+      category: eventForm.category,
+      startTime: eventForm.startTime,
+      endTime: eventForm.endTime,
+      capacity: eventForm.capacity,
+      price: eventForm.price,
+      isVirtual: false,
+      status: "PUBLISHED",
+      locationId: eventForm.locationId
+    }
+    await updateEvent(currentEventId.value, postData)
+    ElMessage.success('Updated successfully!')
+    dialogVisible.value = false
+    await fetchEvents()
+  } catch (error) {
+    console.error('Update failed:', error)
+    ElMessage.error('Update failed')
+  }
+}
+
+// 删除活动
+const handleDelete = async (id) => {
+  ElMessageBox.confirm(
+    'Confirm to delete this event?',
+    'Warning',
+    {
+      confirmButtonText: 'Confirm',
+      cancelButtonText: 'Cancel',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await delEvent(id)
+      ElMessage.success('Deleted successfully!')
+      fetchEvents()
+    } catch (err) {
+      ElMessage.error('Delete failed')
+      console.error(err)
+    }
+  }).catch(() => {
+    ElMessage.info('Canceled')
+  })
 }
 
 const handleCreateEvent = async () => {
@@ -512,5 +607,17 @@ onMounted(() => {
       }
     }
   }
+}
+
+.delete-btn {
+  display: flex;
+  gap: 5px;
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  z-index: 10;
+}
+.activity-card {
+  position: relative;
 }
 </style>
