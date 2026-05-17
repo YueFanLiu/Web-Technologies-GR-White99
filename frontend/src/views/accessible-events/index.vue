@@ -190,8 +190,19 @@
         <el-input v-model="eventForm.price" type="number" />
       </el-form-item>
 
-      <el-form-item label="Location ID">
-        <el-input v-model="eventForm.locationId" placeholder="UUID" />
+      <el-form-item label="Location">
+        <el-select 
+          v-model="eventForm.locationId" 
+          placeholder="Select a location"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="loc in locationOptions"
+            :key="loc.id"
+            :label="`${loc.name} - ${loc.address || loc.city || ''}`"
+            :value="loc.id"
+          />
+        </el-select>
       </el-form-item>
     </el-form>
 
@@ -209,7 +220,9 @@ import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listEvent, createEvent, delEvent, updateEvent } from '@/api/events/index.js'
-
+import { listLocations } from '@/api/location/index.js'
+import { useRoute } from 'vue-router'
+const route = useRoute()
 const router = useRouter()
 const goToDetails = (item) => {
   router.push({
@@ -217,7 +230,8 @@ const goToDetails = (item) => {
     query: { id: item.id }
   })
 }
-
+const searchKeyword = ref('')
+const locationOptions = ref([])
 // 筛选表单
 const form = reactive({
   location: 'cityville',
@@ -289,6 +303,15 @@ function mapEvent(event, index) {
     location: location
   }
 }
+//获取locaiton列表
+const fetchLocations = async () => {
+  try {
+    const res = await listLocations()
+    locationOptions.value = Array.isArray(res) ? res : []
+  } catch (error) {
+    console.error('Failed to load locations:', error)
+  }
+}
 
 // 获取活动列表
 const fetchEvents = async () => {
@@ -298,6 +321,7 @@ const fetchEvents = async () => {
       limit: 1000,
       upcomingOnly: false
     }
+    if (searchKeyword.value) params.keyword = searchKeyword.value
     if (form.category) params.category = form.category
     if (form.keyword) params.keyword = form.keyword
     if (form.status) params.status = form.status
@@ -429,7 +453,11 @@ const handleCreateEvent = async () => {
 }
 
 onMounted(() => {
+  if (route.query.keyword) {
+    searchKeyword.value = route.query.keyword
+  }
   fetchEvents()
+  fetchLocations()
 })
 </script>
 
@@ -439,18 +467,13 @@ onMounted(() => {
   height: 100vh;
   background-color: #f0f4ff;
 }
-.full-container {
-  height: 100%;
-  width: 100%;
-}
+
 .main-container {
   height: calc(100vh - 60px);
-  padding: 0px 0px;
 }
 .aside-left {
   background-color: #fff;
   border-right: 1px solid #e4e7ed;
-  padding: 0px;
   .filters-panel {
     padding: 15px;
     height: 100%;
