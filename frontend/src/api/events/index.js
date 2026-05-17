@@ -48,3 +48,15 @@ export function delEvent(id) {
     method: 'delete'
   })
 }
+
+// 搜索活动
+export function searchEvent(query) {
+  return request({
+    url: '/api/events',
+    headers: {
+      isToken: false
+    },
+    method: 'get',
+    params: query
+  })
+}
