@@ -132,12 +132,6 @@ export const constantRoutes = [
         meta: { title: 'Create Activity', icon: 'plus' }
       },
       {
-        path: 'manageActivity',
-        component: () => import('@/views/manager/manageactivity.vue'),
-        name: 'ManageActivity',
-        meta: { title: 'Manage Activity', icon: 'edit' }
-      },
-      {
         path: 'attendeeList',
         component: () => import('@/views/manager/AttendeeList.vue'),
         name: 'AttendeeList',
@@ -150,7 +144,7 @@ export const constantRoutes = [
     path: '/post',
     component: Layout,
     hidden: true,
-    redirect: '/post/mainPost',
+    redirect: 'noredirect',
     children: [
       {
         path: 'mainPost',
@@ -163,6 +157,20 @@ export const constantRoutes = [
         component: () => import('@/views/post/createpost.vue'),
         name: 'CreatePost',
         meta: { title: 'Create Post', icon: 'edit' }
+      },
+    ]
+  },
+  {
+    path: '/manager',
+    component: Layout,
+    hidden: true,
+    redirect: '/manager/mainActivity',
+    children: [
+      {
+        path: 'mainActivity',
+        component: () => import('@/views/manager/index.vue'),
+        name: 'MainActivity',
+        meta: { title: 'My Activities', icon: 'post' }
       },
     ]
   },
