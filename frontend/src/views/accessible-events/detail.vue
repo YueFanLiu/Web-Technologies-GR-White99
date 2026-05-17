@@ -237,7 +237,13 @@ const decreaseCount = () => {
 }
 
 const goBookActivity = () => {
-  router.push('/product/bookActivity')
+  router.push({
+    path: '/product/bookActivity',
+    query: {
+      eventId,
+      quantity: childCount.value
+    }
+  })
 }
 
 onMounted(() => {

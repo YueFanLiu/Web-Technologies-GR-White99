@@ -81,7 +81,17 @@
 
         <section class="posts-card">
           <div class="list-toolbar">
-            <div class="toolbar-spacer"></div>
+            <el-input
+              v-model="keyword"
+              class="post-search"
+              size="large"
+              clearable
+              placeholder="Search your posts"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
             <div class="sort-control">
               <span>Sort by:</span>
               <el-select v-model="sortBy" size="large">
@@ -91,7 +101,7 @@
             </div>
           </div>
 
-          <div class="post-list">
+          <div class="post-list" v-loading="loading">
             <article v-for="post in filteredPosts" :key="post.id" class="post-card">
               <img :src="post.cover" :alt="post.title" class="post-cover" />
 
@@ -120,15 +130,15 @@
                 </el-tag>
 
                 <div class="button-row">
-                  <el-button>
+                  <el-button @click="viewPost(post)">
                     <el-icon><View /></el-icon>
                     View
                   </el-button>
-                  <el-button>
+                  <el-button @click="editPost(post)">
                     <el-icon><EditPen /></el-icon>
                     Edit
                   </el-button>
-                  <el-button class="delete-button">
+                  <el-button class="delete-button" @click="removePost(post)">
                     <el-icon><Delete /></el-icon>
                     Delete
                   </el-button>
@@ -145,8 +155,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  deletePost,
+  getCurrentUserProfile,
+  getPostImages,
+  getPostsByUser
+} from '@/api/post'
 import {
   ArrowDown,
   Bell,
@@ -163,70 +180,184 @@ import {
   View
 } from '@element-plus/icons-vue'
 
+// 列表筛选和加载状态
 const activeTab = ref('Published')
 const sortBy = ref('recent')
+const keyword = ref('')
+const loading = ref(false)
 const router = useRouter()
 
+// 左侧状态筛选栏配置
 const tabs = [
+  { label: 'All Posts', value: 'All' },
   { label: 'Published', value: 'Published' },
   { label: 'Draft', value: 'Draft' }
 ]
 
-const posts = ref([
-  {
-    id: 1,
-    title: 'Creating Inclusive Event Spaces',
-    relatedEvent: 'Accessibility Summit 2024',
-    dateLabel: 'Published on',
-    date: 'May 18, 2024',
-    summary: "Designing inclusive environments is more than compliance-it is about creating experiences...",
-    status: 'Published',
-    cover: 'https://images.unsplash.com/photo-1573164713988-8665fc963095?auto=format&fit=crop&w=420&q=80'
-  },
-  {
-    id: 2,
-    title: 'Communication Access: Key Considerations',
-    relatedEvent: 'Inclusion in Action Conference',
-    dateLabel: 'Updated on',
-    date: 'May 10, 2024',
-    summary: 'Effective communication access ensures that everyone can fully participate in events...',
-    status: 'Published',
-    cover: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=420&q=80'
-  },
-  {
-    id: 3,
-    title: 'Digital Accessibility Checklist',
-    relatedEvent: 'Virtual Accessibility Workshop',
-    dateLabel: 'Updated on',
-    date: 'Apr 28, 2024',
-    summary: 'Use this practical checklist to evaluate and improve the accessibility of your digital event content...',
-    status: 'Published',
-    cover: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=420&q=80'
-  },
-  {
-    id: 4,
-    title: 'Planning Accessible Events: Where to Start',
-    relatedEvent: 'Accessibility Summit 2024',
-    dateLabel: 'Created on',
-    date: 'Apr 20, 2024',
-    summary: 'New to accessibility? Start here. We break down the essential steps to plan more inclusive events...',
-    status: 'Draft',
-    cover: 'https://images.unsplash.com/photo-1560264280-88b68371db39?auto=format&fit=crop&w=420&q=80'
-  }
-])
+// 当前用户的帖子列表，页面加载后由后端接口填充
+const posts = ref([])
 
+// 根据状态、关键词和排序方式生成最终展示的帖子列表
 const filteredPosts = computed(() => {
-  const result = posts.value.filter((post) => post.status === activeTab.value)
-  return sortBy.value === 'oldest' ? [...result].reverse() : result
+  const text = keyword.value.trim().toLowerCase()
+  const result = posts.value.filter((post) => {
+    const matchesStatus = activeTab.value === 'All' || post.status === activeTab.value
+    const matchesKeyword = !text || [post.title, post.relatedEvent, post.summary]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(text))
+
+    return matchesStatus && matchesKeyword
+  })
+
+  return [...result].sort((a, b) => {
+    const left = a.sortTime || 0
+    const right = b.sortTime || 0
+    return sortBy.value === 'oldest' ? left - right : right - left
+  })
 })
 
+// 统计某个状态下的帖子数量，用于左侧 tab 角标
 function countByStatus(status) {
+  if (status === 'All') {
+    return posts.value.length
+  }
+
   return posts.value.filter((post) => post.status === status).length
 }
 
+// 跳转到创建帖子页面
 function goCreatePost() {
-  router.push('/product/createPost')
+  router.push({ name: 'CreatePost' })
 }
+
+// 跳转到只读查看模式，createpost.vue 会根据 mode=view 禁用表单
+function viewPost(post) {
+  router.push({ name: 'CreatePost', query: { id: post.id, mode: 'view' } })
+}
+
+// 跳转到编辑模式，createpost.vue 会根据 id 加载帖子详情
+function editPost(post) {
+  router.push({ name: 'CreatePost', query: { id: post.id } })
+}
+
+// 删除帖子：先弹出确认框，确认后调用 DELETE /api/posts/{id}
+function removePost(post) {
+  ElMessageBox.confirm(`Delete "${post.title}"?`, 'Delete Post', {
+    confirmButtonText: 'Delete',
+    cancelButtonText: 'Cancel',
+    type: 'warning'
+  }).then(() => {
+    return deletePost(post.id)
+  }).then(() => {
+    ElMessage.success('Post deleted')
+    posts.value = posts.value.filter((item) => item.id !== post.id)
+  }).catch((error) => {
+    if (error !== 'cancel') {
+      console.error('Failed to delete post:', error)
+    }
+  })
+}
+
+// 兼容不同后端列表响应格式，统一转成数组
+function extractList(res) {
+  if (Array.isArray(res)) {
+    return res
+  }
+
+  return res?.rows || res?.data || res?.list || res?.content || []
+}
+
+// 从 /api/users/me 的返回里取当前用户 id，兼容多种字段结构
+function getProfileId(profile) {
+  return profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
+}
+
+// 将后端时间字段格式化成页面展示日期
+function formatDate(value) {
+  if (!value) {
+    return 'Date unavailable'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Date unavailable'
+  }
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+// 将后端状态统一成页面使用的 Published / Draft
+function getStatus(value) {
+  const status = String(value || 'Published').toLowerCase()
+  return status === 'draft' ? 'Draft' : 'Published'
+}
+
+// 从帖子图片列表中取第一张作为封面图
+function getFirstImageUrl(images) {
+  const image = images?.[0]
+  return image?.imageUrl || image?.url || image?.publicUrl || image?.path || ''
+}
+
+// 将后端 post 原始数据整理成页面卡片需要的数据结构
+function normalizePost(post, images = []) {
+  const createdAt = post.createdAt || post.createTime || post.createdTime
+  const updatedAt = post.updatedAt || post.updateTime || post.updatedTime || createdAt
+  const publishedAt = post.publishedAt || post.publishTime || updatedAt
+  const status = getStatus(post.status)
+
+  return {
+    id: post.id,
+    title: post.title || 'Untitled Post',
+    relatedEvent: post.event?.title || post.event?.name || post.eventTitle || post.eventName || (post.eventId ? `Event #${post.eventId}` : 'No related event'),
+    dateLabel: status === 'Draft' ? 'Updated on' : 'Published on',
+    date: formatDate(status === 'Draft' ? updatedAt : publishedAt),
+    summary: post.summary || post.excerpt || post.content || '',
+    status,
+    sortTime: new Date(updatedAt || publishedAt || createdAt || 0).getTime(),
+    cover: getFirstImageUrl(images) || post.coverImageUrl || post.imageUrl || 'https://picsum.photos/id/1083/420/260'
+  }
+}
+
+// 页面主加载流程：先取当前用户，再取该用户的帖子，最后补每个帖子的封面图
+async function loadPosts() {
+  loading.value = true
+
+  try {
+    const profile = await getCurrentUserProfile()
+    const userId = getProfileId(profile)
+
+    if (!userId) {
+      posts.value = []
+      ElMessage.error('Unable to load current user profile')
+      return
+    }
+
+    const res = await getPostsByUser(userId)
+    const list = extractList(res)
+
+    posts.value = await Promise.all(list.map(async (post) => {
+      try {
+        const images = extractList(await getPostImages(post.id))
+        return normalizePost(post, images)
+      } catch (error) {
+        console.error('Failed to load post images:', error)
+        return normalizePost(post)
+      }
+    }))
+  } catch (error) {
+    console.error('Failed to load posts:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadPosts()
+})
 </script>
 
 <style scoped lang="scss">
@@ -500,7 +631,17 @@ function goCreatePost() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 18px;
   margin-bottom: 10px;
+}
+
+.post-search {
+  max-width: 360px;
+}
+
+.post-search :deep(.el-input__wrapper) {
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px #d6dfef inset;
 }
 
 .sort-control {

@@ -161,8 +161,9 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { createEventRegistration } from '@/api/events/detail'
 import {
   ArrowLeft,
   Calendar,
@@ -177,9 +178,11 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 
 const unitPrice = 45
-const quantity = ref(1)
+const eventId = route.query.eventId || route.query.id
+const quantity = ref(Number(route.query.quantity) || 1)
 
 const event = {
   title: 'Sunset Sounds: Outdoor Acoustic Concert',
@@ -212,12 +215,30 @@ function formatPrice(value) {
 }
 
 function backToEvent() {
-  router.push('/product/eventDetails')
+  router.push({
+    path: '/product/eventDetails',
+    query: eventId ? { id: eventId } : {}
+  })
 }
 
 function confirmBooking() {
-  ElMessage.success('Booking confirmed')
-  router.push('/product/bookingConfirmation')
+  if (!eventId) {
+    ElMessage.error('Missing event id')
+    return
+  }
+
+  createEventRegistration({
+    eventId,
+    quantity: quantity.value,
+    fullName: contact.value.fullName,
+    email: contact.value.email,
+    phone: contact.value.phone
+  }).then(() => {
+    ElMessage.success('Booking confirmed')
+    router.push('/product/bookingConfirmation')
+  }).catch(error => {
+    console.error('Failed to confirm booking:', error)
+  })
 }
 </script>
 

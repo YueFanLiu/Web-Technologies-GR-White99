@@ -4,10 +4,7 @@ import request from '@/utils/request'
 export function getEventDetail(id) {
     return request({
         url: `/api/events/${id}`,
-        method: 'get',
-        headers: {
-            isToken: false
-        }
+        method: 'get'
     })
 }
 
@@ -15,10 +12,7 @@ export function getEventDetail(id) {
 export function getEventImages(eventId) {
     return request({
         url: `/api/events/${eventId}/images`,
-        method: 'get',
-        headers: {
-            isToken: false
-        }
+        method: 'get'
     })
 }
 
@@ -26,10 +20,7 @@ export function getEventImages(eventId) {
 export function getEventReviews(eventId) {
     return request({
         url: `/api/events/${eventId}/reviews`,
-        method: 'get',
-        headers: {
-            isToken: false
-        }
+        method: 'get'
     })
 }
 
@@ -37,10 +28,15 @@ export function getEventReviews(eventId) {
 export function getEventRegistrations(eventId) {
     return request({
         url: `/api/registrations/event/${eventId}`,
-        method: 'get',
-        headers: {
-            isToken: false
-        }
+        method: 'get'
+    })
+}
+
+export function createEventRegistration(data) {
+    return request({
+        url: '/api/registrations',
+        method: 'post',
+        data
     })
 }
 
@@ -48,9 +44,6 @@ export function getEventRegistrations(eventId) {
 export function getLocationAccessibility(locationId) {
     return request({
         url: `/api/locations/${locationId}/accessibility`,
-        method: 'get',
-        headers: {
-            isToken: false
-        }
+        method: 'get'
     })
 }

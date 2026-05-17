@@ -143,6 +143,15 @@ export const constantRoutes = [
         name: 'AttendeeList',
         meta: { title: 'Attendee List', icon: 'user' }
       },
+
+    ]
+  },
+  {
+    path: '/post',
+    component: Layout,
+    hidden: true,
+    redirect: '/post/mainPost',
+    children: [
       {
         path: 'mainPost',
         component: () => import('@/views/post/mainpost.vue'),
@@ -155,7 +164,6 @@ export const constantRoutes = [
         name: 'CreatePost',
         meta: { title: 'Create Post', icon: 'edit' }
       },
-
     ]
   },
 ]
