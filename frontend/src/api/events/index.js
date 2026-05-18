@@ -52,7 +52,7 @@ export function delEvent(id) {
 // 搜索活动
 export function searchEvent(query) {
   return request({
-    url: '/api/events',
+    url: '/api/events/search',
     headers: {
       isToken: false
     },

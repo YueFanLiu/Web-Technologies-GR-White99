@@ -101,18 +101,12 @@ import { ref } from 'vue'
 const router = useRouter()
 const searchKeyword = ref('')
 
-async function handleSearch() {
+function handleSearch() {
   if (!searchKeyword.value.trim()) return
-  
-  try {
-    const res = await searchEvent({ keyword: searchKeyword.value.trim() })
-    router.push({
-      path: '/product/mainEvent',
-      query: { keyword: searchKeyword.value.trim() }
-    })
-  } catch (error) {
-    console.error('Search failed:', error)
-  }
+  router.push({
+    path: '/product/mainEvent',
+    query: { keyword: searchKeyword.value.trim() }
+  })
 }
 
 const appStore = useAppStore()
