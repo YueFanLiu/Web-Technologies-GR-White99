@@ -11,27 +11,28 @@
                 <!-- 位置筛选 -->
                 <div class="filter-item">
                   <label>Location</label>
-                  <el-select v-model="form.location" placeholder="Select location">
-                    <el-option label="Cityville" value="cityville"></el-option>
+                  <el-select v-model="form.locationId" placeholder="Select location" clearable>
+                    <el-option
+                      v-for="loc in locationOptions"
+                      :key="loc.id"
+                      :label="`${loc.name} - ${loc.address || loc.city || ''}`"
+                      :value="loc.id"
+                    />
                   </el-select>
                 </div>
 
                 <!-- 日期筛选 -->
                 <div class="filter-item">
                   <label>Date</label>
-                  <el-select v-model="form.dateRange" placeholder="Select date range">
-                    <el-option label="This Week" value="week"></el-option>
-                  </el-select>
-                  <div class="date-calendar">
-                    <el-button-group>
-                      <el-button size="small">23</el-button>
-                      <el-button size="small">24</el-button>
-                      <el-button size="small">25</el-button>
-                      <el-button size="small" type="primary">26</el-button>
-                      <el-button size="small">28</el-button>
-                      <el-button size="small">29</el-button>
-                    </el-button-group>
-                  </div>
+                  <el-date-picker
+                    v-model="form.date"
+                    type="date"
+                    placeholder="Select date"
+                    value-format="YYYY-MM-DD"
+                    format="YYYY-MM-DD"
+                    style="width: 100%"
+                    clearable
+                  />
                 </div>
 
                 <!-- 活动类型 -->
@@ -56,7 +57,7 @@
                   </el-checkbox-group>
                 </div>
 
-                <el-button type="primary" style="width: 100%; margin-top: 15px;" @click="fetchEvents">Apply Filters</el-button>
+                <el-button type="primary" style="width: 100%; margin-top: 15px;" @click="handleApplyFilters">Apply Filters</el-button>
               </el-collapse-item>
             </el-collapse>
 
@@ -219,7 +220,7 @@
 import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listEvent, createEvent, delEvent, updateEvent } from '@/api/events/index.js'
+import { listEvent, createEvent, delEvent, updateEvent, searchEvent } from '@/api/events/index.js'
 import { listLocations } from '@/api/location/index.js'
 import { useRoute } from 'vue-router'
 const route = useRoute()
@@ -234,8 +235,8 @@ const searchKeyword = ref('')
 const locationOptions = ref([])
 // 筛选表单
 const form = reactive({
-  location: 'cityville',
-  dateRange: 'week',
+  locationId: '',
+  date:'',
   activityType: [],
   accessibility: []
 })
@@ -323,7 +324,6 @@ const fetchEvents = async () => {
     }
     if (searchKeyword.value) params.keyword = searchKeyword.value
     if (form.category) params.category = form.category
-    if (form.keyword) params.keyword = form.keyword
     if (form.status) params.status = form.status
 
     const res = await listEvent(params)
@@ -452,11 +452,63 @@ const handleCreateEvent = async () => {
   }
 }
 
-onMounted(() => {
-  if (route.query.keyword) {
-    searchKeyword.value = route.query.keyword
+// 搜索活动
+const searchEvents = async (params = {}) => {
+  loading.value = true
+  try {
+    const searchParams = {}
+    
+    if (params.keyword)             searchParams.keyword = params.keyword
+    if (params.locationId)          searchParams.locationId = params.locationId
+    if (params.location)            searchParams.location = params.location
+    if (params.date)                searchParams.date = params.date
+    if (params.activityType)        searchParams.activityType = params.activityType
+    if (params.accessibilityOptions) searchParams.accessibilityOptions = params.accessibilityOptions
+
+    const res = await searchEvent(searchParams)
+    const events = Array.isArray(res) ? res : []
+    const mappedEvents = events.map(mapEvent)
+    activityList.value = mappedEvents
+    popularEvents.value = mappedEvents.slice(0, 3)
+  } catch (error) {
+    ElMessage.error('Search failed')
+    console.error(error)
+  } finally {
+    loading.value = false
   }
-  fetchEvents()
+}
+
+const handleApplyFilters = () => {
+  const params = {}
+  if (form.locationId)                 params.locationId = form.locationId
+  if (form.date)                       params.date = form.date
+  if (form.activityType.length > 0)  params.activityType = form.activityType[0]
+  if (form.accessibility.length > 0) params.accessibilityOptions = form.accessibility
+  searchEvents(params)
+}
+
+const isReplacingRoute = ref(false)
+watch(
+  () => route.query.keyword,
+  (newKeyword) => {
+    if (isReplacingRoute.value) return
+    if (newKeyword) {
+      searchEvents({ keyword: newKeyword })  
+    } else {
+      fetchEvents()  
+    }
+  }
+)
+
+onMounted(async () => {
+  if (route.query.keyword) {
+    isReplacingRoute.value = true
+    searchEvents({ keyword: route.query.keyword })
+    await router.replace({ path: route.path, query: {} })
+    isReplacingRoute.value = false
+  } else {
+    fetchEvents()  
+  }
   fetchLocations()
 })
 </script>
