@@ -66,7 +66,7 @@
         <el-menu-item index="/product/mainEvent">Home</el-menu-item>
         <el-sub-menu index="/my-events">
           <template #title>My Events</template>
-          <el-menu-item index="/my-events/created">My Created Activities</el-menu-item>
+          <el-menu-item index="/product/createActivity">My Created Activities</el-menu-item>
           <el-menu-item index="/my-events/joined">My Joined Activities</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/notifications">
@@ -74,6 +74,7 @@
           <el-badge :value="unreadNotifications" class="nav-badge" />
         </el-menu-item>
         <el-menu-item index="/user/profile">Profile</el-menu-item>
+        <el-menu-item index="/post/mainPost">Post</el-menu-item>
       </el-menu>
     </div>
 </template>

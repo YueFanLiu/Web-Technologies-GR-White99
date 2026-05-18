@@ -8,9 +8,9 @@
         <h1>Write Review</h1>
       </section>
 
-      <section class="review-card">
+      <section class="review-card" v-loading="loading">
         <div class="event-summary">
-          <img :src="event.image" :alt="event.title" class="event-image" />
+          <img :src="event.image" :alt="event.title" class="event-image" @error="handleEventImageError" />
 
           <div class="event-copy">
             <h2>{{ event.title }}</h2>
@@ -61,29 +61,17 @@
           />
         </section>
 
-        <section class="upload-section">
-          <h3>Upload Photos <span>Optional</span></h3>
-          <p>Add 1 to 3 photos</p>
-
-          <el-upload
-            v-model:file-list="photoList"
-            class="photo-upload"
-            action="#"
-            list-type="picture-card"
-            :auto-upload="false"
-            :limit="3"
-          >
-            <el-icon><Plus /></el-icon>
-          </el-upload>
-
-          <p class="upload-note">JPG, PNG up to 5MB each</p>
-        </section>
-
         <div class="action-row">
           <el-button size="large" class="cancel-button" @click="cancelReview">
             Cancel
           </el-button>
-          <el-button size="large" type="primary" class="submit-button" @click="submitReview">
+          <el-button
+            size="large"
+            type="primary"
+            class="submit-button"
+            :loading="submitting"
+            @click="submitReview"
+          >
             Submit Review
             <el-icon><ArrowRight /></el-icon>
           </el-button>
@@ -94,39 +82,179 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  Clock,
-  Location,
-  Plus
-} from '@element-plus/icons-vue'
+import { createEventReview, getEventDetail, getEventImages } from '@/api/events/WriteReview'
+import { ArrowLeft, ArrowRight, Calendar, Clock, Location } from '@element-plus/icons-vue'
+import fallbackEventImage from '@/assets/images/login-background.jpg'
 
+const route = useRoute()
 const router = useRouter()
+const eventId = computed(() => route.query.eventId || route.query.id)
 
 const rating = ref(0)
 const reviewText = ref('')
-const photoList = ref([])
-
-const event = {
-  title: 'Sunset Sounds: Outdoor Acoustic Concert',
-  date: 'Sat, 24 May 2025',
-  time: '6:30 PM - 9:00 PM',
-  location: 'Riverside Park, Central Promenade, Singapore',
-  image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=720&q=80'
-}
+const loading = ref(false)
+const submitting = ref(false)
+const event = ref({
+  title: 'Loading event...',
+  date: 'Date TBA',
+  time: 'Time TBA',
+  location: 'Location TBA',
+  image: fallbackEventImage
+})
 
 function cancelReview() {
-  router.push('/product/eventDetails')
+  router.push({
+    path: '/product/eventDetails',
+    query: eventId.value ? { id: eventId.value } : {}
+  })
 }
 
-function submitReview() {
-  ElMessage.success('Review submitted')
+async function submitReview() {
+  if (!rating.value) {
+    ElMessage.error('Please select a rating')
+    return
+  }
+
+  if (!reviewText.value.trim()) {
+    ElMessage.error('Please enter your review')
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    await createEventReview(eventId.value, {
+      rating: rating.value,
+      comment: reviewText.value.trim()
+    })
+    ElMessage.success('Review submitted')
+    cancelReview()
+  } catch (error) {
+    console.error('Failed to submit review:', error)
+  } finally {
+    submitting.value = false
+  }
 }
+
+async function loadPage() {
+  if (!eventId.value) {
+    ElMessage.error('Missing event id')
+    cancelReview()
+    return
+  }
+
+  loading.value = true
+
+  try {
+    await loadEvent()
+  } catch (error) {
+    console.error('Failed to load review page:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadEvent() {
+  const detail = await getEventDetail(eventId.value)
+  const images = await getEventImages(eventId.value).catch(() => [])
+  const imageUrl = detail.coverImageUrl || images?.[0]?.imageUrl || detail.imageUrls?.[0]
+
+  event.value = {
+    title: detail.title || 'Untitled event',
+    date: formatEventDate(detail.startTime),
+    time: formatEventTimeRange(detail.startTime, detail.endTime),
+    location: formatLocation(detail.location),
+    image: normalizeImageUrl(imageUrl) || fallbackEventImage
+  }
+}
+
+function formatLocation(location) {
+  if (!location) {
+    return 'Location TBA'
+  }
+
+  return [location.name, location.address, location.city, location.country].filter(Boolean).join(', ')
+    || 'Location TBA'
+}
+
+function formatEventDate(value) {
+  if (!value) {
+    return 'Date TBA'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Date TBA'
+  }
+
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+function formatEventTimeRange(startValue, endValue) {
+  if (!startValue) {
+    return 'Time TBA'
+  }
+
+  const start = new Date(startValue)
+  if (Number.isNaN(start.getTime())) {
+    return 'Time TBA'
+  }
+
+  const options = { hour: 'numeric', minute: '2-digit' }
+  const startText = start.toLocaleTimeString('en-US', options)
+
+  if (!endValue) {
+    return startText
+  }
+
+  const end = new Date(endValue)
+  return Number.isNaN(end.getTime())
+    ? startText
+    : `${startText} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function normalizeImageUrl(value) {
+  const url = String(value || '').trim()
+
+  if (!url) {
+    return ''
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(url)) {
+    return url
+  }
+
+  if (url.startsWith('//')) {
+    return `${window.location.protocol}${url}`
+  }
+
+  if (url.startsWith('/')) {
+    return url
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (supabaseUrl) {
+    return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${url.replace(/^\/+/, '')}`
+  }
+
+  return url
+}
+
+function handleEventImageError(event) {
+  if (event.target.src !== fallbackEventImage) {
+    event.target.src = fallbackEventImage
+  }
+}
+
+onMounted(loadPage)
 </script>
 
 <style scoped lang="scss">

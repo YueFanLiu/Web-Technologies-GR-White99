@@ -24,6 +24,14 @@ export function getEventReviews(eventId) {
     })
 }
 
+export function createEventReview(eventId, data) {
+    return request({
+        url: `/api/events/${eventId}/reviews`,
+        method: 'post',
+        data
+    })
+}
+
 // 获取活动报名列表
 export function getEventRegistrations(eventId) {
     return request({
@@ -37,6 +45,20 @@ export function createEventRegistration(data) {
         url: '/api/registrations',
         method: 'post',
         data
+    })
+}
+
+export function getRegistrationsByUser(userId) {
+    return request({
+        url: `/api/registrations/user/${userId}`,
+        method: 'get'
+    })
+}
+
+export function getCurrentUserProfile() {
+    return request({
+        url: '/api/users/me',
+        method: 'get'
     })
 }
 

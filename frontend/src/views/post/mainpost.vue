@@ -1,47 +1,9 @@
 <template>
   <div class="posts-page">
-    <header class="platform-header">
-      <div class="brand">
-        <div class="brand-mark">
-          <el-icon><UserFilled /></el-icon>
-        </div>
-        <div>
-          <div class="brand-title">Accessible Events</div>
-          <div class="brand-subtitle">Platform</div>
-        </div>
-      </div>
-
-      <div class="global-search">
-        <el-icon><Search /></el-icon>
-        <span>Search events, posts, categories...</span>
-      </div>
-
-      <nav class="header-actions" aria-label="Primary">
-        <button class="icon-button" aria-label="Home">
-          <el-icon><HomeFilled /></el-icon>
-        </button>
-        <button class="icon-button" aria-label="Events">
-          <el-icon><Calendar /></el-icon>
-        </button>
-        <button class="icon-button" aria-label="Messages">
-          <el-icon><ChatDotRound /></el-icon>
-        </button>
-        <button class="icon-button notification-button" aria-label="Notifications">
-          <el-icon><Bell /></el-icon>
-          <span>3</span>
-        </button>
-        <div class="profile">
-          <img src="@/assets/images/profile.jpg" alt="Sarah Johnson" />
-          <span>Sarah Johnson</span>
-          <el-icon><ArrowDown /></el-icon>
-        </div>
-      </nav>
-    </header>
-
     <main class="posts-shell">
       <section class="hero-row">
         <div>
-          <h1>My Posts</h1>
+          <h1>Posts</h1>
           <p>Manage and organize your posts.</p>
         </div>
         <el-button type="primary" class="create-button" @click="goCreatePost">
@@ -165,18 +127,13 @@ import {
   getPostsByUser
 } from '@/api/post'
 import {
-  ArrowDown,
-  Bell,
   Calendar,
-  ChatDotRound,
   Delete,
   Document,
   EditPen,
-  HomeFilled,
   Plus,
   Reading,
   Search,
-  UserFilled,
   View
 } from '@element-plus/icons-vue'
 
@@ -385,120 +342,6 @@ onMounted(() => {
   background: #f7faff;
   color: #10234f;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
-}
-
-.platform-header {
-  height: 88px;
-  padding: 0 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #dfe7f5;
-  box-shadow: 0 8px 28px rgba(35, 67, 119, 0.05);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 260px;
-}
-
-.brand-mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 28px;
-  background: linear-gradient(145deg, #1d65ef, #5f96ff);
-}
-
-.brand-title {
-  font-size: 18px;
-  line-height: 1.2;
-  font-weight: 700;
-  color: #0d1f4f;
-}
-
-.brand-subtitle {
-  margin-top: 3px;
-  font-size: 18px;
-  color: #5c95ff;
-}
-
-.global-search {
-  width: min(580px, 42vw);
-  height: 58px;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border: 1px solid #ccd8ec;
-  border-radius: 12px;
-  background: #fbfdff;
-  color: #7480a1;
-  font-size: 16px;
-}
-
-.global-search .el-icon {
-  font-size: 24px;
-  color: #627392;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.icon-button {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  position: relative;
-  border: 0;
-  background: transparent;
-  color: #071a47;
-  font-size: 24px;
-  cursor: pointer;
-}
-
-.notification-button span {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: #2f75f6;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.profile {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #0d1f4f;
-  font-size: 14px;
-}
-
-.profile img {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  object-fit: cover;
-  box-shadow: 0 8px 18px rgba(20, 42, 79, 0.12);
 }
 
 .posts-shell {
@@ -804,10 +647,6 @@ onMounted(() => {
 }
 
 @media (max-width: 1280px) {
-  .platform-header {
-    padding: 0 24px;
-  }
-
   .posts-shell {
     padding: 30px 24px;
   }
@@ -834,22 +673,6 @@ onMounted(() => {
 }
 
 @media (max-width: 980px) {
-  .platform-header {
-    height: auto;
-    padding: 18px 20px;
-    flex-wrap: wrap;
-  }
-
-  .brand,
-  .header-actions {
-    min-width: 0;
-  }
-
-  .global-search {
-    order: 3;
-    width: 100%;
-  }
-
   .content-grid {
     grid-template-columns: 1fr;
   }

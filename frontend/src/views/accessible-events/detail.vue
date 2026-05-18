@@ -135,12 +135,17 @@
       <div class="reviews-card">
         <div class="reviews-header">
           <h3>Reviews</h3>
-          <div class="rating-info">
-            <el-icon>
-              <Star/>
-            </el-icon>
-            <span class="rating">{{ eventDetail.averageRating || 0 }}</span>
-            <span class="review-count">{{ reviewCount }} reviews</span>
+          <div class="reviews-actions">
+            <div class="rating-info">
+              <el-icon>
+                <Star/>
+              </el-icon>
+              <span class="rating">{{ eventDetail.averageRating || 0 }}</span>
+              <span class="review-count">{{ reviewCount }} reviews</span>
+            </div>
+            <el-button type="primary" size="small" @click="goWriteReview">
+              Write Review
+            </el-button>
           </div>
         </div>
 
@@ -288,6 +293,18 @@ const goBookActivity = () => {
       eventId,
       quantity: childCount.value
     }
+  })
+}
+
+const goWriteReview = () => {
+  if (!eventId) {
+    ElMessage.error('Missing event id')
+    return
+  }
+
+  router.push({
+    path: '/product/writeReview',
+    query: { eventId }
   })
 }
 
@@ -643,7 +660,14 @@ const getReviewStars = (rating) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 20px;
+}
+
+.reviews-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .rating-info {
