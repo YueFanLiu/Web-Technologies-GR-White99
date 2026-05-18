@@ -11,8 +11,14 @@ import fr.isep.projectweb.model.dto.response.EventResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.Location;
+import fr.isep.projectweb.model.entity.LocationAccessibility;
 import fr.isep.projectweb.model.entity.User;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -22,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -136,8 +143,6 @@ public class EventService {
         LocalDate normalizedDate = normalizeOptionalDate(date);
         String normalizedActivityType = normalizeOptionalFilter(activityType);
         AccessibilityFilter accessibilityFilter = normalizeAccessibilityOptions(accessibilityOptions);
-        LocalDateTime dateStart = normalizedDate != null ? normalizedDate.atStartOfDay() : null;
-        LocalDateTime dateEnd = normalizedDate != null ? normalizedDate.plusDays(1).atStartOfDay() : null;
 
         if (normalizedKeyword == null
                 && normalizedLocationId == null
@@ -147,22 +152,91 @@ public class EventService {
             return getMainPageEvents(null, null, null, null, null, null);
         }
 
-        return eventRepository.searchWithFilters(
-                        normalizedKeyword,
-                        normalizedLocationId,
-                        dateStart,
-                        dateEnd,
-                        normalizedActivityType,
-                        accessibilityFilter.wheelchairAccessible(),
-                        accessibilityFilter.hasElevator(),
-                        accessibilityFilter.accessibleToilet(),
-                        accessibilityFilter.quietEnvironment(),
-                        accessibilityFilter.stepFreeAccess(),
-                        PageRequest.of(0, SEARCH_RESULT_LIMIT)
+        return eventRepository.findAll(
+                        buildSearchSpecification(
+                                normalizedKeyword,
+                                normalizedLocationId,
+                                normalizedDate,
+                                normalizedActivityType,
+                                accessibilityFilter
+                        ),
+                        PageRequest.of(0, SEARCH_RESULT_LIMIT, Sort.by(Sort.Direction.ASC, "startTime"))
                 )
+                .getContent()
                 .stream()
                 .map(event -> toResponse(event, false))
                 .toList();
+    }
+
+    private Specification<Event> buildSearchSpecification(String keyword,
+                                                          UUID locationId,
+                                                          LocalDate date,
+                                                          String activityType,
+                                                          AccessibilityFilter accessibilityFilter) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (keyword != null) {
+                String pattern = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(criteriaBuilder.coalesce(root.get("title"), "")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(criteriaBuilder.coalesce(root.get("description"), "")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(criteriaBuilder.coalesce(root.get("category"), "")), pattern)
+                ));
+            }
+
+            if (locationId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("location").get("id"), locationId));
+            }
+
+            if (date != null) {
+                LocalDateTime dateStart = date.atStartOfDay();
+                LocalDateTime dateEnd = date.plusDays(1).atStartOfDay();
+                predicates.add(criteriaBuilder.and(
+                        criteriaBuilder.lessThan(root.get("startTime"), dateEnd),
+                        criteriaBuilder.greaterThanOrEqualTo(root.get("endTime"), dateStart)
+                ));
+            }
+
+            if (activityType != null) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("category")),
+                        activityType.toLowerCase(Locale.ROOT)
+                ));
+            }
+
+            if (!accessibilityFilter.isEmpty()) {
+                Subquery<UUID> subquery = query.subquery(UUID.class);
+                Root<LocationAccessibility> accessibility = subquery.from(LocationAccessibility.class);
+                List<Predicate> accessibilityPredicates = new ArrayList<>();
+
+                accessibilityPredicates.add(criteriaBuilder.equal(
+                        accessibility.get("location").get("id"),
+                        root.get("location").get("id")
+                ));
+                if (accessibilityFilter.wheelchairAccessible()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("wheelchairAccessible")));
+                }
+                if (accessibilityFilter.hasElevator()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("hasElevator")));
+                }
+                if (accessibilityFilter.accessibleToilet()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("accessibleToilet")));
+                }
+                if (accessibilityFilter.quietEnvironment()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("quietEnvironment")));
+                }
+                if (accessibilityFilter.stepFreeAccess()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("stepFreeAccess")));
+                }
+
+                subquery.select(accessibility.get("id"))
+                        .where(criteriaBuilder.and(accessibilityPredicates.toArray(Predicate[]::new)));
+                predicates.add(criteriaBuilder.exists(subquery));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     public EventResponse getEventById(UUID id) {

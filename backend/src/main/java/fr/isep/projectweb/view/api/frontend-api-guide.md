@@ -82,6 +82,7 @@ Important frontend rules:
 - Image delete endpoints currently delete the database image record only. The public file object in Supabase Storage is not removed by the backend.
 - There is no `PUT` endpoint for event/location/post image records. To replace an image, delete the old image record and upload or add a new one.
 - Spring Security `401/403` responses may not always use the custom JSON error shape. The helper at the end of this document handles that.
+- Supabase Storage must allow uploads to the `images` bucket. If multipart image upload returns `new row violates row-level security policy`, run `src/main/resources/supabase-storage-policies.sql` in the Supabase SQL Editor, or configure `SUPABASE_SERVICE_ROLE_KEY` for the backend runtime.
 
 Error response shape:
 
