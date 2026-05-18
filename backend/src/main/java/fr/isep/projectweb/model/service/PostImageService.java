@@ -20,13 +20,16 @@ public class PostImageService {
     private final PostImageRepository postImageRepository;
     private final PostRepository postRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public PostImageService(PostImageRepository postImageRepository,
                             PostRepository postRepository,
-                            SupabaseStorageService supabaseStorageService) {
+                            SupabaseStorageService supabaseStorageService,
+                            RecommendationScoreService recommendationScoreService) {
         this.postImageRepository = postImageRepository;
         this.postRepository = postRepository;
         this.supabaseStorageService = supabaseStorageService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public List<ImageResponse> getByPostId(UUID postId) {
@@ -43,7 +46,9 @@ public class PostImageService {
         PostImage image = new PostImage();
         image.setPost(findPost(postId));
         image.setImageUrl(request.getImageUrl().trim());
-        return ResponseMapper.toPostImageResponse(postImageRepository.save(image));
+        PostImage savedImage = postImageRepository.save(image);
+        recommendationScoreService.recomputePostScore(postId);
+        return ResponseMapper.toPostImageResponse(savedImage);
     }
 
     public ImageResponse upload(UUID postId, MultipartFile file, String authorizationHeader) {
@@ -53,13 +58,16 @@ public class PostImageService {
         PostImage image = new PostImage();
         image.setPost(post);
         image.setImageUrl(imageUrl);
-        return ResponseMapper.toPostImageResponse(postImageRepository.save(image));
+        PostImage savedImage = postImageRepository.save(image);
+        recommendationScoreService.recomputePostScore(postId);
+        return ResponseMapper.toPostImageResponse(savedImage);
     }
 
     public void delete(UUID postId, UUID imageId) {
         PostImage image = postImageRepository.findByIdAndPostId(imageId, postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post image not found"));
         postImageRepository.delete(image);
+        recommendationScoreService.recomputePostScore(postId);
     }
 
     private Post findPost(UUID postId) {

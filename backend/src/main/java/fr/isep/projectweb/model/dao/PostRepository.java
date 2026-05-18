@@ -17,6 +17,10 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
 
     List<Post> findByEventIdOrderByCreatedAtDesc(UUID eventId);
 
+    List<Post> findByEventId(UUID eventId);
+
+    List<Post> findByRecommendationScoreUpdatedAtIsNull();
+
     long countByLocationId(UUID locationId);
 
     @Query("""
@@ -32,7 +36,7 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
               AND (:status IS NULL OR LOWER(p.status) = LOWER(CAST(:status AS string)))
               AND (:locationId IS NULL OR p.location.id = :locationId)
               AND (:eventId IS NULL OR p.event.id = :eventId)
-            ORDER BY p.createdAt DESC
+            ORDER BY p.recommendationScore DESC, p.createdAt DESC, p.id ASC
             """)
     List<Post> findForMainFeed(@Param("keyword") String keyword,
                                @Param("status") String status,

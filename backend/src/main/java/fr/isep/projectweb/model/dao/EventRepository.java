@@ -3,6 +3,7 @@ package fr.isep.projectweb.model.dao;
 import fr.isep.projectweb.model.entity.Event;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -11,11 +12,15 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface EventRepository extends JpaRepository<Event, UUID> {
+public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecificationExecutor<Event> {
 
     List<Event> findByOrganizerIdOrderByStartTimeAsc(UUID organizerId);
 
     List<Event> findByLocationIdOrderByStartTimeAsc(UUID locationId);
+
+    List<Event> findByLocationId(UUID locationId);
+
+    List<Event> findByRecommendationScoreUpdatedAtIsNull();
 
     long countByLocationId(UUID locationId);
 
@@ -38,7 +43,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
               AND (:status IS NULL OR LOWER(e.status) = LOWER(CAST(:status AS string)))
               AND (:locationId IS NULL OR e.location.id = :locationId)
               AND (:upcomingOnly = false OR e.endTime >= CURRENT_TIMESTAMP)
-            ORDER BY e.startTime ASC
+            ORDER BY e.recommendationScore DESC, e.startTime ASC, e.id ASC
             """)
     List<Event> findForMainPage(@Param("keyword") String keyword,
                                 @Param("category") String category,
@@ -56,4 +61,5 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             ORDER BY e.startTime ASC
             """)
     List<Event> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
 }

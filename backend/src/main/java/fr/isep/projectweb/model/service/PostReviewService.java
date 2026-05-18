@@ -20,13 +20,16 @@ public class PostReviewService {
     private final PostReviewRepository postReviewRepository;
     private final PostRepository postRepository;
     private final CurrentUserService currentUserService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public PostReviewService(PostReviewRepository postReviewRepository,
                              PostRepository postRepository,
-                             CurrentUserService currentUserService) {
+                             CurrentUserService currentUserService,
+                             RecommendationScoreService recommendationScoreService) {
         this.postReviewRepository = postReviewRepository;
         this.postRepository = postRepository;
         this.currentUserService = currentUserService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public List<ReviewResponse> getByPostId(UUID postId) {
@@ -42,18 +45,23 @@ public class PostReviewService {
         review.setPost(findPost(postId));
         review.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(review, request);
-        return ResponseMapper.toPostReviewResponse(postReviewRepository.save(review));
+        PostReview savedReview = postReviewRepository.save(review);
+        recommendationScoreService.recomputePostScore(postId);
+        return ResponseMapper.toPostReviewResponse(savedReview);
     }
 
     public ReviewResponse update(UUID postId, UUID reviewId, ReviewRequest request) {
         PostReview review = findReview(postId, reviewId);
         applyRequest(review, request);
-        return ResponseMapper.toPostReviewResponse(postReviewRepository.save(review));
+        PostReview savedReview = postReviewRepository.save(review);
+        recommendationScoreService.recomputePostScore(postId);
+        return ResponseMapper.toPostReviewResponse(savedReview);
     }
 
     public void delete(UUID postId, UUID reviewId) {
         PostReview review = findReview(postId, reviewId);
         postReviewRepository.delete(review);
+        recommendationScoreService.recomputePostScore(postId);
     }
 
     private PostReview findReview(UUID postId, UUID reviewId) {

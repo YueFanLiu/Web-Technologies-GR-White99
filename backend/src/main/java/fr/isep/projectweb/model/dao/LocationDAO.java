@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface LocationDAO extends JpaRepository<Location, UUID> {
 
+    List<Location> findByRecommendationScoreUpdatedAtIsNull();
+
     @Query("""
             SELECT l
             FROM Location l
@@ -19,7 +21,7 @@ public interface LocationDAO extends JpaRepository<Location, UUID> {
                OR LOWER(COALESCE(l.address, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(l.city, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(l.country, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
-            ORDER BY l.name ASC
+            ORDER BY l.recommendationScore DESC, l.name ASC, l.id ASC
             """)
     List<Location> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 }

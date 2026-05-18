@@ -20,13 +20,16 @@ public class EventReviewService {
     private final EventReviewRepository eventReviewRepository;
     private final EventRepository eventRepository;
     private final CurrentUserService currentUserService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public EventReviewService(EventReviewRepository eventReviewRepository,
                               EventRepository eventRepository,
-                              CurrentUserService currentUserService) {
+                              CurrentUserService currentUserService,
+                              RecommendationScoreService recommendationScoreService) {
         this.eventReviewRepository = eventReviewRepository;
         this.eventRepository = eventRepository;
         this.currentUserService = currentUserService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public List<ReviewResponse> getByEventId(UUID eventId) {
@@ -42,18 +45,23 @@ public class EventReviewService {
         review.setEvent(findEvent(eventId));
         review.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(review, request);
-        return ResponseMapper.toEventReviewResponse(eventReviewRepository.save(review));
+        EventReview savedReview = eventReviewRepository.save(review);
+        recommendationScoreService.recomputeEventScore(eventId);
+        return ResponseMapper.toEventReviewResponse(savedReview);
     }
 
     public ReviewResponse update(UUID eventId, UUID reviewId, ReviewRequest request) {
         EventReview review = findReview(eventId, reviewId);
         applyRequest(review, request);
-        return ResponseMapper.toEventReviewResponse(eventReviewRepository.save(review));
+        EventReview savedReview = eventReviewRepository.save(review);
+        recommendationScoreService.recomputeEventScore(eventId);
+        return ResponseMapper.toEventReviewResponse(savedReview);
     }
 
     public void delete(UUID eventId, UUID reviewId) {
         EventReview review = findReview(eventId, reviewId);
         eventReviewRepository.delete(review);
+        recommendationScoreService.recomputeEventScore(eventId);
     }
 
     private EventReview findReview(UUID eventId, UUID reviewId) {

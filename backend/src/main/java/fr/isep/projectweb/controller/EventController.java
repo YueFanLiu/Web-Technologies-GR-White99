@@ -54,9 +54,14 @@ public class EventController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Search events by keyword")
-    public List<EventResponse> searchEvents(@RequestParam String keyword) {
-        return eventService.searchEvents(keyword);
+    @Operation(summary = "Search and filter events")
+    public List<EventResponse> searchEvents(@RequestParam(required = false) String keyword,
+                                            @RequestParam(required = false) String locationId,
+                                            @RequestParam(name = "location", required = false) String location,
+                                            @RequestParam(required = false) String date,
+                                            @RequestParam(required = false) String activityType,
+                                            @RequestParam(required = false) List<String> accessibilityOptions) {
+        return eventService.searchEvents(keyword, locationId != null ? locationId : location, date, activityType, accessibilityOptions);
     }
 
     @GetMapping("/{id}")

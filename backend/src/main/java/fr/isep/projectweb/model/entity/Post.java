@@ -46,6 +46,12 @@ public class Post {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "recommendation_score", nullable = false)
+    private Double recommendationScore = 0.0;
+
+    @Column(name = "recommendation_score_updated_at")
+    private LocalDateTime recommendationScoreUpdatedAt;
+
     public Post() {
     }
 
@@ -111,5 +117,21 @@ public class Post {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Double getRecommendationScore() {
+        return recommendationScore;
+    }
+
+    public void setRecommendationScore(Double recommendationScore) {
+        this.recommendationScore = recommendationScore;
+    }
+
+    public LocalDateTime getRecommendationScoreUpdatedAt() {
+        return recommendationScoreUpdatedAt;
+    }
+
+    public void setRecommendationScoreUpdatedAt(LocalDateTime recommendationScoreUpdatedAt) {
+        this.recommendationScoreUpdatedAt = recommendationScoreUpdatedAt;
     }
 }

@@ -17,11 +17,14 @@ public class LocationAccessibilityService {
 
     private final LocationAccessibilityRepository locationAccessibilityRepository;
     private final LocationDAO locationDAO;
+    private final RecommendationScoreService recommendationScoreService;
 
     public LocationAccessibilityService(LocationAccessibilityRepository locationAccessibilityRepository,
-                                        LocationDAO locationDAO) {
+                                        LocationDAO locationDAO,
+                                        RecommendationScoreService recommendationScoreService) {
         this.locationAccessibilityRepository = locationAccessibilityRepository;
         this.locationDAO = locationDAO;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public LocationAccessibilityResponse getByLocationId(UUID locationId) {
@@ -41,7 +44,9 @@ public class LocationAccessibilityService {
         LocationAccessibility accessibility = new LocationAccessibility();
         accessibility.setLocation(location);
         applyRequest(accessibility, request);
-        return ResponseMapper.toLocationAccessibilityResponse(locationAccessibilityRepository.save(accessibility));
+        LocationAccessibility savedAccessibility = locationAccessibilityRepository.save(accessibility);
+        recommendationScoreService.recomputeLocationScore(locationId);
+        return ResponseMapper.toLocationAccessibilityResponse(savedAccessibility);
     }
 
     public LocationAccessibilityResponse update(UUID locationId, LocationAccessibilityRequest request) {
@@ -49,7 +54,9 @@ public class LocationAccessibilityService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location accessibility not found"));
 
         applyRequest(accessibility, request);
-        return ResponseMapper.toLocationAccessibilityResponse(locationAccessibilityRepository.save(accessibility));
+        LocationAccessibility savedAccessibility = locationAccessibilityRepository.save(accessibility);
+        recommendationScoreService.recomputeLocationScore(locationId);
+        return ResponseMapper.toLocationAccessibilityResponse(savedAccessibility);
     }
 
     public void delete(UUID locationId) {
@@ -57,6 +64,7 @@ public class LocationAccessibilityService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location accessibility not found"));
 
         locationAccessibilityRepository.delete(accessibility);
+        recommendationScoreService.recomputeLocationScore(locationId);
     }
 
     private void applyRequest(LocationAccessibility accessibility, LocationAccessibilityRequest request) {

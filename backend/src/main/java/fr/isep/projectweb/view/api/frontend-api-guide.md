@@ -82,6 +82,7 @@ Important frontend rules:
 - Image delete endpoints currently delete the database image record only. The public file object in Supabase Storage is not removed by the backend.
 - There is no `PUT` endpoint for event/location/post image records. To replace an image, delete the old image record and upload or add a new one.
 - Spring Security `401/403` responses may not always use the custom JSON error shape. The helper at the end of this document handles that.
+- Supabase Storage must allow uploads to the `images` bucket. If multipart image upload returns `new row violates row-level security policy`, run `src/main/resources/supabase-storage-policies.sql` in the Supabase SQL Editor, or configure `SUPABASE_SERVICE_ROLE_KEY` for the backend runtime.
 
 Error response shape:
 
@@ -382,10 +383,9 @@ Response body:
 
 Public.
 
-Returns the main activity page events using recommendation ranking. The backend
-first applies the filters below, then scores the candidate events with keyword
-relevance, upcoming time value, status, ratings, review count, images, and event
-profile completeness. Results are returned in recommendation order.
+Returns the main activity page events using the precomputed recommendation
+score stored on each event. Keyword still filters matching events, but keyword
+relevance is not part of the precomputed score.
 
 Optional query params:
 
@@ -454,9 +454,47 @@ Response body:
 
 Public. Returns one `EventResponse`.
 
-### GET /api/events/search?keyword=music
+### GET /api/events/search
 
 Public. Returns `EventResponse[]`.
+
+Searches events by keyword and optional filters. `locationId` is the preferred
+location filter. `location` is also accepted as an alias when the value is a
+location UUID. `date` uses `YYYY-MM-DD` and returns events whose time range
+overlaps that day. `activityType` matches the event `category`.
+
+Empty filter params are ignored. The values `all`, `any`, `default`, and `none`
+are also ignored for `locationId`, `location`, `date`, `activityType`, and
+`accessibilityOptions`. When no effective filter or keyword is provided, this
+endpoint returns the same recommendation-ranked default event list as
+`GET /api/events`.
+
+Optional query params:
+
+```text
+keyword=music
+locationId=uuid
+location=uuid
+date=2026-05-10
+activityType=concert
+accessibilityOptions=wheelchairAccessible
+accessibilityOptions=hasElevator
+accessibilityOptions=accessibleToilet
+accessibilityOptions=quietEnvironment
+accessibilityOptions=stepFreeAccess
+```
+
+`accessibilityOptions` can be sent multiple times or as a comma-separated list:
+
+```text
+/api/events/search?activityType=concert&locationId=uuid&date=2026-05-10&accessibilityOptions=wheelchairAccessible,stepFreeAccess
+```
+
+Default filter example:
+
+```text
+/api/events/search?locationId=all&date=all&activityType=all&accessibilityOptions=all
+```
 
 ### GET /api/events/organizer/{organizerId}
 
@@ -826,10 +864,9 @@ Protected. Response body empty, status `204 No Content`.
 
 Public.
 
-Returns the main community feed using recommendation ranking. The backend first
-applies the filters below, then scores candidate posts with keyword relevance,
-freshness, related event timing, status, ratings, review count, images, and
-context completeness. Results are returned in recommendation order.
+Returns the main community feed using the precomputed recommendation score
+stored on each post. Keyword still filters matching posts and related context,
+but keyword relevance is not part of the precomputed score.
 
 When `keyword` is provided, this endpoint searches post title/content plus
 related `location.name`, `location.city`, `event.title`, and `event.category`.

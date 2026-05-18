@@ -1,7 +1,5 @@
 package fr.isep.projectweb.model.service;
 
-import fr.isep.projectweb.model.algorithm.recommendation.event.EventRecommendationFeatures;
-import fr.isep.projectweb.model.algorithm.recommendation.event.EventRecommendationScorer;
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
@@ -11,16 +9,24 @@ import fr.isep.projectweb.model.dto.response.EventResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.Location;
+import fr.isep.projectweb.model.entity.LocationAccessibility;
 import fr.isep.projectweb.model.entity.User;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Comparator;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -30,7 +36,6 @@ import java.util.UUID;
 public class EventService {
 
     private static final int SEARCH_RESULT_LIMIT = 20;
-    private static final int MAIN_PAGE_CANDIDATE_LIMIT = 100;
     private static final int DEFAULT_MAIN_PAGE_LIMIT = 20;
     private static final int MAX_MAIN_PAGE_LIMIT = 100;
     private static final String ORGANIZER_ROLE = "ORGANIZER";
@@ -40,20 +45,20 @@ public class EventService {
     private final EventReviewRepository eventReviewRepository;
     private final LocationDAO locationDAO;
     private final CurrentUserService currentUserService;
-    private final EventRecommendationScorer eventRecommendationScorer;
+    private final RecommendationScoreService recommendationScoreService;
 
     public EventService(EventRepository eventRepository,
                         EventImageRepository eventImageRepository,
                         EventReviewRepository eventReviewRepository,
                         LocationDAO locationDAO,
                         CurrentUserService currentUserService,
-                        EventRecommendationScorer eventRecommendationScorer) {
+                        RecommendationScoreService recommendationScoreService) {
         this.eventRepository = eventRepository;
         this.eventImageRepository = eventImageRepository;
         this.eventReviewRepository = eventReviewRepository;
         this.locationDAO = locationDAO;
         this.currentUserService = currentUserService;
-        this.eventRecommendationScorer = eventRecommendationScorer;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public EventResponse createEvent(EventRequest request, Jwt jwt) {
@@ -64,7 +69,10 @@ public class EventService {
         event.setOrganizer(organizer);
         applyRequest(event, request);
 
-        return toResponse(eventRepository.save(event), true);
+        Event savedEvent = eventRepository.save(event);
+        recommendationScoreService.recomputeEventScore(savedEvent.getId());
+        recommendationScoreService.recomputeLocationScore(savedEvent.getLocation().getId());
+        return toResponse(savedEvent, true);
     }
 
     public List<EventResponse> getMainPageEvents(String keyword,
@@ -76,7 +84,6 @@ public class EventService {
         int resultLimit = normalizeLimit(limit);
         boolean filterUpcoming = upcomingOnly == null || upcomingOnly;
         String normalizedKeyword = normalizeOptional(keyword);
-        LocalDateTime now = LocalDateTime.now();
 
         return eventRepository.findForMainPage(
                         normalizedKeyword,
@@ -84,22 +91,10 @@ public class EventService {
                         normalizeOptional(status),
                         locationId,
                         filterUpcoming,
-                        PageRequest.of(0, MAIN_PAGE_CANDIDATE_LIMIT)
+                        PageRequest.of(0, resultLimit)
                 )
                 .stream()
-                .map(event -> new ScoredEvent(
-                        event,
-                        eventRecommendationScorer.score(toRecommendationFeatures(event, normalizedKeyword, now))
-                ))
-                .sorted(Comparator
-                        .comparingDouble(ScoredEvent::score)
-                        .reversed()
-                        .thenComparing(scored -> scored.event().getStartTime(),
-                                Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(scored -> normalizeSortText(scored.event().getTitle()))
-                        .thenComparing(scored -> scored.event().getId()))
-                .limit(resultLimit)
-                .map(scored -> toResponse(scored.event(), false))
+                .map(event -> toResponse(event, false))
                 .toList();
     }
 
@@ -124,15 +119,114 @@ public class EventService {
                 .toList();
     }
 
-    public List<EventResponse> searchEvents(String keyword) {
-        if (keyword == null || keyword.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Keyword must not be blank");
+    public List<EventResponse> searchEvents(String keyword,
+                                            String locationId,
+                                            String date,
+                                            String activityType,
+                                            List<String> accessibilityOptions) {
+        String normalizedKeyword = normalizeOptional(keyword);
+        UUID normalizedLocationId = normalizeOptionalUuid(locationId, "locationId");
+        LocalDate normalizedDate = normalizeOptionalDate(date);
+        String normalizedActivityType = normalizeOptionalFilter(activityType);
+        AccessibilityFilter accessibilityFilter = normalizeAccessibilityOptions(accessibilityOptions);
+
+        if (normalizedKeyword == null
+                && normalizedLocationId == null
+                && normalizedDate == null
+                && normalizedActivityType == null
+                && accessibilityFilter.isEmpty()) {
+            return getMainPageEvents(null, null, null, null, null, null);
         }
 
-        return eventRepository.searchByKeyword(keyword.trim(), PageRequest.of(0, SEARCH_RESULT_LIMIT))
+        return eventRepository.findAll(
+                        buildSearchSpecification(
+                                normalizedKeyword,
+                                normalizedLocationId,
+                                normalizedDate,
+                                normalizedActivityType,
+                                accessibilityFilter
+                        ),
+                        PageRequest.of(0, SEARCH_RESULT_LIMIT, Sort.by(
+                                Sort.Order.desc("recommendationScore"),
+                                Sort.Order.asc("startTime"),
+                                Sort.Order.asc("id")
+                        ))
+                )
+                .getContent()
                 .stream()
                 .map(event -> toResponse(event, false))
                 .toList();
+    }
+
+    private Specification<Event> buildSearchSpecification(String keyword,
+                                                          UUID locationId,
+                                                          LocalDate date,
+                                                          String activityType,
+                                                          AccessibilityFilter accessibilityFilter) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (keyword != null) {
+                String pattern = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(criteriaBuilder.coalesce(root.get("title"), "")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(criteriaBuilder.coalesce(root.get("description"), "")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(criteriaBuilder.coalesce(root.get("category"), "")), pattern)
+                ));
+            }
+
+            if (locationId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("location").get("id"), locationId));
+            }
+
+            if (date != null) {
+                LocalDateTime dateStart = date.atStartOfDay();
+                LocalDateTime dateEnd = date.plusDays(1).atStartOfDay();
+                predicates.add(criteriaBuilder.and(
+                        criteriaBuilder.lessThan(root.get("startTime"), dateEnd),
+                        criteriaBuilder.greaterThanOrEqualTo(root.get("endTime"), dateStart)
+                ));
+            }
+
+            if (activityType != null) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("category")),
+                        activityType.toLowerCase(Locale.ROOT)
+                ));
+            }
+
+            if (!accessibilityFilter.isEmpty()) {
+                Subquery<UUID> subquery = query.subquery(UUID.class);
+                Root<LocationAccessibility> accessibility = subquery.from(LocationAccessibility.class);
+                List<Predicate> accessibilityPredicates = new ArrayList<>();
+
+                accessibilityPredicates.add(criteriaBuilder.equal(
+                        accessibility.get("location").get("id"),
+                        root.get("location").get("id")
+                ));
+                if (accessibilityFilter.wheelchairAccessible()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("wheelchairAccessible")));
+                }
+                if (accessibilityFilter.hasElevator()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("hasElevator")));
+                }
+                if (accessibilityFilter.accessibleToilet()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("accessibleToilet")));
+                }
+                if (accessibilityFilter.quietEnvironment()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("quietEnvironment")));
+                }
+                if (accessibilityFilter.stepFreeAccess()) {
+                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("stepFreeAccess")));
+                }
+
+                subquery.select(accessibility.get("id"))
+                        .where(criteriaBuilder.and(accessibilityPredicates.toArray(Predicate[]::new)));
+                predicates.add(criteriaBuilder.exists(subquery));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     public EventResponse getEventById(UUID id) {
@@ -143,16 +237,25 @@ public class EventService {
         Event event = findEventById(id);
         User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
         ensureEventOrganizer(event, currentUser);
+        UUID previousLocationId = event.getLocation() != null ? event.getLocation().getId() : null;
 
         applyRequest(event, request);
-        return toResponse(eventRepository.save(event), true);
+        Event savedEvent = eventRepository.save(event);
+        recommendationScoreService.recomputeEventScore(savedEvent.getId());
+        recommendationScoreService.recomputePostScoresByEvent(savedEvent.getId());
+        refreshChangedLocations(previousLocationId, savedEvent.getLocation() != null ? savedEvent.getLocation().getId() : null);
+        return toResponse(savedEvent, true);
     }
 
     public void deleteEvent(UUID id, Jwt jwt) {
         Event event = findEventById(id);
         User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
         ensureEventOrganizer(event, currentUser);
+        UUID locationId = event.getLocation() != null ? event.getLocation().getId() : null;
         eventRepository.delete(event);
+        if (locationId != null) {
+            recommendationScoreService.recomputeLocationScore(locationId);
+        }
     }
 
     private Event findEventById(UUID id) {
@@ -203,39 +306,6 @@ public class EventService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found"));
     }
 
-    private EventRecommendationFeatures toRecommendationFeatures(Event event,
-                                                                 String keyword,
-                                                                 LocalDateTime now) {
-        EventRecommendationFeatures features = new EventRecommendationFeatures();
-        Location location = event.getLocation();
-        UUID eventId = event.getId();
-
-        features.setKeyword(keyword);
-        features.setTitle(event.getTitle());
-        features.setDescription(event.getDescription());
-        features.setCategory(event.getCategory());
-
-        features.setHasLocation(location != null);
-        if (location != null) {
-            features.setLocationName(location.getName());
-            features.setLocationCity(location.getCity());
-        }
-
-        features.setNow(now);
-        features.setStartTime(event.getStartTime());
-        features.setEndTime(event.getEndTime());
-        features.setStatus(event.getStatus());
-        features.setCapacity(event.getCapacity());
-        features.setPrice(event.getPrice());
-        features.setVirtualEvent(event.getIsVirtual());
-
-        features.setAverageRating(eventReviewRepository.averageRatingByEventId(eventId));
-        features.setReviewCount(eventReviewRepository.countByEventId(eventId));
-        features.setImageCount(eventImageRepository.countByEventId(eventId));
-
-        return features;
-    }
-
     private void ensureOrganizer(User user) {
         if (!ORGANIZER_ROLE.equalsIgnoreCase(user.getRole())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only organizers can manage events");
@@ -271,11 +341,106 @@ public class EventService {
         return value.trim();
     }
 
-    private String normalizeSortText(String value) {
-        if (value == null) {
-            return "";
+    private String normalizeOptionalFilter(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null || isAllOption(normalized)) {
+            return null;
         }
-        return value.trim().toLowerCase(Locale.ROOT);
+        return normalized;
+    }
+
+    private UUID normalizeOptionalUuid(String value, String fieldName) {
+        String normalized = normalizeOptionalFilter(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(normalized);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be a valid UUID");
+        }
+    }
+
+    private LocalDate normalizeOptionalDate(String value) {
+        String normalized = normalizeOptionalFilter(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(normalized);
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date must use YYYY-MM-DD format");
+        }
+    }
+
+    private AccessibilityFilter normalizeAccessibilityOptions(List<String> accessibilityOptions) {
+        boolean wheelchairAccessible = false;
+        boolean hasElevator = false;
+        boolean accessibleToilet = false;
+        boolean quietEnvironment = false;
+        boolean stepFreeAccess = false;
+
+        if (accessibilityOptions == null) {
+            return new AccessibilityFilter(false, false, false, false, false);
+        }
+
+        for (String rawOption : accessibilityOptions) {
+            if (rawOption == null || rawOption.isBlank()) {
+                continue;
+            }
+            for (String splitOption : rawOption.split(",")) {
+                String option = normalizeAccessibilityOption(splitOption);
+                if (option == null) {
+                    continue;
+                }
+                if (isAllOption(option)) {
+                    continue;
+                }
+                switch (option) {
+                    case "wheelchairaccessible" -> wheelchairAccessible = true;
+                    case "haselevator", "elevator" -> hasElevator = true;
+                    case "accessibletoilet", "toilet" -> accessibleToilet = true;
+                    case "quietenvironment", "quiet" -> quietEnvironment = true;
+                    case "stepfreeaccess", "stepfree" -> stepFreeAccess = true;
+                    default -> throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Unknown accessibility option: " + splitOption.trim()
+                    );
+                }
+            }
+        }
+
+        return new AccessibilityFilter(
+                wheelchairAccessible,
+                hasElevator,
+                accessibleToilet,
+                quietEnvironment,
+                stepFreeAccess
+        );
+    }
+
+    private String normalizeAccessibilityOption(String option) {
+        if (option == null || option.isBlank()) {
+            return null;
+        }
+        return option.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    private boolean isAllOption(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        return normalized.equals("all")
+                || normalized.equals("any")
+                || normalized.equals("default")
+                || normalized.equals("none");
+    }
+
+    private void refreshChangedLocations(UUID previousLocationId, UUID currentLocationId) {
+        if (previousLocationId != null) {
+            recommendationScoreService.recomputeLocationScore(previousLocationId);
+        }
+        if (currentLocationId != null && !Objects.equals(previousLocationId, currentLocationId)) {
+            recommendationScoreService.recomputeLocationScore(currentLocationId);
+        }
     }
 
     private EventResponse toResponse(Event event, boolean includeAllImages) {
@@ -340,6 +505,17 @@ public class EventService {
                 .toList();
     }
 
-    private record ScoredEvent(Event event, double score) {
+    private record AccessibilityFilter(boolean wheelchairAccessible,
+                                       boolean hasElevator,
+                                       boolean accessibleToilet,
+                                       boolean quietEnvironment,
+                                       boolean stepFreeAccess) {
+        private boolean isEmpty() {
+            return !wheelchairAccessible
+                    && !hasElevator
+                    && !accessibleToilet
+                    && !quietEnvironment
+                    && !stepFreeAccess;
+        }
     }
 }
