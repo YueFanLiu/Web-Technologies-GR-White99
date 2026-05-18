@@ -9,9 +9,13 @@
     <!-- 中间搜索框 -->
     <div class="navbar-search">
       <el-input
+        v-model="searchKeyword"
         placeholder="Search events..."
         prefix-icon="Search"
         class="search-input"
+        @keyup.enter="handleSearch"
+        clearable
+        @clear="handleSearch"
       />
     </div>
 
@@ -39,10 +43,10 @@
         <template #dropdown>
           <el-dropdown-menu>
             <router-link to="/user/profile">
-              <el-dropdown-item>个人中心</el-dropdown-item>
+              <el-dropdown-item>Profile</el-dropdown-item>
             </router-link>
             <el-dropdown-item divided command="logout">
-              <span>退出登录</span>
+              <span>Logout</span>
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -57,18 +61,19 @@
         mode="horizontal"
         :default-active="$route.path"
         class="sub-nav-menu"
+        router
       >
-        <el-menu-item index="/home">Home</el-menu-item>
+        <el-menu-item index="/product/mainEvent">Home</el-menu-item>
         <el-sub-menu index="/my-events">
           <template #title>My Events</template>
-          <el-menu-item index="/my-events/created">我创建的活动</el-menu-item>
-          <el-menu-item index="/my-events/joined">我参与的活动</el-menu-item>
+          <el-menu-item index="/my-events/created">My Created Activities</el-menu-item>
+          <el-menu-item index="/my-events/joined">My Joined Activities</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/notifications">
           <span>Notifications</span>
           <el-badge :value="unreadNotifications" class="nav-badge" />
         </el-menu-item>
-        <el-menu-item index="/profile">Profile</el-menu-item>
+        <el-menu-item index="/user/profile">Profile</el-menu-item>
       </el-menu>
     </div>
 </template>
@@ -88,6 +93,27 @@ import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
+import { searchEvent } from '@/api/events/index.js'
+import { useRouter } from 'vue-router'
+import { ref } from 'vue'
+
+
+const router = useRouter()
+const searchKeyword = ref('')
+
+async function handleSearch() {
+  if (!searchKeyword.value.trim()) return
+  
+  try {
+    const res = await searchEvent({ keyword: searchKeyword.value.trim() })
+    router.push({
+      path: '/product/mainEvent',
+      query: { keyword: searchKeyword.value.trim() }
+    })
+  } catch (error) {
+    console.error('Search failed:', error)
+  }
+}
 
 const appStore = useAppStore()
 const userStore = useUserStore()
