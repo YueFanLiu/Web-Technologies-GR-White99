@@ -78,7 +78,7 @@ public class SupabaseStorageService {
                             encodeObjectPath(objectPath)
                     ))
                     .contentType(MediaType.parseMediaType(file.getContentType()))
-                    .header("apikey", publishableKey)
+                    .header("apikey", effectiveApikey())
                     .header(HttpHeaders.AUTHORIZATION, authorizationForStorage(authorizationHeader))
                     .header("x-upsert", "false")
                     .body(file.getBytes())
@@ -138,9 +138,19 @@ public class SupabaseStorageService {
         }
     }
 
+    private String effectiveApikey() {
+        if (serviceRoleKey != null && !serviceRoleKey.isBlank()) {
+            return serviceRoleKey;
+        }
+        return publishableKey;
+    }
+
     private String authorizationForStorage(String authorizationHeader) {
         if (serviceRoleKey != null && !serviceRoleKey.isBlank()) {
-            return "Bearer " + serviceRoleKey;
+            if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+                return authorizationHeader;
+            }
+            return "Bearer " + publishableKey;
         }
         if (authorizationHeader != null && !authorizationHeader.isBlank()) {
             return authorizationHeader;
