@@ -383,10 +383,9 @@ Response body:
 
 Public.
 
-Returns the main activity page events using recommendation ranking. The backend
-first applies the filters below, then scores the candidate events with keyword
-relevance, upcoming time value, status, ratings, review count, images, and event
-profile completeness. Results are returned in recommendation order.
+Returns the main activity page events using the precomputed recommendation
+score stored on each event. Keyword still filters matching events, but keyword
+relevance is not part of the precomputed score.
 
 Optional query params:
 
@@ -865,10 +864,9 @@ Protected. Response body empty, status `204 No Content`.
 
 Public.
 
-Returns the main community feed using recommendation ranking. The backend first
-applies the filters below, then scores candidate posts with keyword relevance,
-freshness, related event timing, status, ratings, review count, images, and
-context completeness. Results are returned in recommendation order.
+Returns the main community feed using the precomputed recommendation score
+stored on each post. Keyword still filters matching posts and related context,
+but keyword relevance is not part of the precomputed score.
 
 When `keyword` is provided, this endpoint searches post title/content plus
 related `location.name`, `location.city`, `event.title`, and `event.category`.

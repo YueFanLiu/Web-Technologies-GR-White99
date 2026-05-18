@@ -1,7 +1,5 @@
 package fr.isep.projectweb.model.service;
 
-import fr.isep.projectweb.model.algorithm.recommendation.event.EventRecommendationFeatures;
-import fr.isep.projectweb.model.algorithm.recommendation.event.EventRecommendationScorer;
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
@@ -29,7 +27,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -39,7 +36,6 @@ import java.util.UUID;
 public class EventService {
 
     private static final int SEARCH_RESULT_LIMIT = 20;
-    private static final int MAIN_PAGE_CANDIDATE_LIMIT = 100;
     private static final int DEFAULT_MAIN_PAGE_LIMIT = 20;
     private static final int MAX_MAIN_PAGE_LIMIT = 100;
     private static final String ORGANIZER_ROLE = "ORGANIZER";
@@ -49,20 +45,20 @@ public class EventService {
     private final EventReviewRepository eventReviewRepository;
     private final LocationDAO locationDAO;
     private final CurrentUserService currentUserService;
-    private final EventRecommendationScorer eventRecommendationScorer;
+    private final RecommendationScoreService recommendationScoreService;
 
     public EventService(EventRepository eventRepository,
                         EventImageRepository eventImageRepository,
                         EventReviewRepository eventReviewRepository,
                         LocationDAO locationDAO,
                         CurrentUserService currentUserService,
-                        EventRecommendationScorer eventRecommendationScorer) {
+                        RecommendationScoreService recommendationScoreService) {
         this.eventRepository = eventRepository;
         this.eventImageRepository = eventImageRepository;
         this.eventReviewRepository = eventReviewRepository;
         this.locationDAO = locationDAO;
         this.currentUserService = currentUserService;
-        this.eventRecommendationScorer = eventRecommendationScorer;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public EventResponse createEvent(EventRequest request, Jwt jwt) {
@@ -73,7 +69,10 @@ public class EventService {
         event.setOrganizer(organizer);
         applyRequest(event, request);
 
-        return toResponse(eventRepository.save(event), true);
+        Event savedEvent = eventRepository.save(event);
+        recommendationScoreService.recomputeEventScore(savedEvent.getId());
+        recommendationScoreService.recomputeLocationScore(savedEvent.getLocation().getId());
+        return toResponse(savedEvent, true);
     }
 
     public List<EventResponse> getMainPageEvents(String keyword,
@@ -85,7 +84,6 @@ public class EventService {
         int resultLimit = normalizeLimit(limit);
         boolean filterUpcoming = upcomingOnly == null || upcomingOnly;
         String normalizedKeyword = normalizeOptional(keyword);
-        LocalDateTime now = LocalDateTime.now();
 
         return eventRepository.findForMainPage(
                         normalizedKeyword,
@@ -93,22 +91,10 @@ public class EventService {
                         normalizeOptional(status),
                         locationId,
                         filterUpcoming,
-                        PageRequest.of(0, MAIN_PAGE_CANDIDATE_LIMIT)
+                        PageRequest.of(0, resultLimit)
                 )
                 .stream()
-                .map(event -> new ScoredEvent(
-                        event,
-                        eventRecommendationScorer.score(toRecommendationFeatures(event, normalizedKeyword, now))
-                ))
-                .sorted(Comparator
-                        .comparingDouble(ScoredEvent::score)
-                        .reversed()
-                        .thenComparing(scored -> scored.event().getStartTime(),
-                                Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(scored -> normalizeSortText(scored.event().getTitle()))
-                        .thenComparing(scored -> scored.event().getId()))
-                .limit(resultLimit)
-                .map(scored -> toResponse(scored.event(), false))
+                .map(event -> toResponse(event, false))
                 .toList();
     }
 
@@ -160,7 +146,11 @@ public class EventService {
                                 normalizedActivityType,
                                 accessibilityFilter
                         ),
-                        PageRequest.of(0, SEARCH_RESULT_LIMIT, Sort.by(Sort.Direction.ASC, "startTime"))
+                        PageRequest.of(0, SEARCH_RESULT_LIMIT, Sort.by(
+                                Sort.Order.desc("recommendationScore"),
+                                Sort.Order.asc("startTime"),
+                                Sort.Order.asc("id")
+                        ))
                 )
                 .getContent()
                 .stream()
@@ -247,16 +237,25 @@ public class EventService {
         Event event = findEventById(id);
         User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
         ensureEventOrganizer(event, currentUser);
+        UUID previousLocationId = event.getLocation() != null ? event.getLocation().getId() : null;
 
         applyRequest(event, request);
-        return toResponse(eventRepository.save(event), true);
+        Event savedEvent = eventRepository.save(event);
+        recommendationScoreService.recomputeEventScore(savedEvent.getId());
+        recommendationScoreService.recomputePostScoresByEvent(savedEvent.getId());
+        refreshChangedLocations(previousLocationId, savedEvent.getLocation() != null ? savedEvent.getLocation().getId() : null);
+        return toResponse(savedEvent, true);
     }
 
     public void deleteEvent(UUID id, Jwt jwt) {
         Event event = findEventById(id);
         User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
         ensureEventOrganizer(event, currentUser);
+        UUID locationId = event.getLocation() != null ? event.getLocation().getId() : null;
         eventRepository.delete(event);
+        if (locationId != null) {
+            recommendationScoreService.recomputeLocationScore(locationId);
+        }
     }
 
     private Event findEventById(UUID id) {
@@ -305,39 +304,6 @@ public class EventService {
     private Location findLocation(UUID locationId) {
         return locationDAO.findById(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found"));
-    }
-
-    private EventRecommendationFeatures toRecommendationFeatures(Event event,
-                                                                 String keyword,
-                                                                 LocalDateTime now) {
-        EventRecommendationFeatures features = new EventRecommendationFeatures();
-        Location location = event.getLocation();
-        UUID eventId = event.getId();
-
-        features.setKeyword(keyword);
-        features.setTitle(event.getTitle());
-        features.setDescription(event.getDescription());
-        features.setCategory(event.getCategory());
-
-        features.setHasLocation(location != null);
-        if (location != null) {
-            features.setLocationName(location.getName());
-            features.setLocationCity(location.getCity());
-        }
-
-        features.setNow(now);
-        features.setStartTime(event.getStartTime());
-        features.setEndTime(event.getEndTime());
-        features.setStatus(event.getStatus());
-        features.setCapacity(event.getCapacity());
-        features.setPrice(event.getPrice());
-        features.setVirtualEvent(event.getIsVirtual());
-
-        features.setAverageRating(eventReviewRepository.averageRatingByEventId(eventId));
-        features.setReviewCount(eventReviewRepository.countByEventId(eventId));
-        features.setImageCount(eventImageRepository.countByEventId(eventId));
-
-        return features;
     }
 
     private void ensureOrganizer(User user) {
@@ -468,11 +434,13 @@ public class EventService {
                 || normalized.equals("none");
     }
 
-    private String normalizeSortText(String value) {
-        if (value == null) {
-            return "";
+    private void refreshChangedLocations(UUID previousLocationId, UUID currentLocationId) {
+        if (previousLocationId != null) {
+            recommendationScoreService.recomputeLocationScore(previousLocationId);
         }
-        return value.trim().toLowerCase(Locale.ROOT);
+        if (currentLocationId != null && !Objects.equals(previousLocationId, currentLocationId)) {
+            recommendationScoreService.recomputeLocationScore(currentLocationId);
+        }
     }
 
     private EventResponse toResponse(Event event, boolean includeAllImages) {
@@ -535,9 +503,6 @@ public class EventService {
                 .stream()
                 .map(EventImage::getImageUrl)
                 .toList();
-    }
-
-    private record ScoredEvent(Event event, double score) {
     }
 
     private record AccessibilityFilter(boolean wheelchairAccessible,

@@ -20,13 +20,16 @@ public class EventImageService {
     private final EventImageRepository eventImageRepository;
     private final EventRepository eventRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public EventImageService(EventImageRepository eventImageRepository,
                              EventRepository eventRepository,
-                             SupabaseStorageService supabaseStorageService) {
+                             SupabaseStorageService supabaseStorageService,
+                             RecommendationScoreService recommendationScoreService) {
         this.eventImageRepository = eventImageRepository;
         this.eventRepository = eventRepository;
         this.supabaseStorageService = supabaseStorageService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public List<ImageResponse> getByEventId(UUID eventId) {
@@ -43,7 +46,9 @@ public class EventImageService {
         EventImage image = new EventImage();
         image.setEvent(findEvent(eventId));
         image.setImageUrl(request.getImageUrl().trim());
-        return ResponseMapper.toEventImageResponse(eventImageRepository.save(image));
+        EventImage savedImage = eventImageRepository.save(image);
+        recommendationScoreService.recomputeEventScore(eventId);
+        return ResponseMapper.toEventImageResponse(savedImage);
     }
 
     public ImageResponse upload(UUID eventId, MultipartFile file, String authorizationHeader) {
@@ -53,13 +58,16 @@ public class EventImageService {
         EventImage image = new EventImage();
         image.setEvent(event);
         image.setImageUrl(imageUrl);
-        return ResponseMapper.toEventImageResponse(eventImageRepository.save(image));
+        EventImage savedImage = eventImageRepository.save(image);
+        recommendationScoreService.recomputeEventScore(eventId);
+        return ResponseMapper.toEventImageResponse(savedImage);
     }
 
     public void delete(UUID eventId, UUID imageId) {
         EventImage image = eventImageRepository.findByIdAndEventId(imageId, eventId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event image not found"));
         eventImageRepository.delete(image);
+        recommendationScoreService.recomputeEventScore(eventId);
     }
 
     private Event findEvent(UUID eventId) {

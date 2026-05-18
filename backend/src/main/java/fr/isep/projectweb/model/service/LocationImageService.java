@@ -20,13 +20,16 @@ public class LocationImageService {
     private final LocationImageRepository locationImageRepository;
     private final LocationDAO locationDAO;
     private final SupabaseStorageService supabaseStorageService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public LocationImageService(LocationImageRepository locationImageRepository,
                                 LocationDAO locationDAO,
-                                SupabaseStorageService supabaseStorageService) {
+                                SupabaseStorageService supabaseStorageService,
+                                RecommendationScoreService recommendationScoreService) {
         this.locationImageRepository = locationImageRepository;
         this.locationDAO = locationDAO;
         this.supabaseStorageService = supabaseStorageService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public List<ImageResponse> getByLocationId(UUID locationId) {
@@ -43,7 +46,9 @@ public class LocationImageService {
         LocationImage image = new LocationImage();
         image.setLocation(findLocation(locationId));
         image.setImageUrl(request.getImageUrl().trim());
-        return ResponseMapper.toLocationImageResponse(locationImageRepository.save(image));
+        LocationImage savedImage = locationImageRepository.save(image);
+        recommendationScoreService.recomputeLocationScore(locationId);
+        return ResponseMapper.toLocationImageResponse(savedImage);
     }
 
     public ImageResponse upload(UUID locationId, MultipartFile file, String authorizationHeader) {
@@ -53,13 +58,16 @@ public class LocationImageService {
         LocationImage image = new LocationImage();
         image.setLocation(location);
         image.setImageUrl(imageUrl);
-        return ResponseMapper.toLocationImageResponse(locationImageRepository.save(image));
+        LocationImage savedImage = locationImageRepository.save(image);
+        recommendationScoreService.recomputeLocationScore(locationId);
+        return ResponseMapper.toLocationImageResponse(savedImage);
     }
 
     public void delete(UUID locationId, UUID imageId) {
         LocationImage image = locationImageRepository.findByIdAndLocationId(imageId, locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location image not found"));
         locationImageRepository.delete(image);
+        recommendationScoreService.recomputeLocationScore(locationId);
     }
 
     private Location findLocation(UUID locationId) {

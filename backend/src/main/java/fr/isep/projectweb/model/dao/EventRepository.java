@@ -18,6 +18,10 @@ public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecific
 
     List<Event> findByLocationIdOrderByStartTimeAsc(UUID locationId);
 
+    List<Event> findByLocationId(UUID locationId);
+
+    List<Event> findByRecommendationScoreUpdatedAtIsNull();
+
     long countByLocationId(UUID locationId);
 
     @Query("""
@@ -39,7 +43,7 @@ public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecific
               AND (:status IS NULL OR LOWER(e.status) = LOWER(CAST(:status AS string)))
               AND (:locationId IS NULL OR e.location.id = :locationId)
               AND (:upcomingOnly = false OR e.endTime >= CURRENT_TIMESTAMP)
-            ORDER BY e.startTime ASC
+            ORDER BY e.recommendationScore DESC, e.startTime ASC, e.id ASC
             """)
     List<Event> findForMainPage(@Param("keyword") String keyword,
                                 @Param("category") String category,
