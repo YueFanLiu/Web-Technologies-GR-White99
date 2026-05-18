@@ -302,6 +302,25 @@ function getFirstImageUrl(images) {
   return image?.imageUrl || image?.url || image?.publicUrl || image?.path || ''
 }
 
+// 按 Swagger 的 PostResponse.event / PostResponse.location 生成关联对象展示文本
+function getRelatedTarget(post) {
+  if (post.event) {
+    return post.event.title || post.event.name || `Event #${post.event.id}`
+  }
+
+  if (post.location) {
+    return post.location.name || post.location.city || `Location #${post.location.id}`
+  }
+
+  return post.eventTitle || post.eventName || post.locationName || (post.eventId ? `Event #${post.eventId}` : 'No related event')
+}
+
+// 摘要来自 content，列表里限制长度，避免长文本撑开卡片
+function getSummary(post) {
+  const text = post.summary || post.excerpt || post.content || ''
+  return text.length > 140 ? `${text.slice(0, 140)}...` : text
+}
+
 // 将后端 post 原始数据整理成页面卡片需要的数据结构
 function normalizePost(post, images = []) {
   const createdAt = post.createdAt || post.createTime || post.createdTime
@@ -312,10 +331,10 @@ function normalizePost(post, images = []) {
   return {
     id: post.id,
     title: post.title || 'Untitled Post',
-    relatedEvent: post.event?.title || post.event?.name || post.eventTitle || post.eventName || (post.eventId ? `Event #${post.eventId}` : 'No related event'),
+    relatedEvent: getRelatedTarget(post),
     dateLabel: status === 'Draft' ? 'Updated on' : 'Published on',
     date: formatDate(status === 'Draft' ? updatedAt : publishedAt),
-    summary: post.summary || post.excerpt || post.content || '',
+    summary: getSummary(post),
     status,
     sortTime: new Date(updatedAt || publishedAt || createdAt || 0).getTime(),
     cover: getFirstImageUrl(images) || post.coverImageUrl || post.imageUrl || 'https://picsum.photos/id/1083/420/260'

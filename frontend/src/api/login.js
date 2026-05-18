@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { supabase } from '@/utils/supabase'
 
 // 登录方法
 export function login(data) {
@@ -77,7 +78,21 @@ export function forgotPassword(data) {
     },
     method: 'post',
     data: {
-      email: data.email
+      email: data.email,
+      redirectTo: data.redirectTo
     }
   })
+}
+
+// 确认重置密码：Swagger 没有对应后端接口，使用 Supabase reset session 更新当前用户密码
+export async function confirmPassword(data) {
+  const { error } = await supabase.auth.updateUser({
+    password: data.password
+  })
+
+  if (error) {
+    throw error
+  }
+
+  return { success: true }
 }

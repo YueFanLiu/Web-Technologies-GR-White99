@@ -10,23 +10,7 @@
       </section>
 
       <section class="editor-grid" v-loading="loading">
-        <el-form ref="postFormRef" class="main-card" :model="postForm" label-position="top">
-          <el-form-item label="Related Event" required>
-            <el-select
-              v-model="postForm.eventId"
-              size="large"
-              placeholder="Choose an event you attended"
-              :disabled="isViewMode"
-            >
-              <el-option
-                v-for="event in events"
-                :key="event.id"
-                :label="event.name"
-                :value="event.id"
-              />
-            </el-select>
-          </el-form-item>
-
+        <el-form class="main-card" :model="postForm" label-position="top">
           <el-form-item label="Post Title" required>
             <el-input
               v-model="postForm.title"
@@ -71,21 +55,6 @@
         </el-form>
 
         <aside class="side-panel">
-          <section class="side-card">
-            <h2>Accessibility Tags</h2>
-            <p class="side-note">Choose the details that best describe your visit.</p>
-
-            <el-checkbox-group v-model="postForm.tags" class="tag-list" :disabled="isViewMode">
-              <el-checkbox-button
-                v-for="tag in accessibilityTags"
-                :key="tag"
-                :label="tag"
-              >
-                {{ tag }}
-              </el-checkbox-button>
-            </el-checkbox-group>
-          </section>
-
           <section class="tip-card">
             <div class="tip-icon">
               <el-icon><Reading /></el-icon>
@@ -125,14 +94,11 @@ import { ElMessage } from 'element-plus'
 import {
   createPost,
   deletePostImage,
-  getCurrentUserProfile,
   getPost,
   getPostImages,
-  getRegistrationsByUser,
   updatePost,
   uploadPostImage
 } from '@/api/post'
-import { getEventDetail } from '@/api/events/detail'
 import {
   Plus,
   Reading
@@ -141,7 +107,6 @@ import {
 // 路由参数决定页面模式：无 id 为创建，有 id 为编辑，mode=view 为只读查看
 const route = useRoute()
 const router = useRouter()
-const postFormRef = ref(null)
 const postId = computed(() => route.query.id)
 const isEditMode = computed(() => Boolean(postId.value))
 const isViewMode = computed(() => route.query.mode === 'view')
@@ -152,26 +117,11 @@ const submitting = ref(false)
 const postForm = ref({
   eventId: '',
   title: '',
-  content: '',
-  tags: []
+  content: ''
 })
 
 // el-upload 使用的图片列表；已有图片会带 persisted/imageId，新上传图片会带 raw
 const imageList = ref([])
-const currentUserId = ref('')
-
-// 当前用户参加过的活动列表，用于 Related Event 下拉框
-const events = ref([])
-
-// 前端固定展示的无障碍标签，保存时随 post 一起提交
-const accessibilityTags = [
-  'Wheelchair Accessible',
-  'Elevator Available',
-  'Accessible Restroom',
-  'Quiet / Low Noise',
-  'Child Friendly',
-  'Crowded'
-]
 
 // 根据创建/编辑/查看模式切换页面标题
 const pageTitle = computed(() => {
@@ -195,42 +145,6 @@ function extractList(res) {
   return res?.rows || res?.data || res?.list || res?.content || []
 }
 
-// 从 /api/users/me 的返回里取当前用户 id，兼容多种字段结构
-function getProfileId(profile) {
-  return profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
-}
-
-// 将后端 event 原始数据整理成下拉框需要的 id/name
-function normalizeEvent(event) {
-  return {
-    id: event.id || event.eventId,
-    name: event.title || event.name || event.eventTitle || `Event #${event.id || event.eventId}`
-  }
-}
-
-// 从 registration 里取 eventId；如果后端已经返回 event 对象，也兼容 event.id
-function getEventIdFromRegistration(registration) {
-  return registration.eventId || registration.event?.id || registration.event?.eventId
-}
-
-// 将后端 tags 字段统一成数组；兼容数组、JSON 字符串和逗号分隔字符串
-function normalizeTags(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : value.split(',').map((item) => item.trim()).filter(Boolean)
-    } catch {
-      return value.split(',').map((item) => item.trim()).filter(Boolean)
-    }
-  }
-
-  return []
-}
-
 // 将后端图片列表转换成 el-upload 需要的 file-list 格式
 function normalizeImages(images) {
   return images.map((image) => ({
@@ -246,18 +160,12 @@ function fillPostForm(post) {
   postForm.value = {
     eventId: post.eventId || post.event?.id || '',
     title: post.title || '',
-    content: post.content || post.body || post.description || '',
-    tags: normalizeTags(post.tags || post.accessibilityTags)
+    content: post.content || post.body || post.description || ''
   }
 }
 
 // 提交前校验必填项
 function validateForm() {
-  if (!postForm.value.eventId) {
-    ElMessage.error('Please choose a related event')
-    return false
-  }
-
   if (!postForm.value.title.trim()) {
     ElMessage.error('Please enter a post title')
     return false
@@ -273,13 +181,17 @@ function validateForm() {
 
 // 组装创建/更新帖子接口需要的请求体
 function buildPayload(status) {
-  return {
-    eventId: postForm.value.eventId,
+  const payload = {
     title: postForm.value.title.trim(),
     content: postForm.value.content.trim(),
-    tags: postForm.value.tags,
     status
   }
+
+  if (postForm.value.eventId.trim()) {
+    payload.eventId = postForm.value.eventId.trim()
+  }
+
+  return payload
 }
 
 // 帖子创建或更新成功后，再把本次新增的图片逐张上传到 Post Images 接口
@@ -293,47 +205,6 @@ async function uploadNewImages(savedPostId) {
   }))
 }
 
-// 加载当前用户参加过的活动：先查用户，再查用户报名记录，最后整理成活动下拉选项
-async function loadEventsForCurrentUser() {
-  const profile = await getCurrentUserProfile()
-  const userId = getProfileId(profile)
-  currentUserId.value = userId
-
-  if (!userId) {
-    ElMessage.error('Unable to load current user profile')
-    return
-  }
-
-  const registrations = extractList(await getRegistrationsByUser(userId))
-  const eventMap = new Map()
-
-  registrations.forEach((registration) => {
-    if (registration.event) {
-      const event = normalizeEvent(registration.event)
-      eventMap.set(event.id, event)
-    }
-  })
-
-  const missingEventIds = registrations
-    .map(getEventIdFromRegistration)
-    .filter((eventId) => eventId && !eventMap.has(eventId))
-
-  const missingEvents = await Promise.all(missingEventIds.map(async (eventId) => {
-    try {
-      return normalizeEvent(await getEventDetail(eventId))
-    } catch (error) {
-      console.error('Failed to load registered event:', error)
-      return null
-    }
-  }))
-
-  missingEvents.filter(Boolean).forEach((event) => {
-    eventMap.set(event.id, event)
-  })
-
-  events.value = Array.from(eventMap.values())
-}
-
 // 编辑/查看模式下加载帖子详情和已有图片
 async function loadPostForEdit() {
   if (!postId.value) {
@@ -343,13 +214,6 @@ async function loadPostForEdit() {
   const post = await getPost(postId.value)
   fillPostForm(post)
   imageList.value = normalizeImages(extractList(await getPostImages(postId.value)))
-
-  if (postForm.value.eventId && !events.value.some((event) => event.id === postForm.value.eventId)) {
-    events.value.unshift(normalizeEvent(post.event || {
-      id: postForm.value.eventId,
-      title: post.eventTitle || post.eventName
-    }))
-  }
 }
 
 // 保存帖子主流程：校验表单 -> 创建/更新 post -> 上传新增图片 -> 返回列表页
@@ -368,11 +232,21 @@ async function savePost(status) {
 
     const savedPostId = postId.value || savedPost?.id || savedPost?.postId
 
+    let hasImageUploadError = false
     if (savedPostId) {
-      await uploadNewImages(savedPostId)
+      try {
+        await uploadNewImages(savedPostId)
+      } catch (error) {
+        hasImageUploadError = true
+        console.error('Failed to upload post images:', error)
+      }
     }
 
-    ElMessage.success(status === 'DRAFT' ? 'Draft saved' : 'Post published')
+    if (hasImageUploadError) {
+      ElMessage.warning('Post saved, but image upload failed. Please check Supabase Storage policy.')
+    } else {
+      ElMessage.success(status === 'DRAFT' ? 'Draft saved' : 'Post published')
+    }
     router.push({ name: 'MainPost' })
   } catch (error) {
     console.error('Failed to save post:', error)
@@ -412,12 +286,11 @@ function handleImageRemove(file) {
   })
 }
 
-// 页面初始化：加载活动下拉；如果带 id，再加载帖子详情
+// 页面初始化：如果带 id，则加载帖子详情和已有图片
 onMounted(async () => {
   loading.value = true
 
   try {
-    await loadEventsForCurrentUser()
     await loadPostForEdit()
   } catch (error) {
     console.error('Failed to load create post page:', error)
@@ -475,7 +348,6 @@ onMounted(async () => {
 }
 
 .main-card,
-.side-card,
 .tip-card,
 .action-card {
   background: rgba(255, 255, 255, 0.96);
@@ -521,10 +393,9 @@ onMounted(async () => {
 }
 
 .section-heading h2,
-.side-card h2 {
+.tip-card h3 {
   margin: 0;
   color: #0d1f4f;
-  font-size: 20px;
   font-weight: 800;
 }
 
@@ -554,39 +425,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.side-card {
-  padding: 24px;
-}
-
-.tag-list {
-  margin-top: 18px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-.tag-list :deep(.el-checkbox-button__inner) {
-  width: 100%;
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  border: 1px solid #dbe5f4;
-  border-radius: 12px;
-  color: #26365f;
-  background: #fbfdff;
-  font-size: 14px;
-  text-align: left;
-  box-shadow: none;
-}
-
-.tag-list :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
-  border-color: #8db8ff;
-  background: #eef6ff;
-  color: #0969f6;
-  box-shadow: none;
 }
 
 .tip-card {

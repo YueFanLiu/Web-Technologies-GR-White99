@@ -16,9 +16,10 @@
       <!-- 活动主图 -->
       <div class="event-image-wrapper">
         <img
-          :src="eventImages[0]?.imageUrl || eventImages[0]?.url || eventDetail.coverImageUrl || 'https://picsum.photos/id/1083/1200/600'"
+          :src="mainEventImage"
           :alt="eventDetail.title || 'Event image'"
           class="event-image"
+          @error="handleEventImageError"
         />
       </div>
 
@@ -31,28 +32,28 @@
             <el-icon>
               <Calendar/>
             </el-icon>
-            <span>Saturday, April 25, 2026</span>
+            <span>{{ formattedEventDate }}</span>
           </div>
 
           <div class="meta-item">
             <el-icon>
               <Clock/>
             </el-icon>
-            <span>10:00 AM - 2:00 PM</span>
+            <span>{{ formattedEventTime }}</span>
           </div>
 
           <div class="meta-item">
             <el-icon>
               <Location/>
             </el-icon>
-            <span>{{ accessibilityInfo.location?.name || eventDetail.location?.city }}</span>
+            <span>{{ eventLocationName }}</span>
           </div>
 
           <div class="meta-item">
             <el-icon>
               <Location/>
             </el-icon>
-            <span>{{ eventDetail.location?.address }}, {{ eventDetail.location?.country }}</span>
+            <span>{{ eventLocationAddress }}</span>
           </div>
         </div>
 
@@ -71,12 +72,11 @@
           <p class="description-text">
             {{ eventDetail.description }}
           </p>
-          <p class="description-includes">The event includes:</p>
-          <ul class="includes-list">
-            <li>Responsive activities for all abilities</li>
-            <li>Games and group activities</li>
-            <li>Picnic area with accessible facilities</li>
-          </ul>
+          <div class="event-facts">
+            <el-tag v-if="eventDetail.category" type="info">{{ eventDetail.category }}</el-tag>
+            <el-tag v-if="eventDetail.status" type="success">{{ eventDetail.status }}</el-tag>
+            <el-tag v-if="eventDetail.id" type="warning">{{ eventDetail.isVirtual ? 'Virtual Event' : 'In-person Event' }}</el-tag>
+          </div>
         </div>
       </div>
     </el-aside>
@@ -87,7 +87,7 @@
       <div class="booking-card">
         <div class="price-row">
           <div class="price-info">
-            <span class="price">${{ eventDetail.price }} per Child</span>
+            <span class="price">{{ formattedPrice }} per Child</span>
           </div>
           <span class="price-label">Price per Child</span>
         </div>
@@ -103,7 +103,7 @@
           <el-icon>
             <Warning/>
           </el-icon>
-          <span>{{ spotsLeft ?? eventDetail.capacity ?? 0 }} spots left</span>
+          <span>{{ spotsLeft }} spots left</span>
         </div>
       </div>
 
@@ -128,6 +128,7 @@
             Accessibility info unavailable
           </el-tag>
         </div>
+        <p v-if="accessibilityInfo.notes" class="access-notes">{{ accessibilityInfo.notes }}</p>
       </div>
 
       <!-- 评论区 -->
@@ -139,20 +140,21 @@
               <Star/>
             </el-icon>
             <span class="rating">{{ eventDetail.averageRating || 0 }}</span>
-            <span class="review-count">{{ eventReviews.length }} reviews</span>
+            <span class="review-count">{{ reviewCount }} reviews</span>
           </div>
         </div>
 
         <div class="review-item" v-for="review in eventReviews" :key="review.id">
           <div class="reviewer-info">
             <img
-              :src="review.user?.avatar || review.userAvatar || 'https://picsum.photos/id/1027/100/100'"
-              :alt="review.user?.fullName || review.userName || 'Reviewer'"
+              :src="normalizeImageUrl(review.user?.photo || review.userAvatar) || fallbackAvatarImage"
+              :alt="review.user?.fullName || 'Reviewer'"
               class="reviewer-avatar"
+              @error="handleAvatarImageError"
             />
-            <div class="reviewer-name">{{ review.user?.fullName || review.userName || 'Anonymous' }}</div>
+            <div class="reviewer-name">{{ review.user?.fullName || 'Anonymous' }}</div>
             <div class="review-stars">
-              <el-icon v-for="i in (review.rating || 0)" :key="i" color="#f7ba2a">
+              <el-icon v-for="i in getReviewStars(review.rating)" :key="i" color="#f7ba2a">
                 <Star/>
               </el-icon>
             </div>
@@ -166,7 +168,7 @@
 </template>
 
 <script setup>
-import {ref, onMounted} from 'vue'
+import {ref, computed, onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {ElMessage} from 'element-plus'
 import {
@@ -181,12 +183,11 @@ import {
   Clock,
   Location,
   Lock,
-  Service,
-  Message,
-  Phone,
   Warning,
   Star,
 } from '@element-plus/icons-vue'
+import fallbackEventImage from '@/assets/images/login-background.jpg'
+import fallbackAvatarImage from '@/assets/images/profile.jpg'
 
 const route = useRoute()
 const router = useRouter()
@@ -199,7 +200,52 @@ const eventReviews = ref([])
 const eventRegistrations = ref([])
 const accessibilityInfo = ref({})
 const accessibilityTags = ref([])
-const spotsLeft = ref(null)
+
+// Swagger 中活动图片有两个来源：
+// 1. GET /api/events/{id} 返回的 coverImageUrl / imageUrls
+// 2. GET /api/events/{eventId}/images 返回的 ImageResponse[]，字段为 imageUrl
+const mainEventImage = computed(() => {
+  return normalizeImageUrl(eventDetail.value.coverImageUrl)
+    || getImageUrl(eventImages.value[0])
+    || normalizeImageUrl(eventDetail.value.imageUrls?.[0])
+    || fallbackEventImage
+})
+
+const formattedEventDate = computed(() => {
+  return formatEventDate(eventDetail.value.startTime)
+})
+
+const formattedEventTime = computed(() => {
+  return formatEventTimeRange(eventDetail.value.startTime, eventDetail.value.endTime)
+})
+
+const formattedPrice = computed(() => {
+  const price = Number(eventDetail.value.price || 0)
+  return price === 0 ? 'Free' : `$${price.toFixed(2)}`
+})
+
+const eventLocationName = computed(() => {
+  const location = eventDetail.value.location
+  return location?.name || location?.city || 'Location TBA'
+})
+
+const eventLocationAddress = computed(() => {
+  const location = eventDetail.value.location
+  return [location?.address, location?.city, location?.country].filter(Boolean).join(', ') || 'Address TBA'
+})
+
+const activeRegistrationsCount = computed(() => {
+  return eventRegistrations.value.filter(isActiveRegistration).length
+})
+
+const spotsLeft = computed(() => {
+  const capacity = Number(eventDetail.value.capacity || 0)
+  return Math.max(capacity - activeRegistrationsCount.value, 0)
+})
+
+const reviewCount = computed(() => {
+  return eventDetail.value.reviewCount ?? eventReviews.value.length
+})
 
 // 儿童数量
 const childCount = ref(1)
@@ -215,7 +261,6 @@ const fetchEventDetail = () => {
   getEventDetail(eventId).then(res => {
     console.log('event detail:', res)
     eventDetail.value = res
-    spotsLeft.value = res.capacity || 0
 
     fetchLocationAccessibility(res.location?.id)
     fetchEventRegistrations()
@@ -253,30 +298,82 @@ onMounted(() => {
 })
 
 const fetchEventImages = () => {
+  if (!eventId) {
+    return
+  }
+
   getEventImages(eventId).then(res => {
     console.log('event images:', res)
-    eventImages.value = res || []
+    eventImages.value = Array.isArray(res) ? res : []
   }).catch(error => {
     console.error('Failed to load event images:', error)
   })
 }
 
+const getImageUrl = (image) => {
+  return normalizeImageUrl(image?.imageUrl || image?.url || image?.publicUrl || image?.path)
+}
+
+const normalizeImageUrl = (value) => {
+  const url = String(value || '').trim()
+
+  if (!url) {
+    return ''
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(url)) {
+    return url
+  }
+
+  if (url.startsWith('//')) {
+    return `${window.location.protocol}${url}`
+  }
+
+  if (url.startsWith('/')) {
+    return url
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (supabaseUrl) {
+    return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${url.replace(/^\/+/, '')}`
+  }
+
+  return url
+}
+
+const handleEventImageError = (event) => {
+  if (event.target.src !== fallbackEventImage) {
+    event.target.src = fallbackEventImage
+  }
+}
+
+const handleAvatarImageError = (event) => {
+  if (event.target.src !== fallbackAvatarImage) {
+    event.target.src = fallbackAvatarImage
+  }
+}
+
 const fetchEventReviews = () => {
+  if (!eventId) {
+    return
+  }
+
   getEventReviews(eventId).then(res => {
     console.log('event reviews:', res)
-    eventReviews.value = res || []
+    eventReviews.value = Array.isArray(res) ? res : []
   }).catch(error => {
     console.error('Failed to load event reviews:', error)
   })
 }
 
 const fetchEventRegistrations = () => {
+  if (!eventId) {
+    return
+  }
+
   getEventRegistrations(eventId).then(res => {
     console.log('event registrations:', res)
-    eventRegistrations.value = res || []
-
-    const capacity = eventDetail.value.capacity || 0
-    spotsLeft.value = capacity - eventRegistrations.value.length
+    eventRegistrations.value = Array.isArray(res) ? res : []
   }).catch(error => {
     console.error('Failed to load event registrations:', error)
   })
@@ -300,6 +397,56 @@ const fetchLocationAccessibility = (locationId) => {
   }).catch(error => {
     console.error('Failed to load location accessibility:', error)
   })
+}
+
+const formatEventDate = (value) => {
+  if (!value) {
+    return 'Date TBA'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Date TBA'
+  }
+
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+const formatEventTimeRange = (startValue, endValue) => {
+  if (!startValue) {
+    return 'Time TBA'
+  }
+
+  const start = new Date(startValue)
+  if (Number.isNaN(start.getTime())) {
+    return 'Time TBA'
+  }
+
+  const options = { hour: 'numeric', minute: '2-digit' }
+  const startText = start.toLocaleTimeString('en-US', options)
+  if (!endValue) {
+    return startText
+  }
+
+  const end = new Date(endValue)
+  return Number.isNaN(end.getTime())
+    ? startText
+    : `${startText} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+const isActiveRegistration = (registration) => {
+  const status = String(registration.status || '').toUpperCase()
+  return !['CANCELLED', 'CANCELED', 'REJECTED'].includes(status)
+}
+
+const getReviewStars = (rating) => {
+  const value = Number(rating || 0)
+  return Math.max(0, Math.min(5, Math.round(value)))
 }
 
 </script>
@@ -385,11 +532,11 @@ const fetchLocationAccessibility = (locationId) => {
   line-height: 1.6;
 }
 
-.includes-list {
-  list-style-type: disc;
-  padding-left: 20px;
-  color: #555;
-  line-height: 1.8;
+.event-facts {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* 右侧边栏 */
@@ -474,6 +621,13 @@ const fetchLocationAccessibility = (locationId) => {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 14px;
+}
+
+.access-notes {
+  margin: 14px 0 0;
+  color: #555;
+  line-height: 1.6;
   font-size: 14px;
 }
 

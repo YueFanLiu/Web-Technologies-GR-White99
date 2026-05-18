@@ -88,7 +88,10 @@ function handleforgotPassword() {
     if (valid) {
       loading.value = true
 
-      forgotPassword(forgotPasswordForm.value).then(() => {
+      forgotPassword({
+        email: forgotPasswordForm.value.email,
+        redirectTo: `${window.location.origin}/confirmPassword`
+      }).then(() => {
         ElMessage.success("Password reset email has been sent. Please check your inbox.")
       }).finally(() => {
         loading.value = false

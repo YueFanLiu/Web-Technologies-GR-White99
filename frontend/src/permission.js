@@ -9,16 +9,17 @@ import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import usePermissionStore from '@/store/modules/permission'
 import { verifyEmail } from '@/api/login'
+import { supabase } from '@/utils/supabase'
 
 NProgress.configure({ showSpinner: false })
 
-const whiteList = ['/login', '/register','forgotPassword']
+const whiteList = ['/login', '/register', '/forgotPassword', '/confirmPassword']
 
 const isWhiteList = (path) => {
   return whiteList.some(pattern => isPathMatch(pattern, path))
 }
 
-function consumeSupabaseHashToken() {
+async function consumeSupabaseHashToken() {
   const hash = window.location.hash
   if (!hash || !hash.includes('access_token=')) {
     return
@@ -26,8 +27,15 @@ function consumeSupabaseHashToken() {
 
   const params = new URLSearchParams(hash.slice(1))
   const accessToken = params.get('access_token')
+  const refreshToken = params.get('refresh_token')
   if (accessToken) {
     setToken(accessToken)
+  }
+  if (accessToken && refreshToken) {
+    await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    })
   }
 
   window.history.replaceState(null, document.title, window.location.pathname + window.location.search)
@@ -57,8 +65,8 @@ async function consumeSupabaseTokenHash(to) {
 
 router.beforeEach(async (to, from, next) => {
   NProgress.start()
-  consumeSupabaseHashToken()
   try {
+    await consumeSupabaseHashToken()
     const cleanRoute = await consumeSupabaseTokenHash(to)
     if (cleanRoute) {
       next(cleanRoute)

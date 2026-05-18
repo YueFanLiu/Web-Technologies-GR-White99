@@ -80,7 +80,6 @@ import defaultSettings from "@/settings"
 const title = "Reset Password"
 const footerContent = defaultSettings.footerContent
 
-const route = useRoute()
 const router = useRouter()
 const { proxy } = getCurrentInstance()
 
@@ -88,8 +87,7 @@ const loading = ref(false)
 
 const confirmPasswordForm = ref({
   password: "",
-  confirmPassword: "",
-  token: route.query.token || ""
+  confirmPassword: ""
 })
 
 const validateConfirmPassword = (rule, value, callback) => {
@@ -122,6 +120,8 @@ function handleConfirmPassword() {
       confirmPassword(confirmPasswordForm.value).then(() => {
         ElMessage.success("Password has been reset successfully.")
         router.push("/login")
+      }).catch((error) => {
+        ElMessage.error(error?.message || "Password reset link is invalid or expired.")
       }).finally(() => {
         loading.value = false
       })
