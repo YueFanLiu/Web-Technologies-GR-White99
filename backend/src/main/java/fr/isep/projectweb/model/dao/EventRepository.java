@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,4 +57,34 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
             ORDER BY e.startTime ASC
             """)
     List<Event> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+    @Query("""
+            SELECT e
+            FROM Event e
+            LEFT JOIN LocationAccessibility a ON a.location = e.location
+            WHERE (:keyword IS NULL
+                    OR LOWER(COALESCE(e.title, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(e.description, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                    OR LOWER(COALESCE(e.category, '')) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
+              AND (:locationId IS NULL OR e.location.id = :locationId)
+              AND (:activityType IS NULL OR LOWER(e.category) = LOWER(CAST(:activityType AS string)))
+              AND (:dateStart IS NULL OR (e.startTime < :dateEnd AND e.endTime >= :dateStart))
+              AND (:requireWheelchairAccessible = false OR a.wheelchairAccessible = true)
+              AND (:requireHasElevator = false OR a.hasElevator = true)
+              AND (:requireAccessibleToilet = false OR a.accessibleToilet = true)
+              AND (:requireQuietEnvironment = false OR a.quietEnvironment = true)
+              AND (:requireStepFreeAccess = false OR a.stepFreeAccess = true)
+            ORDER BY e.startTime ASC
+            """)
+    List<Event> searchWithFilters(@Param("keyword") String keyword,
+                                  @Param("locationId") UUID locationId,
+                                  @Param("dateStart") LocalDateTime dateStart,
+                                  @Param("dateEnd") LocalDateTime dateEnd,
+                                  @Param("activityType") String activityType,
+                                  @Param("requireWheelchairAccessible") boolean requireWheelchairAccessible,
+                                  @Param("requireHasElevator") boolean requireHasElevator,
+                                  @Param("requireAccessibleToilet") boolean requireAccessibleToilet,
+                                  @Param("requireQuietEnvironment") boolean requireQuietEnvironment,
+                                  @Param("requireStepFreeAccess") boolean requireStepFreeAccess,
+                                  Pageable pageable);
 }

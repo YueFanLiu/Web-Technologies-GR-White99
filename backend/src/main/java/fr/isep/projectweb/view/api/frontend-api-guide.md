@@ -454,9 +454,47 @@ Response body:
 
 Public. Returns one `EventResponse`.
 
-### GET /api/events/search?keyword=music
+### GET /api/events/search
 
 Public. Returns `EventResponse[]`.
+
+Searches events by keyword and optional filters. `locationId` is the preferred
+location filter. `location` is also accepted as an alias when the value is a
+location UUID. `date` uses `YYYY-MM-DD` and returns events whose time range
+overlaps that day. `activityType` matches the event `category`.
+
+Empty filter params are ignored. The values `all`, `any`, `default`, and `none`
+are also ignored for `locationId`, `location`, `date`, `activityType`, and
+`accessibilityOptions`. When no effective filter or keyword is provided, this
+endpoint returns the same recommendation-ranked default event list as
+`GET /api/events`.
+
+Optional query params:
+
+```text
+keyword=music
+locationId=uuid
+location=uuid
+date=2026-05-10
+activityType=concert
+accessibilityOptions=wheelchairAccessible
+accessibilityOptions=hasElevator
+accessibilityOptions=accessibleToilet
+accessibilityOptions=quietEnvironment
+accessibilityOptions=stepFreeAccess
+```
+
+`accessibilityOptions` can be sent multiple times or as a comma-separated list:
+
+```text
+/api/events/search?activityType=concert&locationId=uuid&date=2026-05-10&accessibilityOptions=wheelchairAccessible,stepFreeAccess
+```
+
+Default filter example:
+
+```text
+/api/events/search?locationId=all&date=all&activityType=all&accessibilityOptions=all
+```
 
 ### GET /api/events/organizer/{organizerId}
 

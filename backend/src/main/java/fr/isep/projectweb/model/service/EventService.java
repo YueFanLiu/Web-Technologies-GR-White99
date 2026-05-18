@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -124,12 +126,40 @@ public class EventService {
                 .toList();
     }
 
-    public List<EventResponse> searchEvents(String keyword) {
-        if (keyword == null || keyword.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Keyword must not be blank");
+    public List<EventResponse> searchEvents(String keyword,
+                                            String locationId,
+                                            String date,
+                                            String activityType,
+                                            List<String> accessibilityOptions) {
+        String normalizedKeyword = normalizeOptional(keyword);
+        UUID normalizedLocationId = normalizeOptionalUuid(locationId, "locationId");
+        LocalDate normalizedDate = normalizeOptionalDate(date);
+        String normalizedActivityType = normalizeOptionalFilter(activityType);
+        AccessibilityFilter accessibilityFilter = normalizeAccessibilityOptions(accessibilityOptions);
+        LocalDateTime dateStart = normalizedDate != null ? normalizedDate.atStartOfDay() : null;
+        LocalDateTime dateEnd = normalizedDate != null ? normalizedDate.plusDays(1).atStartOfDay() : null;
+
+        if (normalizedKeyword == null
+                && normalizedLocationId == null
+                && normalizedDate == null
+                && normalizedActivityType == null
+                && accessibilityFilter.isEmpty()) {
+            return getMainPageEvents(null, null, null, null, null, null);
         }
 
-        return eventRepository.searchByKeyword(keyword.trim(), PageRequest.of(0, SEARCH_RESULT_LIMIT))
+        return eventRepository.searchWithFilters(
+                        normalizedKeyword,
+                        normalizedLocationId,
+                        dateStart,
+                        dateEnd,
+                        normalizedActivityType,
+                        accessibilityFilter.wheelchairAccessible(),
+                        accessibilityFilter.hasElevator(),
+                        accessibilityFilter.accessibleToilet(),
+                        accessibilityFilter.quietEnvironment(),
+                        accessibilityFilter.stepFreeAccess(),
+                        PageRequest.of(0, SEARCH_RESULT_LIMIT)
+                )
                 .stream()
                 .map(event -> toResponse(event, false))
                 .toList();
@@ -271,6 +301,99 @@ public class EventService {
         return value.trim();
     }
 
+    private String normalizeOptionalFilter(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null || isAllOption(normalized)) {
+            return null;
+        }
+        return normalized;
+    }
+
+    private UUID normalizeOptionalUuid(String value, String fieldName) {
+        String normalized = normalizeOptionalFilter(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(normalized);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be a valid UUID");
+        }
+    }
+
+    private LocalDate normalizeOptionalDate(String value) {
+        String normalized = normalizeOptionalFilter(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(normalized);
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date must use YYYY-MM-DD format");
+        }
+    }
+
+    private AccessibilityFilter normalizeAccessibilityOptions(List<String> accessibilityOptions) {
+        boolean wheelchairAccessible = false;
+        boolean hasElevator = false;
+        boolean accessibleToilet = false;
+        boolean quietEnvironment = false;
+        boolean stepFreeAccess = false;
+
+        if (accessibilityOptions == null) {
+            return new AccessibilityFilter(false, false, false, false, false);
+        }
+
+        for (String rawOption : accessibilityOptions) {
+            if (rawOption == null || rawOption.isBlank()) {
+                continue;
+            }
+            for (String splitOption : rawOption.split(",")) {
+                String option = normalizeAccessibilityOption(splitOption);
+                if (option == null) {
+                    continue;
+                }
+                if (isAllOption(option)) {
+                    continue;
+                }
+                switch (option) {
+                    case "wheelchairaccessible" -> wheelchairAccessible = true;
+                    case "haselevator", "elevator" -> hasElevator = true;
+                    case "accessibletoilet", "toilet" -> accessibleToilet = true;
+                    case "quietenvironment", "quiet" -> quietEnvironment = true;
+                    case "stepfreeaccess", "stepfree" -> stepFreeAccess = true;
+                    default -> throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Unknown accessibility option: " + splitOption.trim()
+                    );
+                }
+            }
+        }
+
+        return new AccessibilityFilter(
+                wheelchairAccessible,
+                hasElevator,
+                accessibleToilet,
+                quietEnvironment,
+                stepFreeAccess
+        );
+    }
+
+    private String normalizeAccessibilityOption(String option) {
+        if (option == null || option.isBlank()) {
+            return null;
+        }
+        return option.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    private boolean isAllOption(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        return normalized.equals("all")
+                || normalized.equals("any")
+                || normalized.equals("default")
+                || normalized.equals("none");
+    }
+
     private String normalizeSortText(String value) {
         if (value == null) {
             return "";
@@ -341,5 +464,19 @@ public class EventService {
     }
 
     private record ScoredEvent(Event event, double score) {
+    }
+
+    private record AccessibilityFilter(boolean wheelchairAccessible,
+                                       boolean hasElevator,
+                                       boolean accessibleToilet,
+                                       boolean quietEnvironment,
+                                       boolean stepFreeAccess) {
+        private boolean isEmpty() {
+            return !wheelchairAccessible
+                    && !hasElevator
+                    && !accessibleToilet
+                    && !quietEnvironment
+                    && !stepFreeAccess;
+        }
     }
 }
