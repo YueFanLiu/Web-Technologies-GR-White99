@@ -16,23 +16,30 @@
               <h2>1. Basic Information</h2>
             </div>
 
-            <el-form class="activity-form" label-position="top">
+            <el-form
+              ref="basicFormRef"
+              class="activity-form"
+              label-position="top"
+              :model="form"
+              :rules="rules"
+            >
               <div class="two-column">
-                <el-form-item label="Activity Title">
+                <el-form-item label="Activity Title" prop="title">
                   <el-input v-model="form.title" size="large" placeholder="Enter activity title" />
                 </el-form-item>
 
-                <el-form-item label="Category">
+                <el-form-item label="Category" prop="category">
                   <el-select v-model="form.category" size="large" placeholder="Select a category">
-                    <el-option label="Workshop" value="workshop" />
-                    <el-option label="Concert" value="concert" />
-                    <el-option label="Family Activity" value="family" />
-                    <el-option label="Community Event" value="community" />
+                    <el-option label="Music" value="Music" />
+                    <el-option label="Workshop" value="Workshop" />
+                    <el-option label="Concert" value="Concert" />
+                    <el-option label="Family Activity" value="Family Activity" />
+                    <el-option label="Community Event" value="Community Event" />
                   </el-select>
                 </el-form-item>
               </div>
 
-              <el-form-item label="Description">
+              <el-form-item label="Description" prop="description">
                 <el-input
                   v-model="form.description"
                   type="textarea"
@@ -52,8 +59,14 @@
               <h2>2. Schedule</h2>
             </div>
 
-            <el-form class="activity-form schedule-form" label-position="top">
-              <el-form-item label="Date">
+            <el-form
+              ref="scheduleFormRef"
+              class="activity-form schedule-form"
+              label-position="top"
+              :model="form"
+              :rules="rules"
+            >
+              <el-form-item label="Date" prop="date">
                 <el-date-picker
                   v-model="form.date"
                   type="date"
@@ -62,7 +75,7 @@
                 />
               </el-form-item>
 
-              <el-form-item label="Start Time">
+              <el-form-item label="Start Time" prop="startTime">
                 <el-time-picker
                   v-model="form.startTime"
                   size="large"
@@ -70,7 +83,7 @@
                 />
               </el-form-item>
 
-              <el-form-item label="End Time">
+              <el-form-item label="End Time" prop="endTime">
                 <el-time-picker
                   v-model="form.endTime"
                   size="large"
@@ -88,12 +101,18 @@
               <h2>3. Location</h2>
             </div>
 
-            <el-form class="activity-form two-column" label-position="top">
-              <el-form-item label="Venue Name">
+            <el-form
+              ref="locationFormRef"
+              class="activity-form two-column"
+              label-position="top"
+              :model="form"
+              :rules="rules"
+            >
+              <el-form-item label="Venue Name" prop="venueName">
                 <el-input v-model="form.venueName" size="large" placeholder="Enter venue name" />
               </el-form-item>
 
-              <el-form-item label="Address">
+              <el-form-item label="Address" prop="address">
                 <el-input v-model="form.address" size="large" placeholder="Enter full address" />
               </el-form-item>
             </el-form>
@@ -136,8 +155,11 @@
             <el-upload
               v-model:file-list="coverList"
               action="#"
+              accept="image/*"
               :auto-upload="false"
               :show-file-list="false"
+              :on-change="handleCoverChange"
+              :on-remove="handleCoverRemove"
             >
               <el-button class="upload-button">
                 <el-icon><Upload /></el-icon>
@@ -152,8 +174,14 @@
               <h2>Capacity</h2>
             </div>
 
-            <el-form class="activity-form" label-position="top">
-              <el-form-item label="Capacity">
+            <el-form
+              ref="capacityFormRef"
+              class="activity-form"
+              label-position="top"
+              :model="form"
+              :rules="rules"
+            >
+              <el-form-item label="Capacity" prop="capacity">
                 <el-input
                   v-model="form.capacity"
                   size="large"
@@ -174,12 +202,18 @@
               <h2>Publish</h2>
             </div>
 
-            <el-button size="large" type="primary" class="publish-button" @click="publishActivity">
+            <el-button
+              size="large"
+              type="primary"
+              class="publish-button"
+              :loading="submitting"
+              @click="publishActivity"
+            >
               <el-icon><Promotion /></el-icon>
               Publish Activity
             </el-button>
 
-            <el-button size="large" class="cancel-button" @click="cancelCreate">
+            <el-button size="large" class="cancel-button" :disabled="submitting" @click="cancelCreate">
               Cancel
             </el-button>
           </section>
@@ -190,9 +224,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import {
+  createEvent,
+  createLocation,
+  createLocationAccessibility,
+  uploadEventImage
+} from '@/api/manager/createActivity'
 import {
   Calendar,
   InfoFilled,
@@ -208,6 +248,11 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const basicFormRef = ref()
+const scheduleFormRef = ref()
+const locationFormRef = ref()
+const capacityFormRef = ref()
+const submitting = ref(false)
 
 const form = ref({
   title: '',
@@ -223,22 +268,190 @@ const form = ref({
 })
 
 const coverList = ref([])
-const coverImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
+const defaultCoverImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
+const coverImage = ref(defaultCoverImage)
+const coverFile = ref(null)
+let coverObjectUrl = ''
+
+const rules = {
+  title: [{ required: true, message: 'Please enter activity title', trigger: 'blur' }],
+  category: [{ required: true, message: 'Please select a category', trigger: 'change' }],
+  description: [{ required: true, message: 'Please enter description', trigger: 'blur' }],
+  date: [{ required: true, message: 'Please select a date', trigger: 'change' }],
+  startTime: [{ required: true, message: 'Please select start time', trigger: 'change' }],
+  endTime: [{ required: true, message: 'Please select end time', trigger: 'change' }],
+  venueName: [{ required: true, message: 'Please enter venue name', trigger: 'blur' }],
+  address: [{ required: true, message: 'Please enter address', trigger: 'blur' }],
+  capacity: [{ required: true, message: 'Please enter capacity', trigger: 'blur' }]
+}
 
 const accessibilityFeatures = [
-  { label: 'Wheelchair Accessible', icon: Service },
-  { label: 'Elevator Available', icon: UserFilled },
-  { label: 'Accessible Restroom', icon: VideoCamera },
-  { label: 'Quiet / Low Noise', icon: Microphone }
+  { label: 'Wheelchair Accessible', icon: Service, key: 'wheelchairAccessible' },
+  { label: 'Elevator Available', icon: UserFilled, key: 'hasElevator' },
+  { label: 'Accessible Restroom', icon: VideoCamera, key: 'accessibleToilet' },
+  { label: 'Quiet / Low Noise', icon: Microphone, key: 'quietEnvironment' }
 ]
 
-function publishActivity() {
-  ElMessage.success('Activity published')
+function toEntityId(response) {
+  return response?.id || response?.data?.id
+}
+
+function buildDateTime(dateValue, timeValue) {
+  const date = new Date(dateValue)
+  const time = new Date(timeValue)
+
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    time.getHours(),
+    time.getMinutes(),
+    0,
+    0
+  ).toISOString()
+}
+
+function buildAccessibilityPayload() {
+  const selected = new Set(form.value.accessibility)
+  const payload = accessibilityFeatures.reduce((result, feature) => {
+    result[feature.key] = selected.has(feature.label)
+    return result
+  }, {})
+
+  return {
+    ...payload,
+    stepFreeAccess: payload.wheelchairAccessible || payload.hasElevator,
+    notes: ''
+  }
+}
+
+function validateBusinessFields(startTime, endTime) {
+  const capacity = Number(form.value.capacity)
+
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    ElMessage.warning('Capacity must be a positive whole number')
+    return false
+  }
+
+  if (new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+    ElMessage.warning('End time must be later than start time')
+    return false
+  }
+
+  return true
+}
+
+function handleCoverChange(file, fileList) {
+  const rawFile = file.raw
+
+  if (!rawFile?.type?.startsWith('image/')) {
+    ElMessage.warning('Please choose an image file')
+    coverList.value = fileList.filter((item) => item.uid !== file.uid)
+    return
+  }
+
+  if (coverObjectUrl) {
+    URL.revokeObjectURL(coverObjectUrl)
+  }
+
+  coverFile.value = rawFile
+  coverObjectUrl = URL.createObjectURL(rawFile)
+  coverImage.value = coverObjectUrl
+  coverList.value = [file]
+}
+
+function handleCoverRemove() {
+  coverFile.value = null
+
+  if (coverObjectUrl) {
+    URL.revokeObjectURL(coverObjectUrl)
+    coverObjectUrl = ''
+  }
+
+  coverImage.value = defaultCoverImage
+}
+
+async function publishActivity() {
+  if (submitting.value) {
+    return
+  }
+
+  const valid = await Promise.all([
+    basicFormRef.value?.validate().catch(() => false),
+    scheduleFormRef.value?.validate().catch(() => false),
+    locationFormRef.value?.validate().catch(() => false),
+    capacityFormRef.value?.validate().catch(() => false)
+  ]).then((results) => results.every(Boolean))
+  if (!valid) {
+    return
+  }
+
+  const startTime = buildDateTime(form.value.date, form.value.startTime)
+  const endTime = buildDateTime(form.value.date, form.value.endTime)
+
+  if (!validateBusinessFields(startTime, endTime)) {
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    const location = await createLocation({
+      name: form.value.venueName,
+      description: form.value.description,
+      address: form.value.address,
+      city: '',
+      country: ''
+    })
+    const locationId = toEntityId(location)
+
+    if (!locationId) {
+      throw new Error('Create location response did not include an id')
+    }
+
+    await createLocationAccessibility(locationId, buildAccessibilityPayload())
+
+    const event = await createEvent({
+      title: form.value.title,
+      description: form.value.description,
+      category: form.value.category,
+      startTime,
+      endTime,
+      capacity: Number(form.value.capacity),
+      price: 0,
+      isVirtual: false,
+      status: 'PUBLISHED',
+      locationId
+    })
+    const eventId = toEntityId(event)
+
+    if (!eventId) {
+      throw new Error('Create event response did not include an id')
+    }
+
+    if (coverFile.value) {
+      await uploadEventImage(eventId, coverFile.value)
+    }
+
+    ElMessage.success('Activity published')
+    router.push('/manager/mainActivity')
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error?.message || 'Failed to publish activity')
+  } finally {
+    submitting.value = false
+  }
 }
 
 function cancelCreate() {
   router.push('/product/mainEvent')
 }
+
+onBeforeUnmount(() => {
+  if (coverObjectUrl) {
+    URL.revokeObjectURL(coverObjectUrl)
+  }
+})
 </script>
 
 <style scoped lang="scss">

@@ -72,7 +72,12 @@
           <div class="activity-header">
             <h3>Activity List</h3>
             <div class="header-controls">
-              <el-button type="success" icon="el-icon-plus" @click="openCreateDialog">
+              <el-button
+                v-if="props.managerMode && canCreateActivity"
+                type="success"
+                icon="el-icon-plus"
+                @click="openCreateDialog"
+              >
                 Create Activity
               </el-button>
 
@@ -87,7 +92,7 @@
           <!-- 活动卡片列表（模拟数据） -->
           <div class="activity-list" v-loading="loading">
             <div class="activity-card" v-for="(item, index) in activityList" :key="index">
-              <div class="delete-btn">
+              <div v-if="props.managerMode && canManageEvent(item)" class="delete-btn">
                 <el-button type="danger" size="mini" @click.stop="handleDelete(item.id)">Delete</el-button>
                 <el-button type="primary" size="mini" @click.stop="openEditDialog(item)">Edit</el-button>
               </div>
@@ -153,7 +158,12 @@
     </el-container>
   </div>
 
-  <el-dialog v-model="dialogVisible" :title="isEdit ? 'Edit Activity' : 'Create New Activity'" width="500px">
+  <el-dialog
+    v-if="props.managerMode"
+    v-model="dialogVisible"
+    :title="isEdit ? 'Edit Activity' : 'Create New Activity'"
+    width="500px"
+  >
     <el-form :model="eventForm" label-width="120px">
       <el-form-item label="Title">
         <el-input v-model="eventForm.title" placeholder="Please enter activity title" />
@@ -217,14 +227,32 @@
 </template>
 
 <script setup>
-import { onMounted, ref, reactive } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listEvent, createEvent, delEvent, updateEvent, searchEvent } from '@/api/events/index.js'
+import {
+  createEvent,
+  delEvent,
+  getCurrentUserProfile,
+  listEvent,
+  searchEvent,
+  updateEvent
+} from '@/api/events/index.js'
 import { listLocations } from '@/api/location/index.js'
+import useUserStore from '@/store/modules/user'
+import { getToken } from '@/utils/auth'
 import { useRoute } from 'vue-router'
+
+const props = defineProps({
+  managerMode: {
+    type: Boolean,
+    default: false
+  }
+})
+
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const goToDetails = (item) => {
   router.push({
     path: '/product/eventDetails',
@@ -233,6 +261,7 @@ const goToDetails = (item) => {
 }
 const searchKeyword = ref('')
 const locationOptions = ref([])
+const currentUser = ref(null)
 // 筛选表单
 const form = reactive({
   locationId: '',
@@ -246,6 +275,56 @@ const activityList = ref([])
 const popularEvents = ref([])
 const isEdit = ref(false)
 const currentEventId = ref(null)
+
+const managerRoles = [
+  'admin',
+  'role_admin',
+  'administrator',
+  'manager',
+  'role_manager',
+  'staff',
+  'employee',
+  'organizer',
+  'publisher',
+  'creator'
+]
+const currentRoleNames = computed(() => {
+  const profileRole = currentUser.value?.role
+  return [
+    profileRole,
+    ...userStore.roles
+  ].filter(Boolean).map((role) => String(role).toLowerCase())
+})
+const isManagerUser = computed(() => currentRoleNames.value.some((role) => managerRoles.includes(role)))
+const canCreateActivity = computed(() => isManagerUser.value)
+
+function canManageEvent(item) {
+  if (isManagerUser.value) {
+    return true
+  }
+
+  const currentUserId = currentUser.value?.id || userStore.id
+  const organizerId = item?.organizer?.id
+  return Boolean(currentUserId && organizerId && currentUserId === organizerId)
+}
+
+async function fetchCurrentUser() {
+  if (!props.managerMode) {
+    currentUser.value = null
+    return
+  }
+
+  if (!getToken()) {
+    currentUser.value = null
+    return
+  }
+
+  try {
+    currentUser.value = await getCurrentUserProfile()
+  } catch (error) {
+    currentUser.value = null
+  }
+}
 
 // 格式化时间、日期、图片
 function formatDate(value) {
@@ -301,7 +380,8 @@ function mapEvent(event, index) {
     endTime: event.endTime || '',
     capacity: event.capacity || 10,
     price: event.price || 0,
-    location: location
+    location: location,
+    organizer: event.organizer || null
   }
 }
 //获取locaiton列表
@@ -352,35 +432,42 @@ const eventForm = reactive({
 })
 
 const openEditDialog = (item) => {
-  isEdit.value = true
-  currentEventId.value = item.id
-  
-  eventForm.title = item.title
-  eventForm.description = item.description || ''
-  eventForm.category = item.category || ''
-  eventForm.startTime = item.startTime || ''
-  eventForm.endTime = item.endTime || ''
-  eventForm.capacity = item.capacity || 10
-  eventForm.price = item.price || 0
-  eventForm.locationId = item.location?.id || ''
-  
-  dialogVisible.value = true
+  if (!props.managerMode) {
+    return
+  }
+
+  if (!canManageEvent(item)) {
+    ElMessage.warning('You do not have permission to edit this event')
+    return
+  }
+
+  router.push({
+    path: '/manager/manageActivity',
+    query: { id: item.id }
+  })
 }
 
 const openCreateDialog = () => {
-  isEdit.value = false
-  currentEventId.value = null
-  Object.assign(eventForm, {
-    title: '', description: '', category: '',
-    startTime: '', endTime: '', capacity: 10,
-    price: 0, locationId: ''
-  })
-  dialogVisible.value = true
+  if (!props.managerMode) {
+    return
+  }
+
+  router.push('/manager/createActivity')
 }
 
 
 // 更新活动
 const handleUpdateEvent = async () => {
+  if (!props.managerMode) {
+    return
+  }
+
+  const item = activityList.value.find((event) => event.id === currentEventId.value)
+  if (!canManageEvent(item)) {
+    ElMessage.warning('You do not have permission to update this event')
+    return
+  }
+
   try {
     const postData = {
       title: eventForm.title,
@@ -406,6 +493,16 @@ const handleUpdateEvent = async () => {
 
 // 删除活动
 const handleDelete = async (id) => {
+  if (!props.managerMode) {
+    return
+  }
+
+  const item = activityList.value.find((event) => event.id === id)
+  if (!canManageEvent(item)) {
+    ElMessage.warning('You do not have permission to delete this event')
+    return
+  }
+
   ElMessageBox.confirm(
     'Confirm to delete this event?',
     'Warning',
@@ -429,6 +526,10 @@ const handleDelete = async (id) => {
 }
 
 const handleCreateEvent = async () => {
+  if (!props.managerMode) {
+    return
+  }
+
   try {
     const postData = {
       title: eventForm.title,
@@ -501,6 +602,8 @@ watch(
 )
 
 onMounted(async () => {
+  await fetchCurrentUser()
+
   if (route.query.keyword) {
     isReplacingRoute.value = true
     searchEvents({ keyword: route.query.keyword })

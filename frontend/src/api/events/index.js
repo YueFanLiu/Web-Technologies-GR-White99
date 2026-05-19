@@ -60,3 +60,10 @@ export function searchEvent(query) {
     params: query
   })
 }
+
+export function getCurrentUserProfile() {
+  return request({
+    url: '/api/users/me',
+    method: 'get'
+  })
+}

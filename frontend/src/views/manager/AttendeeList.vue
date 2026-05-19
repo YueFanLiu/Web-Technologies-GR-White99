@@ -1,23 +1,27 @@
 <template>
   <div class="attendee-list-page">
-    <main class="attendee-shell">
+    <main class="attendee-shell" v-loading="loading">
       <section class="page-heading">
         <el-button class="back-icon" @click="backToManage">
           <el-icon><ArrowLeft /></el-icon>
         </el-button>
         <div>
           <h1>Attendee List</h1>
-          <p>Manage Activity / Summer Inclusive Sports Day / Attendees</p>
+          <p>Manage Activity / {{ event.title }} / Attendees</p>
         </div>
       </section>
 
-      <section class="overview-card">
+      <el-empty v-if="!eventId" description="No activity selected" />
+
+      <section v-else class="overview-card">
         <img :src="event.image" :alt="event.title" class="event-image" />
 
         <div class="event-info">
           <div class="title-row">
             <h2>{{ event.title }}</h2>
-            <el-tag class="published-tag" effect="plain">Published</el-tag>
+            <el-tag class="published-tag" :class="event.status.toLowerCase()" effect="plain">
+              {{ event.status }}
+            </el-tag>
           </div>
 
           <div class="event-meta">
@@ -41,7 +45,7 @@
         </div>
       </section>
 
-      <section class="summary-grid">
+      <section v-if="eventId" class="summary-grid">
         <article class="summary-card">
           <span class="summary-icon blue">
             <el-icon><User /></el-icon>
@@ -73,7 +77,7 @@
         </article>
       </section>
 
-      <section class="table-card">
+      <section v-if="eventId" class="table-card">
         <div class="toolbar">
           <el-input
             v-model="searchText"
@@ -88,13 +92,13 @@
 
           <el-select v-model="statusFilter" size="large" class="status-filter">
             <el-option label="All Status" value="all" />
-            <el-option label="Confirmed" value="Confirmed" />
-            <el-option label="Pending" value="Pending" />
-            <el-option label="Cancelled" value="Cancelled" />
+            <el-option label="Confirmed" value="CONFIRMED" />
+            <el-option label="Pending" value="PENDING" />
+            <el-option label="Cancelled" value="CANCELLED" />
           </el-select>
         </div>
 
-        <el-table :data="filteredAttendees" class="attendee-table">
+        <el-table :data="filteredAttendees" class="attendee-table" empty-text="No attendees found">
           <el-table-column label="Attendee" min-width="220">
             <template #default="{ row }">
               <div class="attendee-cell">
@@ -104,13 +108,13 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="email" label="Contact" min-width="210" />
+          <el-table-column prop="role" label="Role" min-width="150" />
 
-          <el-table-column label="Ticket" min-width="170">
+          <el-table-column label="Registered At" min-width="190">
             <template #default="{ row }">
               <div class="ticket-cell">
-                <span>{{ row.ticket }}</span>
-                <small>{{ row.quantity }} {{ row.quantity === 1 ? 'Ticket' : 'Tickets' }}</small>
+                <span>{{ row.registeredDate }}</span>
+                <small>{{ row.registeredTime }}</small>
               </div>
             </template>
           </el-table-column>
@@ -127,6 +131,16 @@
             <template #default="{ row }">
               <div class="row-actions">
                 <el-button :icon="View" aria-label="View attendee" @click="viewAttendee(row)" />
+                <el-dropdown trigger="click" @command="(status) => changeStatus(row, status)">
+                  <el-button :icon="Edit" aria-label="Change status" />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="CONFIRMED">Confirm</el-dropdown-item>
+                      <el-dropdown-item command="PENDING">Pending</el-dropdown-item>
+                      <el-dropdown-item command="CANCELLED">Cancel</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
                 <el-button :icon="Delete" class="remove-button" aria-label="Remove attendee" @click="removeAttendee(row)" />
               </div>
             </template>
@@ -138,14 +152,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft,
   Calendar,
   Clock,
   Delete,
+  Edit,
   Location,
   Plus,
   Search,
@@ -153,66 +168,39 @@ import {
   UserFilled,
   View
 } from '@element-plus/icons-vue'
+import {
+  deleteRegistration,
+  getEvent,
+  getEventRegistrations,
+  updateRegistration
+} from '@/api/manager/AttendeeList'
 
+const route = useRoute()
 const router = useRouter()
+const eventId = computed(() => route.query.id)
 
+const loading = ref(false)
 const searchText = ref('')
 const statusFilter = ref('all')
+const attendees = ref([])
 
-const capacity = 50
-const registered = 32
-const remainingSpots = computed(() => capacity - registered)
+const defaultEventImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
+const defaultAvatar = 'https://ui-avatars.com/api/?background=eef5ff&color=0f66e9&name=Attendee'
 
-const event = {
-  title: 'Summer Inclusive Sports Day',
-  date: 'Sat, 24 May 2025',
-  time: '10:00 AM - 3:00 PM',
-  location: 'Central Park Sports Ground, Paris, France',
-  image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=760&q=80'
-}
+const event = reactive({
+  id: '',
+  title: 'Selected activity',
+  date: 'Date TBA',
+  time: 'Time TBA',
+  location: 'Location TBA',
+  image: defaultEventImage,
+  status: 'DRAFT',
+  capacity: 0
+})
 
-const attendees = ref([
-  {
-    name: 'Sarah Johnson',
-    email: 'sarah.j@email.com',
-    ticket: 'General Admission',
-    quantity: 1,
-    status: 'Confirmed',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&q=80'
-  },
-  {
-    name: 'Michael Brown',
-    email: 'michael.b@email.com',
-    ticket: 'General Admission',
-    quantity: 2,
-    status: 'Confirmed',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=96&q=80'
-  },
-  {
-    name: 'Emily Davis',
-    email: 'emily.d@email.com',
-    ticket: 'General Admission',
-    quantity: 1,
-    status: 'Pending',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=96&q=80'
-  },
-  {
-    name: 'David Wilson',
-    email: 'david.w@email.com',
-    ticket: 'General Admission',
-    quantity: 1,
-    status: 'Confirmed',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=96&q=80'
-  },
-  {
-    name: 'Olivia Martinez',
-    email: 'olivia.m@email.com',
-    ticket: 'General Admission',
-    quantity: 1,
-    status: 'Cancelled',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=96&q=80'
-  }
-])
+const capacity = computed(() => event.capacity)
+const registered = computed(() => attendees.value.filter((attendee) => attendee.status !== 'CANCELLED').length)
+const remainingSpots = computed(() => Math.max(capacity.value - registered.value, 0))
 
 const filteredAttendees = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
@@ -220,24 +208,160 @@ const filteredAttendees = computed(() => {
   return attendees.value.filter((attendee) => {
     const matchesSearch = !keyword ||
       attendee.name.toLowerCase().includes(keyword) ||
-      attendee.email.toLowerCase().includes(keyword)
+      attendee.role.toLowerCase().includes(keyword)
     const matchesStatus = statusFilter.value === 'all' || attendee.status === statusFilter.value
 
     return matchesSearch && matchesStatus
   })
 })
 
+function formatDate(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Date TBA'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
+
+function formatTime(startValue, endValue) {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (!startValue || Number.isNaN(start.getTime())) return 'Time TBA'
+  const options = { hour: 'numeric', minute: '2-digit' }
+  if (!endValue || Number.isNaN(end.getTime())) return start.toLocaleTimeString('en-US', options)
+  return `${start.toLocaleTimeString('en-US', options)} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function formatDateTimeParts(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) {
+    return { date: 'Not available', time: '' }
+  }
+
+  return {
+    date: date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }),
+    time: date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit'
+    })
+  }
+}
+
+function avatarUrl(name) {
+  return `https://ui-avatars.com/api/?background=eef5ff&color=0f66e9&name=${encodeURIComponent(name || 'Attendee')}`
+}
+
+function normalizeStatus(status) {
+  return String(status || 'PENDING').toUpperCase()
+}
+
+function mapRegistration(registration) {
+  const user = registration.user || {}
+  const name = user.fullName || 'Unknown attendee'
+  const registeredAt = formatDateTimeParts(registration.registeredAt)
+
+  return {
+    id: registration.id,
+    eventId: registration.event?.id || eventId.value,
+    name,
+    role: user.role || 'USER',
+    status: normalizeStatus(registration.status),
+    registeredDate: registeredAt.date,
+    registeredTime: registeredAt.time,
+    avatar: avatarUrl(name)
+  }
+}
+
+function applyEvent(data) {
+  const location = data.location || {}
+
+  event.id = data.id || ''
+  event.title = data.title || 'Untitled activity'
+  event.date = formatDate(data.startTime)
+  event.time = formatTime(data.startTime, data.endTime)
+  event.location = [location.name, location.address, location.city, location.country].filter(Boolean).join(', ') || 'Location TBA'
+  event.image = data.coverImageUrl || data.imageUrls?.[0] || defaultEventImage
+  event.status = data.status || 'DRAFT'
+  event.capacity = Number(data.capacity || 0)
+}
+
+async function loadAttendees() {
+  if (!eventId.value) {
+    return
+  }
+
+  loading.value = true
+  try {
+    const [eventData, registrations] = await Promise.all([
+      getEvent(eventId.value),
+      getEventRegistrations(eventId.value)
+    ])
+
+    applyEvent(eventData)
+    attendees.value = Array.isArray(registrations) ? registrations.map(mapRegistration) : []
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load attendees')
+  } finally {
+    loading.value = false
+  }
+}
+
 function backToManage() {
-  router.push('/product/manageActivity')
+  router.push({
+    path: '/manager/manageActivity',
+    query: eventId.value ? { id: eventId.value } : {}
+  })
 }
 
 function viewAttendee(attendee) {
-  ElMessage.info(`Viewing ${attendee.name}`)
+  ElMessage.info(`${attendee.name} - ${attendee.status}`)
 }
 
-function removeAttendee(attendee) {
-  ElMessage.warning(`${attendee.name} removed`)
+async function changeStatus(attendee, status) {
+  if (attendee.status === status) {
+    return
+  }
+
+  try {
+    await updateRegistration(attendee.id, {
+      eventId: attendee.eventId,
+      status
+    })
+    ElMessage.success('Attendee status updated')
+    await loadAttendees()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to update attendee status')
+  }
 }
+
+async function removeAttendee(attendee) {
+  try {
+    await ElMessageBox.confirm(`Remove ${attendee.name} from this event?`, 'Warning', {
+      confirmButtonText: 'Confirm',
+      cancelButtonText: 'Cancel',
+      type: 'warning'
+    })
+    await deleteRegistration(attendee.id)
+    ElMessage.success('Attendee removed')
+    await loadAttendees()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error(error)
+      ElMessage.error('Failed to remove attendee')
+    }
+  }
+}
+
+onMounted(loadAttendees)
 </script>
 
 <style scoped lang="scss">

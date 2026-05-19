@@ -4,9 +4,14 @@
       <section class="hero-row">
         <div>
           <h1>Posts</h1>
-          <p>Manage and organize your posts.</p>
+          <p>{{ props.managerMode ? 'Manage and organize your posts.' : 'Browse community posts.' }}</p>
         </div>
-        <el-button type="primary" class="create-button" @click="goCreatePost">
+        <el-button
+          v-if="props.managerMode && canCreatePost"
+          type="primary"
+          class="create-button"
+          @click="goCreatePost"
+        >
           <el-icon><Plus /></el-icon>
           Create New Post
         </el-button>
@@ -48,7 +53,7 @@
               class="post-search"
               size="large"
               clearable
-              placeholder="Search your posts"
+              :placeholder="props.managerMode ? 'Search your posts' : 'Search posts'"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
@@ -96,11 +101,15 @@
                     <el-icon><View /></el-icon>
                     View
                   </el-button>
-                  <el-button @click="editPost(post)">
+                  <el-button v-if="props.managerMode && canManagePost(post)" @click="editPost(post)">
                     <el-icon><EditPen /></el-icon>
                     Edit
                   </el-button>
-                  <el-button class="delete-button" @click="removePost(post)">
+                  <el-button
+                    v-if="props.managerMode && canManagePost(post)"
+                    class="delete-button"
+                    @click="removePost(post)"
+                  >
                     <el-icon><Delete /></el-icon>
                     Delete
                   </el-button>
@@ -124,8 +133,11 @@ import {
   deletePost,
   getCurrentUserProfile,
   getPostImages,
-  getPostsByUser
+  getPostsByUser,
+  listPosts
 } from '@/api/post'
+import useUserStore from '@/store/modules/user'
+import { getToken } from '@/utils/auth'
 import {
   Calendar,
   Delete,
@@ -137,12 +149,59 @@ import {
   View
 } from '@element-plus/icons-vue'
 
+const props = defineProps({
+  managerMode: {
+    type: Boolean,
+    default: false
+  }
+})
+
 // 列表筛选和加载状态
-const activeTab = ref('Published')
+const activeTab = ref(props.managerMode ? 'All' : 'Published')
 const sortBy = ref('recent')
 const keyword = ref('')
 const loading = ref(false)
 const router = useRouter()
+const userStore = useUserStore()
+const currentUser = ref(null)
+
+const managerRoles = [
+  'admin',
+  'role_admin',
+  'administrator',
+  'manager',
+  'role_manager',
+  'staff',
+  'employee',
+  'organizer',
+  'publisher',
+  'creator'
+]
+
+const currentRoleNames = computed(() => {
+  const roles = [
+    ...(Array.isArray(userStore.roles) ? userStore.roles : []),
+    currentUser.value?.role,
+    currentUser.value?.user?.role
+  ]
+
+  return roles
+    .filter(Boolean)
+    .map((role) => String(role).toLowerCase())
+})
+
+const isManagerUser = computed(() => currentRoleNames.value.some((role) => managerRoles.includes(role)))
+const canCreatePost = computed(() => isManagerUser.value || Boolean(getProfileId(currentUser.value)))
+
+function canManagePost(post) {
+  if (isManagerUser.value) {
+    return true
+  }
+
+  const currentUserId = getProfileId(currentUser.value)
+  const ownerId = post?.user?.id || post?.userId || post?.authorId || post?.createdBy
+  return Boolean(currentUserId && ownerId && String(currentUserId) === String(ownerId))
+}
 
 // 左侧状态筛选栏配置
 const tabs = [
@@ -184,6 +243,10 @@ function countByStatus(status) {
 
 // 跳转到创建帖子页面
 function goCreatePost() {
+  if (!props.managerMode || !canCreatePost.value) {
+    return
+  }
+
   router.push({ name: 'CreatePost' })
 }
 
@@ -194,11 +257,21 @@ function viewPost(post) {
 
 // 跳转到编辑模式，createpost.vue 会根据 id 加载帖子详情
 function editPost(post) {
+  if (!props.managerMode || !canManagePost(post)) {
+    ElMessage.warning('You do not have permission to edit this post')
+    return
+  }
+
   router.push({ name: 'CreatePost', query: { id: post.id } })
 }
 
 // 删除帖子：先弹出确认框，确认后调用 DELETE /api/posts/{id}
 function removePost(post) {
+  if (!props.managerMode || !canManagePost(post)) {
+    ElMessage.warning('You do not have permission to delete this post')
+    return
+  }
+
   ElMessageBox.confirm(`Delete "${post.title}"?`, 'Delete Post', {
     confirmButtonText: 'Delete',
     cancelButtonText: 'Cancel',
@@ -227,6 +300,20 @@ function extractList(res) {
 // 从 /api/users/me 的返回里取当前用户 id，兼容多种字段结构
 function getProfileId(profile) {
   return profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
+}
+
+async function fetchCurrentUser() {
+  if (!props.managerMode || !getToken()) {
+    currentUser.value = null
+    return
+  }
+
+  try {
+    currentUser.value = await getCurrentUserProfile()
+  } catch (error) {
+    currentUser.value = null
+    console.error('Failed to load current user profile:', error)
+  }
 }
 
 // 将后端时间字段格式化成页面展示日期
@@ -293,18 +380,38 @@ function normalizePost(post, images = []) {
     date: formatDate(status === 'Draft' ? updatedAt : publishedAt),
     summary: getSummary(post),
     status,
+    user: post.user || null,
+    userId: post.userId || post.user?.id || post.authorId || post.createdBy,
     sortTime: new Date(updatedAt || publishedAt || createdAt || 0).getTime(),
     cover: getFirstImageUrl(images) || post.coverImageUrl || post.imageUrl || 'https://picsum.photos/id/1083/420/260'
   }
 }
 
-// 页面主加载流程：先取当前用户，再取该用户的帖子，最后补每个帖子的封面图
+async function normalizePostList(list) {
+  return Promise.all(list.map(async (post) => {
+    try {
+      const images = extractList(await getPostImages(post.id))
+      return normalizePost(post, images)
+    } catch (error) {
+      console.error('Failed to load post images:', error)
+      return normalizePost(post)
+    }
+  }))
+}
+
+// 页面主加载流程：用户页取公开帖子；管理页按角色取全量或本人帖子。
 async function loadPosts() {
   loading.value = true
 
   try {
-    const profile = await getCurrentUserProfile()
-    const userId = getProfileId(profile)
+    if (!props.managerMode) {
+      const res = await listPosts({ status: 'PUBLISHED', limit: 1000 })
+      posts.value = await normalizePostList(extractList(res))
+      return
+    }
+
+    await fetchCurrentUser()
+    const userId = getProfileId(currentUser.value)
 
     if (!userId) {
       posts.value = []
@@ -312,18 +419,11 @@ async function loadPosts() {
       return
     }
 
-    const res = await getPostsByUser(userId)
+    const res = isManagerUser.value
+      ? await listPosts({ limit: 1000 })
+      : await getPostsByUser(userId)
     const list = extractList(res)
-
-    posts.value = await Promise.all(list.map(async (post) => {
-      try {
-        const images = extractList(await getPostImages(post.id))
-        return normalizePost(post, images)
-      } catch (error) {
-        console.error('Failed to load post images:', error)
-        return normalizePost(post)
-      }
-    }))
+    posts.value = await normalizePostList(list)
   } catch (error) {
     console.error('Failed to load posts:', error)
   } finally {

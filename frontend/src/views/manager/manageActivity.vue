@@ -1,6 +1,6 @@
 <template>
   <div class="manage-activity-page">
-    <main class="manage-shell">
+    <main class="manage-shell" v-loading="loading">
       <section class="page-heading">
         <h1>Manage Activity</h1>
         <el-button class="back-button" @click="backToEvents">
@@ -9,7 +9,9 @@
         </el-button>
       </section>
 
-      <section class="manage-grid">
+      <el-empty v-if="!eventId" description="No activity selected" />
+
+      <section v-else class="manage-grid">
         <div class="main-column">
           <section class="overview-card">
             <img :src="activity.cover" :alt="activity.title" class="overview-image" />
@@ -30,9 +32,9 @@
                   <span>{{ activity.location }}</span>
                 </p>
               </div>
-              <el-tag class="published-tag" effect="plain">
+              <el-tag class="published-tag" :class="statusClass" effect="plain">
                 <el-icon><CircleCheckFilled /></el-icon>
-                Published
+                {{ form.status || 'DRAFT' }}
               </el-tag>
             </div>
           </section>
@@ -43,23 +45,24 @@
               <h2>Basic Information</h2>
             </div>
 
-            <el-form class="activity-form" label-position="top">
+            <el-form ref="formRef" class="activity-form" label-position="top" :model="form" :rules="rules">
               <div class="two-column">
-                <el-form-item label="Activity Title">
+                <el-form-item label="Activity Title" prop="title">
                   <el-input v-model="form.title" size="large" />
                 </el-form-item>
 
-                <el-form-item label="Category">
+                <el-form-item label="Category" prop="category">
                   <el-select v-model="form.category" size="large">
                     <el-option label="Music" value="Music" />
                     <el-option label="Workshop" value="Workshop" />
+                    <el-option label="Concert" value="Concert" />
                     <el-option label="Family Activity" value="Family Activity" />
                     <el-option label="Community Event" value="Community Event" />
                   </el-select>
                 </el-form-item>
               </div>
 
-              <el-form-item label="Description">
+              <el-form-item label="Description" prop="description">
                 <el-input v-model="form.description" type="textarea" :rows="3" resize="none" />
               </el-form-item>
             </el-form>
@@ -71,16 +74,16 @@
               <h2>Schedule</h2>
             </div>
 
-            <el-form class="activity-form schedule-form" label-position="top">
-              <el-form-item label="Date">
+            <el-form class="activity-form schedule-form" label-position="top" :model="form" :rules="rules">
+              <el-form-item label="Date" prop="date">
                 <el-date-picker v-model="form.date" type="date" size="large" placeholder="Select date" />
               </el-form-item>
 
-              <el-form-item label="Start Time">
+              <el-form-item label="Start Time" prop="startTime">
                 <el-time-picker v-model="form.startTime" size="large" placeholder="Select start time" />
               </el-form-item>
 
-              <el-form-item label="End Time">
+              <el-form-item label="End Time" prop="endTime">
                 <el-time-picker v-model="form.endTime" size="large" placeholder="Select end time" />
               </el-form-item>
             </el-form>
@@ -92,14 +95,16 @@
               <h2>Location</h2>
             </div>
 
-            <el-form class="activity-form" label-position="top">
-              <el-form-item label="Venue Name">
-                <el-input v-model="form.venueName" size="large" />
-              </el-form-item>
+            <el-form class="activity-form" label-position="top" :model="form" :rules="rules">
+              <div class="two-column">
+                <el-form-item label="Venue Name" prop="venueName">
+                  <el-input v-model="form.venueName" size="large" />
+                </el-form-item>
 
-              <el-form-item label="Address">
-                <el-input v-model="form.address" size="large" />
-              </el-form-item>
+                <el-form-item label="Address" prop="address">
+                  <el-input v-model="form.address" size="large" />
+                </el-form-item>
+              </div>
             </el-form>
           </section>
 
@@ -121,12 +126,21 @@
         <aside class="side-column">
           <section class="side-card">
             <h2>Status</h2>
-            <el-tag class="status-pill" effect="plain">
-              <el-icon><CircleCheckFilled /></el-icon>
-              Published
-            </el-tag>
-            <p>This event is visible to the public.</p>
-            <span>Last updated: May 10, 2025 10:30 AM</span>
+            <el-select v-model="form.status" size="large" class="status-select">
+              <el-option label="Published" value="PUBLISHED" />
+              <el-option label="Draft" value="DRAFT" />
+              <el-option label="Cancelled" value="CANCELLED" />
+            </el-select>
+            <el-form class="activity-form side-form" label-position="top">
+              <el-form-item label="Capacity">
+                <el-input v-model="form.capacity" size="large" type="number" min="1" />
+              </el-form-item>
+              <el-form-item label="Price">
+                <el-input v-model="form.price" size="large" type="number" min="0" />
+              </el-form-item>
+            </el-form>
+            <p>{{ statusDescription }}</p>
+            <span>Last updated: {{ activity.updatedAt }}</span>
           </section>
 
           <section class="side-card">
@@ -164,15 +178,11 @@
               <el-icon><UserFilled /></el-icon>
               View Attendees
             </el-button>
-            <el-button size="large" class="action-button" @click="sendUpdate">
-              <el-icon><Promotion /></el-icon>
-              Send Update
-            </el-button>
-            <el-button size="large" class="danger-button" @click="cancelEvent">
+            <el-button size="large" class="danger-button" :disabled="form.status === 'CANCELLED'" @click="cancelEvent">
               <el-icon><CircleCloseFilled /></el-icon>
               Cancel Event
             </el-button>
-            <el-button size="large" type="primary" class="save-button" @click="saveChanges">
+            <el-button size="large" type="primary" class="save-button" :loading="saving" @click="saveChanges">
               <el-icon><FolderChecked /></el-icon>
               Save Changes
             </el-button>
@@ -184,9 +194,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft,
   Calendar,
@@ -196,64 +206,355 @@ import {
   Document,
   FolderChecked,
   Location,
-  Promotion,
   User,
   UserFilled
 } from '@element-plus/icons-vue'
+import {
+  createLocationAccessibility,
+  getEvent,
+  getEventRegistrations,
+  getLocationAccessibility,
+  updateEvent,
+  updateLocation,
+  updateLocationAccessibility
+} from '@/api/manager/manageActivity'
 
+const route = useRoute()
 const router = useRouter()
+const eventId = computed(() => route.query.id)
 
-const activity = {
-  title: 'Inclusive Music Festival',
-  date: 'June 15, 2025',
-  time: '2:00 PM - 10:00 PM',
-  location: 'Greenfield Park, Main Pavilion',
-  cover: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=760&q=80'
-}
+const loading = ref(false)
+const saving = ref(false)
+const formRef = ref()
+const originalEvent = ref(null)
+const originalLocation = ref(null)
+const hasAccessibility = ref(false)
 
-const form = ref({
-  title: 'Inclusive Music Festival',
-  category: 'Music',
-  description: 'An inclusive outdoor music festival celebrating diversity and accessibility for everyone.',
+const defaultCover = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
+
+const form = reactive({
+  title: '',
+  category: '',
+  description: '',
   date: '',
   startTime: '',
   endTime: '',
-  venueName: 'Greenfield Park, Main Pavilion',
-  address: '123 Park Lane, Springfield, IL 62704',
-  accessibility: [
-    'Wheelchair Accessible',
-    'Elevator Available',
-    'Accessible Restroom',
-    'Quiet / Low Noise'
-  ]
+  venueName: '',
+  address: '',
+  accessibility: [],
+  capacity: 1,
+  price: 0,
+  status: 'PUBLISHED'
 })
 
-const registration = {
-  capacity: 300,
-  registered: 128
+const registration = reactive({
+  capacity: 0,
+  registered: 0
+})
+
+const rules = {
+  title: [{ required: true, message: 'Please enter activity title', trigger: 'blur' }],
+  category: [{ required: true, message: 'Please select a category', trigger: 'change' }],
+  description: [{ required: true, message: 'Please enter description', trigger: 'blur' }],
+  date: [{ required: true, message: 'Please select a date', trigger: 'change' }],
+  startTime: [{ required: true, message: 'Please select start time', trigger: 'change' }],
+  endTime: [{ required: true, message: 'Please select end time', trigger: 'change' }],
+  venueName: [{ required: true, message: 'Please enter venue name', trigger: 'blur' }],
+  address: [{ required: true, message: 'Please enter address', trigger: 'blur' }]
 }
 
-const remainingSpots = computed(() => registration.capacity - registration.registered)
+const accessibilityFeatures = [
+  { label: 'Wheelchair Accessible', key: 'wheelchairAccessible' },
+  { label: 'Elevator Available', key: 'hasElevator' },
+  { label: 'Accessible Restroom', key: 'accessibleToilet' },
+  { label: 'Quiet / Low Noise', key: 'quietEnvironment' }
+]
+
+const remainingSpots = computed(() => Math.max(registration.capacity - registration.registered, 0))
+
+const activity = computed(() => {
+  const event = originalEvent.value || {}
+  const location = originalLocation.value || event.location || {}
+  return {
+    title: form.title || 'Untitled activity',
+    date: formatDate(buildDateTime(form.date, form.startTime)),
+    time: formatTime(buildDateTime(form.date, form.startTime), buildDateTime(form.date, form.endTime)),
+    location: [form.venueName || location.name, form.address || location.address].filter(Boolean).join(', ') || 'Location TBA',
+    cover: event.coverImageUrl || event.imageUrls?.[0] || defaultCover,
+    updatedAt: event.updatedAt ? formatDateTime(event.updatedAt) : 'Not available'
+  }
+})
+
+const statusClass = computed(() => String(form.status || '').toLowerCase())
+const statusDescription = computed(() => {
+  if (form.status === 'CANCELLED') return 'This event is cancelled and should not accept new attendees.'
+  if (form.status === 'DRAFT') return 'This event is saved as a draft.'
+  return 'This event is visible to the public.'
+})
+
+function toDate(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date
+}
+
+function pad(value) {
+  return String(value).padStart(2, '0')
+}
+
+function toLocalDateTime(value) {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+}
+
+function buildDateTime(dateValue, timeValue) {
+  if (!dateValue || !timeValue) return ''
+  const date = new Date(dateValue)
+  const time = new Date(timeValue)
+  if (Number.isNaN(date.getTime()) || Number.isNaN(time.getTime())) return ''
+
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    time.getHours(),
+    time.getMinutes(),
+    0,
+    0
+  )
+}
+
+function formatDate(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Date TBA'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+function formatTime(startValue, endValue) {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (!startValue || Number.isNaN(start.getTime())) return 'Time TBA'
+  const options = { hour: 'numeric', minute: '2-digit' }
+  if (!endValue || Number.isNaN(end.getTime())) return start.toLocaleTimeString('en-US', options)
+  return `${start.toLocaleTimeString('en-US', options)} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function formatDateTime(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Not available'
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
+
+function extractSelectedAccessibility(accessibility) {
+  if (!accessibility) return []
+  return accessibilityFeatures
+    .filter((feature) => accessibility[feature.key])
+    .map((feature) => feature.label)
+}
+
+function buildAccessibilityPayload() {
+  const selected = new Set(form.accessibility)
+  const payload = accessibilityFeatures.reduce((result, feature) => {
+    result[feature.key] = selected.has(feature.label)
+    return result
+  }, {})
+
+  return {
+    ...payload,
+    stepFreeAccess: payload.wheelchairAccessible || payload.hasElevator,
+    notes: ''
+  }
+}
+
+async function loadActivity() {
+  if (!eventId.value) {
+    return
+  }
+
+  loading.value = true
+  try {
+    const event = await getEvent(eventId.value)
+    const location = event.location || {}
+    originalEvent.value = event
+    originalLocation.value = location
+
+    form.title = event.title || ''
+    form.category = event.category || ''
+    form.description = event.description || ''
+    form.date = toDate(event.startTime)
+    form.startTime = toDate(event.startTime)
+    form.endTime = toDate(event.endTime)
+    form.venueName = location.name || ''
+    form.address = location.address || ''
+    form.capacity = Number(event.capacity || 1)
+    form.price = Number(event.price || 0)
+    form.status = event.status || 'DRAFT'
+
+    registration.capacity = form.capacity
+
+    await Promise.all([loadRegistrations(), loadAccessibility(location.id)])
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load activity')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadRegistrations() {
+  try {
+    const registrations = await getEventRegistrations(eventId.value)
+    registration.registered = Array.isArray(registrations) ? registrations.length : 0
+  } catch (error) {
+    registration.registered = 0
+  }
+}
+
+async function loadAccessibility(locationId) {
+  if (!locationId) return
+  try {
+    const accessibility = await getLocationAccessibility(locationId)
+    hasAccessibility.value = true
+    form.accessibility = extractSelectedAccessibility(accessibility)
+  } catch (error) {
+    hasAccessibility.value = false
+    form.accessibility = []
+  }
+}
+
+function validateBusinessFields(startTime, endTime) {
+  const capacity = Number(form.capacity)
+  const requiredValues = [
+    form.title,
+    form.category,
+    form.description,
+    form.date,
+    form.startTime,
+    form.endTime,
+    form.venueName,
+    form.address
+  ]
+
+  if (requiredValues.some((value) => !value)) {
+    ElMessage.warning('Please complete all required fields')
+    return false
+  }
+
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    ElMessage.warning('Capacity must be a positive whole number')
+    return false
+  }
+
+  if (Number(form.price || 0) < 0) {
+    ElMessage.warning('Price must not be negative')
+    return false
+  }
+
+  if (!startTime || !endTime || new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+    ElMessage.warning('End time must be later than start time')
+    return false
+  }
+
+  return true
+}
+
+async function saveChanges() {
+  if (saving.value || !eventId.value || !originalLocation.value?.id) {
+    return
+  }
+
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  const startTime = buildDateTime(form.date, form.startTime)
+  const endTime = buildDateTime(form.date, form.endTime)
+
+  if (!validateBusinessFields(startTime, endTime)) {
+    return
+  }
+
+  saving.value = true
+  try {
+    await updateLocation(originalLocation.value.id, {
+      name: form.venueName,
+      description: form.description,
+      address: form.address,
+      city: originalLocation.value.city || '',
+      country: originalLocation.value.country || '',
+      latitude: originalLocation.value.latitude,
+      longitude: originalLocation.value.longitude
+    })
+
+    const accessibilityPayload = buildAccessibilityPayload()
+    if (hasAccessibility.value) {
+      await updateLocationAccessibility(originalLocation.value.id, accessibilityPayload)
+    } else {
+      await createLocationAccessibility(originalLocation.value.id, accessibilityPayload)
+      hasAccessibility.value = true
+    }
+
+    await updateEvent(eventId.value, {
+      title: form.title,
+      description: form.description,
+      category: form.category,
+      startTime: toLocalDateTime(startTime),
+      endTime: toLocalDateTime(endTime),
+      capacity: Number(form.capacity),
+      price: Number(form.price || 0),
+      isVirtual: false,
+      status: form.status,
+      locationId: originalLocation.value.id
+    })
+
+    ElMessage.success('Activity saved')
+    await loadActivity()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error?.message || 'Failed to save activity')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function cancelEvent() {
+  try {
+    await ElMessageBox.confirm('Cancel this event?', 'Warning', {
+      confirmButtonText: 'Confirm',
+      cancelButtonText: 'Cancel',
+      type: 'warning'
+    })
+    form.status = 'CANCELLED'
+    await saveChanges()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error(error)
+    }
+  }
+}
 
 function backToEvents() {
-  router.push('/product/mainEvent')
+  router.push('/manager/mainActivity')
 }
 
 function viewAttendees() {
-  router.push('/product/attendeeList')
+  router.push({
+    path: '/manager/attendeeList',
+    query: { id: eventId.value }
+  })
 }
 
-function sendUpdate() {
-  ElMessage.success('Update sent')
-}
-
-function cancelEvent() {
-  ElMessage.warning('Event cancelled')
-}
-
-function saveChanges() {
-  ElMessage.success('Changes saved')
-}
+onMounted(loadActivity)
 </script>
 
 <style scoped lang="scss">
@@ -373,6 +674,16 @@ function saveChanges() {
   font-weight: 800;
 }
 
+.published-tag.cancelled {
+  color: #ec2d3d;
+  background: #ffe5e9;
+}
+
+.published-tag.draft {
+  color: #c47a00;
+  background: #fff1d2;
+}
+
 .published-tag :deep(.el-tag__content),
 .status-pill :deep(.el-tag__content) {
   display: flex;
@@ -423,12 +734,14 @@ function saveChanges() {
 .activity-form :deep(.el-input),
 .activity-form :deep(.el-select),
 .activity-form :deep(.el-date-editor.el-input),
-.activity-form :deep(.el-date-editor.el-input__wrapper) {
+.activity-form :deep(.el-date-editor.el-input__wrapper),
+.status-select {
   width: 100%;
 }
 
 .activity-form :deep(.el-input__wrapper),
-.activity-form :deep(.el-textarea__inner) {
+.activity-form :deep(.el-textarea__inner),
+.status-select :deep(.el-input__wrapper) {
   border-radius: 10px;
   box-shadow: 0 0 0 1px #d6dfef inset;
 }
@@ -474,6 +787,10 @@ function saveChanges() {
   color: #26365f;
   font-size: 15px;
   line-height: 1.6;
+}
+
+.side-form {
+  margin-top: 18px;
 }
 
 .side-card > span {

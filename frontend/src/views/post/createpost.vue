@@ -11,6 +11,15 @@
 
       <section class="editor-grid" v-loading="loading">
         <el-form class="main-card" :model="postForm" label-position="top">
+          <el-form-item label="Related Event">
+            <el-input
+              v-model="postForm.eventId"
+              size="large"
+              placeholder="Optional event ID to associate with this post"
+              :disabled="isViewMode"
+            />
+          </el-form-item>
+
           <el-form-item label="Post Title" required>
             <el-input
               v-model="postForm.title"

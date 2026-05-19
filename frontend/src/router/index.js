@@ -58,11 +58,6 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    path: "/:pathMatch(.*)*",
-    component: () => import('@/views/error/404'),
-    hidden: true
-  },
-  {
     path: '/401',
     component: () => import('@/views/error/401'),
     hidden: true
@@ -132,15 +127,11 @@ export const constantRoutes = [
       },
       {
         path: 'createActivity',
-        component: () => import('@/views/manager/createactivity.vue'),
-        name: 'CreateActivity',
-        meta: { title: 'Create Activity', icon: 'plus' }
+        redirect: '/manager/createActivity'
       },
       {
         path: 'attendeeList',
-        component: () => import('@/views/manager/AttendeeList.vue'),
-        name: 'AttendeeList',
-        meta: { title: 'Attendee List', icon: 'user' }
+        redirect: '/manager/attendeeList'
       },
 
     ]
@@ -173,11 +164,46 @@ export const constantRoutes = [
     children: [
       {
         path: 'mainActivity',
-        component: () => import('@/views/manager/index.vue'),
+        component: () => import('@/views/manager/manageEvent.vue'),
         name: 'MainActivity',
         meta: { title: 'My Activities', icon: 'post' }
       },
+      {
+        path: 'manageEvent',
+        component: () => import('@/views/manager/manageEvent.vue'),
+        name: 'ManageEvent',
+        meta: { title: 'Manage Events', icon: 'post' }
+      },
+      {
+        path: 'manageActivity',
+        component: () => import('@/views/manager/manageActivity.vue'),
+        name: 'ManageActivity',
+        meta: { title: 'Manage Activity', icon: 'edit' }
+      },
+      {
+        path: 'managePost',
+        component: () => import('@/views/manager/managePost.vue'),
+        name: 'ManagePost',
+        meta: { title: 'Manage Posts', icon: 'post' }
+      },
+      {
+        path: 'createActivity',
+        component: () => import('@/views/manager/createActivity.vue'),
+        name: 'CreateActivity',
+        meta: { title: 'Create Activity', icon: 'plus' }
+      },
+      {
+        path: 'attendeeList',
+        component: () => import('@/views/manager/AttendeeList.vue'),
+        name: 'AttendeeList',
+        meta: { title: 'Attendee List', icon: 'user' }
+      },
     ]
+  },
+  {
+    path: "/:pathMatch(.*)*",
+    component: () => import('@/views/error/404'),
+    hidden: true
   },
 ]
 
