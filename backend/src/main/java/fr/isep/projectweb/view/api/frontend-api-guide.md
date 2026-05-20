@@ -76,7 +76,7 @@ await fetch(`http://localhost:9192/api/events/${eventId}`, {
 Important frontend rules:
 
 - `GET /api/events/**`, `GET /api/locations/**`, and `GET /api/posts/**` can be called without token.
-- Protected `GET` endpoints still need `Authorization`, for example `/api/users/me`, `/api/users/{id}`, `/api/registrations`, and `/api/auth/debug`.
+- Protected `GET` endpoints still need `Authorization`, for example `/api/users/me`, `/api/users/{id}`, `/api/users/search`, `/api/friends`, `/api/chats`, `/api/registrations`, and `/api/auth/debug`.
 - `DELETE` endpoints return `204 No Content`, so the frontend must not call `res.json()` for successful delete responses.
 - Multipart image upload endpoints return JSON containing the Supabase public URL.
 - Image delete endpoints currently delete the database image record only. The public file object in Supabase Storage is not removed by the backend.
@@ -376,6 +376,339 @@ Response body:
   "role": "ORGANIZER"
 }
 ```
+
+### GET /api/users/search
+
+Protected. Searches public user profiles by full name. The current authenticated user is excluded from the response.
+
+Optional query params:
+
+```text
+keyword=alice
+limit=20
+```
+
+Frontend example:
+
+```js
+const params = new URLSearchParams({
+  keyword: "alice",
+  limit: "20"
+});
+
+const users = await apiGet(`/api/users/search?${params}`, accessToken);
+```
+
+Response body:
+
+```json
+[
+  {
+    "id": "uuid",
+    "fullName": "Alice Dupont",
+    "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
+    "role": "PARENT"
+  }
+]
+```
+
+## Friends
+
+All friend endpoints are protected.
+
+### GET /api/friends
+
+Returns the current authenticated user's accepted friends.
+
+Frontend example:
+
+```js
+const friends = await apiGet("/api/friends", accessToken);
+```
+
+Response body:
+
+```json
+[
+  {
+    "user": {
+      "id": "uuid",
+      "fullName": "Bob Martin",
+      "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
+      "role": "PARENT"
+    },
+    "friendsSince": "2026-05-20T13:00:00"
+  }
+]
+```
+
+### POST /api/friend-requests
+
+Sends a friend request. The backend rejects requests to yourself and duplicate pending or accepted relationships.
+
+Request body:
+
+```json
+{
+  "addresseeId": "uuid"
+}
+```
+
+Frontend example:
+
+```js
+const request = await apiPost("/api/friend-requests", {
+  addresseeId: userId
+}, accessToken);
+```
+
+Response body:
+
+```json
+{
+  "id": "uuid",
+  "requester": {
+    "id": "uuid",
+    "fullName": "Alice Dupont",
+    "photo": null,
+    "role": "PARENT"
+  },
+  "addressee": {
+    "id": "uuid",
+    "fullName": "Bob Martin",
+    "photo": null,
+    "role": "PARENT"
+  },
+  "status": "PENDING",
+  "createdAt": "2026-05-20T13:00:00",
+  "updatedAt": "2026-05-20T13:00:00"
+}
+```
+
+### GET /api/friend-requests/incoming
+
+Returns pending friend requests sent to the current authenticated user.
+
+```js
+const incoming = await apiGet("/api/friend-requests/incoming", accessToken);
+```
+
+Response body: `FriendRequestResponse[]`.
+
+### GET /api/friend-requests/outgoing
+
+Returns pending friend requests sent by the current authenticated user.
+
+```js
+const outgoing = await apiGet("/api/friend-requests/outgoing", accessToken);
+```
+
+Response body: `FriendRequestResponse[]`.
+
+### POST /api/friend-requests/{requestId}/accept
+
+Accepts an incoming pending friend request. Only the addressee can accept it.
+
+```js
+const accepted = await apiPost(`/api/friend-requests/${requestId}/accept`, {}, accessToken);
+```
+
+Response body: `FriendRequestResponse` with `status: "ACCEPTED"`.
+
+### POST /api/friend-requests/{requestId}/reject
+
+Rejects an incoming pending friend request. Only the addressee can reject it.
+
+```js
+const rejected = await apiPost(`/api/friend-requests/${requestId}/reject`, {}, accessToken);
+```
+
+Response body: `FriendRequestResponse` with `status: "REJECTED"`.
+
+### DELETE /api/friend-requests/{requestId}
+
+Cancels an outgoing pending friend request. Only the requester can cancel it.
+
+```js
+await apiDelete(`/api/friend-requests/${requestId}`, accessToken);
+```
+
+Response body: empty, status `204 No Content`.
+
+### DELETE /api/friends/{friendUserId}
+
+Removes an accepted friend relationship.
+
+```js
+await apiDelete(`/api/friends/${friendUserId}`, accessToken);
+```
+
+Response body: empty, status `204 No Content`.
+
+## Chats
+
+All chat endpoints are protected. The first version is REST-based direct chat. The frontend can poll `GET /api/chats/{conversationId}/messages` to refresh messages.
+
+Direct chats can only be created between accepted friends. Message read and write access is limited to conversation participants.
+
+### GET /api/chats
+
+Returns the current authenticated user's chat conversations.
+
+```js
+const chats = await apiGet("/api/chats", accessToken);
+```
+
+Response body:
+
+```json
+[
+  {
+    "id": "uuid",
+    "type": "DIRECT",
+    "participants": [
+      {
+        "id": "uuid",
+        "fullName": "Alice Dupont",
+        "photo": null,
+        "role": "PARENT"
+      },
+      {
+        "id": "uuid",
+        "fullName": "Bob Martin",
+        "photo": null,
+        "role": "PARENT"
+      }
+    ],
+    "lastMessage": {
+      "id": "uuid",
+      "conversationId": "uuid",
+      "sender": {
+        "id": "uuid",
+        "fullName": "Bob Martin",
+        "photo": null,
+        "role": "PARENT"
+      },
+      "content": "Hello",
+      "messageType": "TEXT",
+      "createdAt": "2026-05-20T13:00:00",
+      "editedAt": null,
+      "deletedAt": null
+    },
+    "unreadCount": 1,
+    "createdAt": "2026-05-20T13:00:00",
+    "updatedAt": "2026-05-20T13:01:00"
+  }
+]
+```
+
+### POST /api/chats/direct
+
+Gets or creates a direct chat with a friend.
+
+Request body:
+
+```json
+{
+  "userId": "uuid"
+}
+```
+
+Frontend example:
+
+```js
+const chat = await apiPost("/api/chats/direct", {
+  userId: friendUserId
+}, accessToken);
+```
+
+Response body: `ChatConversationResponse`.
+
+### GET /api/chats/{conversationId}/messages
+
+Returns messages for one conversation, newest first. Use `before` for pagination.
+
+Optional query params:
+
+```text
+before=2026-05-20T13:00:00
+limit=30
+```
+
+Frontend example:
+
+```js
+const params = new URLSearchParams({ limit: "30" });
+const messages = await apiGet(`/api/chats/${conversationId}/messages?${params}`, accessToken);
+```
+
+Response body:
+
+```json
+[
+  {
+    "id": "uuid",
+    "conversationId": "uuid",
+    "sender": {
+      "id": "uuid",
+      "fullName": "Alice Dupont",
+      "photo": null,
+      "role": "PARENT"
+    },
+    "content": "Hello",
+    "messageType": "TEXT",
+    "createdAt": "2026-05-20T13:00:00",
+    "editedAt": null,
+    "deletedAt": null
+  }
+]
+```
+
+### POST /api/chats/{conversationId}/messages
+
+Sends a message. `messageType` is optional and defaults to `TEXT`. Allowed values are `TEXT`, `IMAGE`, and `SYSTEM`.
+
+Request body:
+
+```json
+{
+  "content": "Hello",
+  "messageType": "TEXT"
+}
+```
+
+Frontend example:
+
+```js
+const message = await apiPost(`/api/chats/${conversationId}/messages`, {
+  content: text,
+  messageType: "TEXT"
+}, accessToken);
+```
+
+Response body: `ChatMessageResponse`.
+
+### POST /api/chats/{conversationId}/read
+
+Marks the conversation as read. If `messageId` is omitted, the latest message in the conversation is used.
+
+Request body:
+
+```json
+{
+  "messageId": "uuid"
+}
+```
+
+Frontend example:
+
+```js
+const chat = await apiPost(`/api/chats/${conversationId}/read`, {
+  messageId: latestVisibleMessageId
+}, accessToken);
+```
+
+Response body: `ChatConversationResponse`.
 
 ## Events
 
@@ -1226,8 +1559,8 @@ async function uploadImage(path, file, token) {
 Helper applicability:
 
 - Use `apiGet(path)` for public GET endpoints such as `/api/events`, `/api/locations`, `/api/posts`.
-- Use `apiGet(path, accessToken)` for protected GET endpoints such as `/api/users/me`, `/api/users/{id}`, `/api/registrations`, `/api/auth/debug`.
-- Use `apiPost(path, body, accessToken)` for protected create endpoints.
+- Use `apiGet(path, accessToken)` for protected GET endpoints such as `/api/users/me`, `/api/users/{id}`, `/api/users/search`, `/api/friends`, `/api/chats`, `/api/registrations`, `/api/auth/debug`.
+- Use `apiPost(path, body, accessToken)` for protected create/action endpoints such as `/api/friend-requests`, `/api/friend-requests/{id}/accept`, `/api/chats/direct`, and `/api/chats/{id}/messages`.
 - Use `apiPut(path, body, accessToken)` for protected update endpoints.
 - Use `apiDelete(path, accessToken)` for protected delete endpoints; it returns `null` on `204 No Content`.
 - Use `uploadImage(path, file, accessToken)` for multipart upload endpoints such as `/api/users/me/avatar`, `/api/events/{eventId}/images`, `/api/locations/{locationId}/images`, and `/api/posts/{postId}/images`.
