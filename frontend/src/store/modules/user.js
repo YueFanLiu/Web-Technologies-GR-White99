@@ -1,84 +1,113 @@
-import router from '@/router'
-import { ElMessageBox, } from 'element-plus'
 import { login, getInfo } from '@/api/login'
 import { getToken, setToken, removeToken } from '@/utils/auth'
-import { isHttp, isEmpty } from "@/utils/validate"
+import { isHttp } from '@/utils/validate'
 import defAva from '@/assets/images/profile.jpg'
-import { supabase } from '@/utils/supabase'
+import { normalizeRole } from '@/utils/accessControl'
+
+function unwrapCurrentUser(res) {
+  const data = res?.data ?? res
+  return data?.user || data
+}
+
+function normalizePhotoUrl(photo) {
+  if (!photo) return defAva
+  return isHttp(photo) ? photo : import.meta.env.VITE_APP_BASE_API + photo
+}
+
+function normalizeUser(rawUser) {
+  const role = normalizeRole(rawUser?.role || '')
+  return {
+    ...rawUser,
+    id: rawUser?.id || '',
+    email: rawUser?.email || '',
+    fullName: rawUser?.fullName || '',
+    phone: rawUser?.phone || '',
+    photo: rawUser?.photo || '',
+    avatar: rawUser?.photo || '',
+    role,
+    createdAt: rawUser?.createdAt || '',
+    accessibilityPreferences: rawUser?.accessibilityPreferences || {}
+  }
+}
+
 const useUserStore = defineStore(
   'user',
   {
     state: () => ({
       token: getToken(),
+      userInfo: null,
       id: '',
       name: '',
       nickName: '',
+      email: '',
+      fullName: '',
+      phone: '',
+      photo: '',
+      role: '',
+      createdAt: '',
+      accessibilityPreferences: {},
       avatar: '',
       roles: [],
       permissions: []
     }),
     actions: {
-      // 登录
       login(userInfo) {
-        const email = userInfo.email.trim()
-        const password = userInfo.password
-
-        return new Promise((resolve, reject) => {
-          login(userInfo).then(res => {
-            setToken(res.accessToken)
-            this.token = res.accessToken
-            resolve()
-          }).catch(error => {
-            reject(error)
-          })
+        return login({
+          email: userInfo.email.trim(),
+          password: userInfo.password
+        }).then((res) => {
+          setToken(res.accessToken)
+          this.token = res.accessToken
+          return this.getInfo()
+        }).catch((error) => {
+          this.logOut()
+          return Promise.reject(error)
         })
       },
-      // 获取用户信息
       getInfo() {
-        return new Promise((resolve, reject) => {
-          getInfo().then(res => {
-            const user = res.user
-            let avatar = user.avatar || ""
-            if (!isHttp(avatar)) {
-              avatar = (isEmpty(avatar)) ? defAva : import.meta.env.VITE_APP_BASE_API + avatar
-            }
-            if (res.roles && res.roles.length > 0) { // 验证返回的roles是否是一个非空数组
-              this.roles = res.roles
-              this.permissions = res.permissions
-            } else {
-              this.roles = ['ROLE_DEFAULT']
-            }
-            this.id = user.userId
-            this.name = user.userName
-            this.nickName = user.nickName
-            this.avatar = avatar
-            /* 初始密码提示 */
-            if(res.isDefaultModifyPwd) {
-              ElMessageBox.confirm('您的密码还是初始密码，请修改密码！',  '安全提示', {  confirmButtonText: '确定',  cancelButtonText: '取消',  type: 'warning' }).then(() => {
-                router.push({ name: 'Profile', params: { activeTab: 'resetPwd' } })
-              }).catch(() => {})
-            }
-            /* 过期密码提示 */
-            if(!res.isDefaultModifyPwd && res.isPasswordExpired) {
-              ElMessageBox.confirm('您的密码已过期，请尽快修改密码！',  '安全提示', {  confirmButtonText: '确定',  cancelButtonText: '取消',  type: 'warning' }).then(() => {
-                router.push({ name: 'Profile', params: { activeTab: 'resetPwd' } })
-              }).catch(() => {})
-            }
-            resolve(res)
-          }).catch(error => {
-            reject(error)
-          })
+        return getInfo().then((res) => {
+          const user = normalizeUser(unwrapCurrentUser(res))
+
+          if (!user.id) {
+            return Promise.reject(new Error('Current user profile is missing id'))
+          }
+
+          const avatar = normalizePhotoUrl(user.photo)
+
+          this.userInfo = user
+          this.id = user.id
+          this.name = user.fullName || user.email
+          this.nickName = user.fullName
+          this.email = user.email
+          this.fullName = user.fullName
+          this.phone = user.phone
+          this.photo = user.photo
+          this.role = user.role
+          this.createdAt = user.createdAt
+          this.accessibilityPreferences = user.accessibilityPreferences
+          this.avatar = avatar
+          this.roles = user.role ? [user.role] : []
+          this.permissions = res?.permissions || user.permissions || []
+
+          return user
         })
       },
-      // 退出系统
       logOut() {
         return new Promise((resolve) => {
           this.token = ''
+          this.userInfo = null
           this.roles = []
           this.permissions = []
           this.id = ''
           this.name = ''
           this.nickName = ''
+          this.email = ''
+          this.fullName = ''
+          this.phone = ''
+          this.photo = ''
+          this.role = ''
+          this.createdAt = ''
+          this.accessibilityPreferences = {}
           this.avatar = ''
           removeToken()
           resolve()

@@ -13,8 +13,20 @@
           <h2>Profile Summary</h2>
 
           <div class="avatar-frame">
-            <img :src="profileForm.avatar" alt="User avatar" class="profile-avatar" />
+            <img :src="profileForm.avatar" alt="User avatar" class="profile-avatar" @error="handleAvatarError" />
           </div>
+          <el-upload
+            action="#"
+            :http-request="handleAvatarUpload"
+            :show-file-list="false"
+            :disabled="!isEditing || uploadingAvatar"
+            accept="image/*"
+          >
+            <el-button size="small" :disabled="!isEditing || uploadingAvatar" :loading="uploadingAvatar">
+              <el-icon><Upload /></el-icon>
+              Upload Avatar
+            </el-button>
+          </el-upload>
 
           <h3>{{ profileForm.fullName }}</h3>
           <span class="role-pill">
@@ -53,11 +65,7 @@
                 </el-input>
               </el-form-item>
               <el-form-item label="Role">
-                <el-select v-model="profileForm.role" disabled>
-                  <el-option label="Parent" value="Parent" />
-                  <el-option label="Organizer" value="Organizer" />
-                  <el-option label="Admin" value="Admin" />
-                </el-select>
+                <el-input v-model="profileForm.role" disabled />
               </el-form-item>
             </div>
           </el-form>
@@ -80,7 +88,7 @@
             </span>
             <el-switch
               v-model="profileForm.preferences[preference.key]"
-              disabled
+              :disabled="!isEditing"
               active-text="Yes"
               inactive-text="No"
               inline-prompt
@@ -94,7 +102,12 @@
           <el-icon><EditPen /></el-icon>
           Edit Profile
         </el-button>
-        <el-button type="primary" class="profile-action primary-action" @click="saveChanges">
+        <el-button
+          type="primary"
+          class="profile-action primary-action"
+          :disabled="!isEditing"
+          @click="saveChanges"
+        >
           <el-icon><Check /></el-icon>
           Save Changes
         </el-button>
@@ -110,26 +123,28 @@
 <script setup name="Profile">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Calendar, Check, EditPen, Message, Phone, SwitchButton, User } from '@element-plus/icons-vue'
-import { getCurrentUserProfile, updateCurrentUserProfile } from '@/api/profile'
+import { Calendar, Check, EditPen, Message, Phone, SwitchButton, Upload, User } from '@element-plus/icons-vue'
+import { getCurrentUserProfile, updateCurrentUserProfile, uploadCurrentUserAvatar } from '@/api/profile'
 import useUserStore from '@/store/modules/user'
+import { normalizeRole } from '@/utils/accessControl'
 import defaultAvatar from '@/assets/images/profile.jpg'
 
 const userStore = useUserStore()
 const loading = ref(false)
 const isEditing = ref(false)
+const uploadingAvatar = ref(false)
 
 const profileForm = reactive({
   avatar: defaultAvatar,
-  fullName: 'Olivia Martinez',
-  email: 'olivia.m@email.com',
-  phone: '+33 6 56 78 90 12',
-  role: 'Organizer',
-  memberSince: 'Member since May 2024',
+  fullName: '',
+  email: '',
+  phone: '',
+  role: '',
+  memberSince: 'Member since unavailable',
   preferences: {
-    wheelchair: true,
-    elevator: true,
-    restroom: true,
+    wheelchair: false,
+    elevator: false,
+    restroom: false,
     quiet: false
   }
 })
@@ -167,7 +182,7 @@ function unwrapResponse(res) {
 
 function formatMemberSince(value) {
   const date = new Date(value)
-  if (!value || Number.isNaN(date.getTime())) return 'Member since May 2024'
+  if (!value || Number.isNaN(date.getTime())) return 'Member since unavailable'
 
   return `Member since ${date.toLocaleDateString('en-US', {
     month: 'long',
@@ -176,27 +191,40 @@ function formatMemberSince(value) {
 }
 
 function roleLabel(value) {
-  const role = String(value || '').replace(/^role_/i, '').toLowerCase()
-  if (role === 'admin' || role === 'administrator') return 'Admin'
-  if (role === 'parent') return 'Parent'
-  return 'Organizer'
+  return normalizeRole(value)
+}
+
+function normalizePhotoUrl(photo) {
+  if (!photo) return defaultAvatar
+  return /^https?:\/\//i.test(photo) ? photo : `${import.meta.env.VITE_APP_BASE_API}${photo}`
+}
+
+function applyPreferences(preferences = {}) {
+  profileForm.preferences.wheelchair = Boolean(preferences.wheelchairAccessible)
+  profileForm.preferences.elevator = Boolean(preferences.elevatorNeeded)
+  profileForm.preferences.restroom = Boolean(preferences.accessibleRestroom)
+  profileForm.preferences.quiet = Boolean(preferences.quietEnvironment)
+}
+
+function buildPreferencesPayload() {
+  return {
+    wheelchairAccessible: Boolean(profileForm.preferences.wheelchair),
+    elevatorNeeded: Boolean(profileForm.preferences.elevator),
+    accessibleRestroom: Boolean(profileForm.preferences.restroom),
+    quietEnvironment: Boolean(profileForm.preferences.quiet)
+  }
 }
 
 function applyProfile(profile) {
-  const storeRole = userStore.roles?.[0]
-  const fullName = profile.fullName || profile.name || profile.nickName || profile.userName || userStore.nickName || userStore.name
-  const email = profile.email || profile.user?.email
-  const phone = profile.phone || profile.phoneNumber || profile.phonenumber || profile.user?.phone
-  const role = profile.role || profile.roleName || profile.user?.role || storeRole
-  const createdAt = profile.createdAt || profile.createTime || profile.memberSince || profile.user?.createdAt
-  const avatar = profile.photo || profile.avatar || profile.avatarUrl || profile.user?.avatar || userStore.avatar
+  const role = profile.role || userStore.role
 
-  profileForm.fullName = fullName || profileForm.fullName
-  profileForm.email = email || profileForm.email
-  profileForm.phone = phone || profileForm.phone
+  profileForm.fullName = profile.fullName || ''
+  profileForm.email = profile.email || ''
+  profileForm.phone = profile.phone || ''
   profileForm.role = roleLabel(role)
-  profileForm.memberSince = formatMemberSince(createdAt)
-  profileForm.avatar = avatar || defaultAvatar
+  profileForm.memberSince = formatMemberSince(profile.createdAt)
+  profileForm.avatar = normalizePhotoUrl(profile.photo)
+  applyPreferences(profile.accessibilityPreferences)
 }
 
 async function loadProfile() {
@@ -204,6 +232,7 @@ async function loadProfile() {
   try {
     const profile = unwrapResponse(await getCurrentUserProfile())
     applyProfile(profile)
+    await userStore.getInfo()
   } catch (error) {
     applyProfile({})
   } finally {
@@ -222,9 +251,11 @@ async function saveChanges() {
   try {
     const updatedProfile = unwrapResponse(await updateCurrentUserProfile({
       fullName: profileForm.fullName,
-      phone: profileForm.phone
+      phone: profileForm.phone,
+      accessibilityPreferences: buildPreferencesPayload()
     }))
     applyProfile(updatedProfile)
+    await userStore.getInfo()
     isEditing.value = false
     ElMessage.success('Profile changes saved')
   } catch (error) {
@@ -233,6 +264,25 @@ async function saveChanges() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleAvatarUpload({ file }) {
+  uploadingAvatar.value = true
+  try {
+    const updatedProfile = unwrapResponse(await uploadCurrentUserAvatar(file))
+    applyProfile(updatedProfile)
+    await userStore.getInfo()
+    ElMessage.success('Avatar uploaded')
+  } catch (error) {
+    console.error('Failed to upload avatar:', error)
+    ElMessage.error('Failed to upload avatar')
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
+
+function handleAvatarError(event) {
+  event.target.src = defaultAvatar
 }
 
 function logout() {

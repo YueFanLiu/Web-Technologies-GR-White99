@@ -218,9 +218,12 @@ import {
   updateLocation,
   updateLocationAccessibility
 } from '@/api/manager/manageActivity'
+import useUserStore from '@/store/modules/user'
+import { canManageActivityForUser } from '@/utils/accessControl'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const eventId = computed(() => route.query.id)
 
 const loading = ref(false)
@@ -384,7 +387,17 @@ async function loadActivity() {
 
   loading.value = true
   try {
+    if (!userStore.userInfo) {
+      await userStore.getInfo()
+    }
+
     const event = await getEvent(eventId.value)
+    if (!canManageActivityForUser(userStore.userInfo, event)) {
+      ElMessage.warning('You do not have permission to manage this activity')
+      router.replace('/product/mainEvent')
+      return
+    }
+
     const location = event.location || {}
     originalEvent.value = event
     originalLocation.value = location
@@ -470,6 +483,11 @@ function validateBusinessFields(startTime, endTime) {
 }
 
 async function saveChanges() {
+  if (!canManageActivityForUser(userStore.userInfo, originalEvent.value)) {
+    ElMessage.warning('You do not have permission to manage this activity')
+    return
+  }
+
   if (saving.value || !eventId.value || !originalLocation.value?.id) {
     return
   }
@@ -548,6 +566,11 @@ function backToEvents() {
 }
 
 function viewAttendees() {
+  if (!canManageActivityForUser(userStore.userInfo, originalEvent.value)) {
+    ElMessage.warning('You do not have permission to view attendees')
+    return
+  }
+
   router.push({
     path: '/manager/attendeeList',
     query: { id: eventId.value }

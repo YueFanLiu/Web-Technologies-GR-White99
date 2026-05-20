@@ -3,18 +3,19 @@
  * Copyright (c) 2019 ruoyi
  */
 import useUserStore from '@/store/modules/user'
+import { normalizeRole } from '@/utils/accessControl'
 
 export default {
   mounted(el, binding, vnode) {
     const { value } = binding
-    const super_admin = "admin"
+    const super_admin = "ADMIN"
     const roles = useUserStore().roles
 
     if (value && value instanceof Array && value.length > 0) {
       const roleFlag = value
 
       const hasRole = roles.some(role => {
-        return super_admin === role || roleFlag.includes(role)
+        return super_admin === normalizeRole(role) || roleFlag.map(normalizeRole).includes(normalizeRole(role))
       })
 
       if (!hasRole) {

@@ -1,4 +1,5 @@
 import useUserStore from '@/store/modules/user'
+import { normalizeRole } from '@/utils/accessControl'
 
 function authPermission(permission) {
   const all_permission = "*:*:*"
@@ -13,11 +14,11 @@ function authPermission(permission) {
 }
 
 function authRole(role) {
-  const super_admin = "admin"
+  const super_admin = "ADMIN"
   const roles = useUserStore().roles
   if (role && role.length > 0) {
     return roles.some(v => {
-      return super_admin === v || v === role
+      return super_admin === normalizeRole(v) || normalizeRole(v) === normalizeRole(role)
     })
   } else {
     return false

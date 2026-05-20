@@ -7,6 +7,28 @@ export function getEvent(id) {
   })
 }
 
+export function getCurrentUserProfile() {
+  return request({
+    url: '/api/users/me',
+    method: 'get'
+  })
+}
+
+export function getPublicUser(id) {
+  return request({
+    url: `/api/users/${id}`,
+    method: 'get'
+  })
+}
+
+export function searchUsers(keyword) {
+  return request({
+    url: '/api/users/search',
+    method: 'get',
+    params: { keyword }
+  })
+}
+
 export function listRegistrations() {
   return request({
     url: '/api/registrations',

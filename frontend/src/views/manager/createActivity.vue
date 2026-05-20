@@ -224,7 +224,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -233,6 +233,8 @@ import {
   createLocationAccessibility,
   uploadEventImage
 } from '@/api/manager/createActivity'
+import useUserStore from '@/store/modules/user'
+import { canCreateActivityForUser } from '@/utils/accessControl'
 import {
   Calendar,
   InfoFilled,
@@ -248,11 +250,13 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const userStore = useUserStore()
 const basicFormRef = ref()
 const scheduleFormRef = ref()
 const locationFormRef = ref()
 const capacityFormRef = ref()
 const submitting = ref(false)
+const canCreateActivity = computed(() => canCreateActivityForUser(userStore.userInfo))
 
 const form = ref({
   title: '',
@@ -372,6 +376,12 @@ function handleCoverRemove() {
 }
 
 async function publishActivity() {
+  if (!canCreateActivity.value) {
+    ElMessage.warning('You do not have permission to create activities')
+    router.replace('/product/mainEvent')
+    return
+  }
+
   if (submitting.value) {
     return
   }
@@ -446,6 +456,17 @@ async function publishActivity() {
 function cancelCreate() {
   router.push('/product/mainEvent')
 }
+
+onMounted(async () => {
+  if (!userStore.userInfo) {
+    await userStore.getInfo()
+  }
+
+  if (!canCreateActivity.value) {
+    ElMessage.warning('You do not have permission to create activities')
+    router.replace('/product/mainEvent')
+  }
+})
 
 onBeforeUnmount(() => {
   if (coverObjectUrl) {

@@ -131,13 +131,12 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deletePost,
-  getCurrentUserProfile,
   getPostImages,
   getPostsByUser,
   listPosts
 } from '@/api/post'
 import useUserStore from '@/store/modules/user'
-import { getToken } from '@/utils/auth'
+import { canManagePostForUser, getUserId, isAdminRole } from '@/utils/accessControl'
 import {
   Calendar,
   Delete,
@@ -156,64 +155,29 @@ const props = defineProps({
   }
 })
 
-// 列表筛选和加载状态
 const activeTab = ref(props.managerMode ? 'All' : 'Published')
 const sortBy = ref('recent')
 const keyword = ref('')
 const loading = ref(false)
 const router = useRouter()
 const userStore = useUserStore()
-const currentUser = ref(null)
-
-const managerRoles = [
-  'admin',
-  'role_admin',
-  'administrator',
-  'manager',
-  'role_manager',
-  'staff',
-  'employee',
-  'organizer',
-  'publisher',
-  'creator'
-]
-
-const currentRoleNames = computed(() => {
-  const roles = [
-    ...(Array.isArray(userStore.roles) ? userStore.roles : []),
-    currentUser.value?.role,
-    currentUser.value?.user?.role
-  ]
-
-  return roles
-    .filter(Boolean)
-    .map((role) => String(role).toLowerCase())
-})
-
-const isManagerUser = computed(() => currentRoleNames.value.some((role) => managerRoles.includes(role)))
-const canCreatePost = computed(() => isManagerUser.value || Boolean(getProfileId(currentUser.value)))
+const canCreatePost = computed(() => Boolean(getUserId(userStore.userInfo)))
 
 function canManagePost(post) {
-  if (isManagerUser.value) {
-    return true
-  }
-
-  const currentUserId = getProfileId(currentUser.value)
-  const ownerId = post?.user?.id || post?.userId || post?.authorId || post?.createdBy
-  return Boolean(currentUserId && ownerId && String(currentUserId) === String(ownerId))
+  return canManagePostForUser(userStore.userInfo, post)
 }
 
-// 左侧状态筛选栏配置
+// 宸︿晶鐘舵€佺瓫閫夋爮閰嶇疆
 const tabs = [
   { label: 'All Posts', value: 'All' },
   { label: 'Published', value: 'Published' },
   { label: 'Draft', value: 'Draft' }
 ]
 
-// 当前用户的帖子列表，页面加载后由后端接口填充
+// 褰撳墠鐢ㄦ埛鐨勫笘瀛愬垪琛紝椤甸潰鍔犺浇鍚庣敱鍚庣鎺ュ彛濉厖
 const posts = ref([])
 
-// 根据状态、关键词和排序方式生成最终展示的帖子列表
+// 鏍规嵁鐘舵€併€佸叧閿瘝鍜屾帓搴忔柟寮忕敓鎴愭渶缁堝睍绀虹殑甯栧瓙鍒楄〃
 const filteredPosts = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   const result = posts.value.filter((post) => {
@@ -232,7 +196,7 @@ const filteredPosts = computed(() => {
   })
 })
 
-// 统计某个状态下的帖子数量，用于左侧 tab 角标
+// 缁熻鏌愪釜鐘舵€佷笅鐨勫笘瀛愭暟閲忥紝鐢ㄤ簬宸︿晶 tab 瑙掓爣
 function countByStatus(status) {
   if (status === 'All') {
     return posts.value.length
@@ -241,7 +205,6 @@ function countByStatus(status) {
   return posts.value.filter((post) => post.status === status).length
 }
 
-// 跳转到创建帖子页面
 function goCreatePost() {
   if (!props.managerMode || !canCreatePost.value) {
     return
@@ -250,12 +213,12 @@ function goCreatePost() {
   router.push({ name: 'CreatePost' })
 }
 
-// 跳转到只读查看模式，createpost.vue 会根据 mode=view 禁用表单
+// 璺宠浆鍒板彧璇绘煡鐪嬫ā寮忥紝createpost.vue 浼氭牴鎹?mode=view 绂佺敤琛ㄥ崟
 function viewPost(post) {
   router.push({ name: 'CreatePost', query: { id: post.id, mode: 'view' } })
 }
 
-// 跳转到编辑模式，createpost.vue 会根据 id 加载帖子详情
+// 璺宠浆鍒扮紪杈戞ā寮忥紝createpost.vue 浼氭牴鎹?id 鍔犺浇甯栧瓙璇︽儏
 function editPost(post) {
   if (!props.managerMode || !canManagePost(post)) {
     ElMessage.warning('You do not have permission to edit this post')
@@ -265,7 +228,7 @@ function editPost(post) {
   router.push({ name: 'CreatePost', query: { id: post.id } })
 }
 
-// 删除帖子：先弹出确认框，确认后调用 DELETE /api/posts/{id}
+// 鍒犻櫎甯栧瓙锛氬厛寮瑰嚭纭妗嗭紝纭鍚庤皟鐢?DELETE /api/posts/{id}
 function removePost(post) {
   if (!props.managerMode || !canManagePost(post)) {
     ElMessage.warning('You do not have permission to delete this post')
@@ -288,7 +251,7 @@ function removePost(post) {
   })
 }
 
-// 兼容不同后端列表响应格式，统一转成数组
+// 鍏煎涓嶅悓鍚庣鍒楄〃鍝嶅簲鏍煎紡锛岀粺涓€杞垚鏁扮粍
 function extractList(res) {
   if (Array.isArray(res)) {
     return res
@@ -297,26 +260,6 @@ function extractList(res) {
   return res?.rows || res?.data || res?.list || res?.content || []
 }
 
-// 从 /api/users/me 的返回里取当前用户 id，兼容多种字段结构
-function getProfileId(profile) {
-  return profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
-}
-
-async function fetchCurrentUser() {
-  if (!props.managerMode || !getToken()) {
-    currentUser.value = null
-    return
-  }
-
-  try {
-    currentUser.value = await getCurrentUserProfile()
-  } catch (error) {
-    currentUser.value = null
-    console.error('Failed to load current user profile:', error)
-  }
-}
-
-// 将后端时间字段格式化成页面展示日期
 function formatDate(value) {
   if (!value) {
     return 'Date unavailable'
@@ -334,19 +277,19 @@ function formatDate(value) {
   })
 }
 
-// 将后端状态统一成页面使用的 Published / Draft
+// 灏嗗悗绔姸鎬佺粺涓€鎴愰〉闈娇鐢ㄧ殑 Published / Draft
 function getStatus(value) {
   const status = String(value || 'Published').toLowerCase()
   return status === 'draft' ? 'Draft' : 'Published'
 }
 
-// 从帖子图片列表中取第一张作为封面图
+// 浠庡笘瀛愬浘鐗囧垪琛ㄤ腑鍙栫涓€寮犱綔涓哄皝闈㈠浘
 function getFirstImageUrl(images) {
   const image = images?.[0]
   return image?.imageUrl || image?.url || image?.publicUrl || image?.path || ''
 }
 
-// 按 Swagger 的 PostResponse.event / PostResponse.location 生成关联对象展示文本
+// 鎸?Swagger 鐨?PostResponse.event / PostResponse.location 鐢熸垚鍏宠仈瀵硅薄灞曠ず鏂囨湰
 function getRelatedTarget(post) {
   if (post.event) {
     return post.event.title || post.event.name || `Event #${post.event.id}`
@@ -359,13 +302,13 @@ function getRelatedTarget(post) {
   return post.eventTitle || post.eventName || post.locationName || (post.eventId ? `Event #${post.eventId}` : 'No related event')
 }
 
-// 摘要来自 content，列表里限制长度，避免长文本撑开卡片
+// 鎽樿鏉ヨ嚜 content锛屽垪琛ㄩ噷闄愬埗闀垮害锛岄伩鍏嶉暱鏂囨湰鎾戝紑鍗＄墖
 function getSummary(post) {
   const text = post.summary || post.excerpt || post.content || ''
   return text.length > 140 ? `${text.slice(0, 140)}...` : text
 }
 
-// 将后端 post 原始数据整理成页面卡片需要的数据结构
+// 灏嗗悗绔?post 鍘熷鏁版嵁鏁寸悊鎴愰〉闈㈠崱鐗囬渶瑕佺殑鏁版嵁缁撴瀯
 function normalizePost(post, images = []) {
   const createdAt = post.createdAt || post.createTime || post.createdTime
   const updatedAt = post.updatedAt || post.updateTime || post.updatedTime || createdAt
@@ -399,7 +342,6 @@ async function normalizePostList(list) {
   }))
 }
 
-// 页面主加载流程：用户页取公开帖子；管理页按角色取全量或本人帖子。
 async function loadPosts() {
   loading.value = true
 
@@ -410,8 +352,10 @@ async function loadPosts() {
       return
     }
 
-    await fetchCurrentUser()
-    const userId = getProfileId(currentUser.value)
+    if (!userStore.userInfo) {
+      await userStore.getInfo()
+    }
+    const userId = getUserId(userStore.userInfo)
 
     if (!userId) {
       posts.value = []
@@ -419,7 +363,7 @@ async function loadPosts() {
       return
     }
 
-    const res = isManagerUser.value
+    const res = isAdminRole(userStore.userInfo?.role)
       ? await listPosts({ limit: 1000 })
       : await getPostsByUser(userId)
     const list = extractList(res)
@@ -825,3 +769,4 @@ onMounted(() => {
   }
 }
 </style>
+

@@ -9,6 +9,10 @@
           <h1>Attendee List</h1>
           <p>Manage Activity / {{ event.title }} / Attendees</p>
         </div>
+        <el-button v-if="eventId" class="refresh-button" :loading="loading" @click="loadAttendees">
+          <el-icon><Refresh /></el-icon>
+          Refresh
+        </el-button>
       </section>
 
       <el-empty v-if="!eventId" description="No activity selected" />
@@ -67,6 +71,16 @@
         </article>
 
         <article class="summary-card">
+          <span class="summary-icon purple">
+            <el-icon><Tickets /></el-icon>
+          </span>
+          <div>
+            <p>Confirmed</p>
+            <strong>{{ confirmedCount }}</strong>
+          </div>
+        </article>
+
+        <article class="summary-card">
           <span class="summary-icon amber">
             <el-icon><Plus /></el-icon>
           </span>
@@ -93,7 +107,9 @@
           <el-select v-model="statusFilter" size="large" class="status-filter">
             <el-option label="All Status" value="all" />
             <el-option label="Confirmed" value="CONFIRMED" />
+            <el-option label="Registered" value="REGISTERED" />
             <el-option label="Pending" value="PENDING" />
+            <el-option label="Attended" value="ATTENDED" />
             <el-option label="Cancelled" value="CANCELLED" />
           </el-select>
         </div>
@@ -102,8 +118,11 @@
           <el-table-column label="Attendee" min-width="220">
             <template #default="{ row }">
               <div class="attendee-cell">
-                <img :src="row.avatar" :alt="row.name" />
-                <span>{{ row.name }}</span>
+                <img :src="row.avatar" :alt="row.name" @error="handleAvatarError" />
+                <div>
+                  <span>{{ row.name }}</span>
+                  <small>{{ row.userId || 'No user id' }}</small>
+                </div>
               </div>
             </template>
           </el-table-column>
@@ -132,22 +151,72 @@
               <div class="row-actions">
                 <el-button :icon="View" aria-label="View attendee" @click="viewAttendee(row)" />
                 <el-dropdown trigger="click" @command="(status) => changeStatus(row, status)">
-                  <el-button :icon="Edit" aria-label="Change status" />
+                  <el-button :icon="Edit" :loading="updatingId === row.id" aria-label="Change status" />
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="CONFIRMED">Confirm</el-dropdown-item>
+                      <el-dropdown-item command="REGISTERED">Registered</el-dropdown-item>
                       <el-dropdown-item command="PENDING">Pending</el-dropdown-item>
+                      <el-dropdown-item command="ATTENDED">Attended</el-dropdown-item>
                       <el-dropdown-item command="CANCELLED">Cancel</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
-                <el-button :icon="Delete" class="remove-button" aria-label="Remove attendee" @click="removeAttendee(row)" />
+                <el-button
+                  :icon="Delete"
+                  class="remove-button"
+                  :loading="removingId === row.id"
+                  aria-label="Remove attendee"
+                  @click="removeAttendee(row)"
+                />
               </div>
             </template>
           </el-table-column>
         </el-table>
       </section>
     </main>
+
+    <el-drawer
+      v-model="detailVisible"
+      title="Attendee Details"
+      size="420px"
+      class="attendee-drawer"
+    >
+      <div v-if="selectedAttendee" class="detail-panel">
+        <div class="detail-header">
+          <img :src="selectedAttendee.avatar" :alt="selectedAttendee.name" @error="handleAvatarError" />
+          <div>
+            <h2>{{ selectedAttendee.name }}</h2>
+            <el-tag class="status-tag" :class="selectedAttendee.status.toLowerCase()" effect="plain">
+              {{ selectedAttendee.status }}
+            </el-tag>
+          </div>
+        </div>
+
+        <dl class="detail-list">
+          <div>
+            <dt>Role</dt>
+            <dd>{{ selectedAttendee.role }}</dd>
+          </div>
+          <div>
+            <dt>User ID</dt>
+            <dd>{{ selectedAttendee.userId || 'Not available' }}</dd>
+          </div>
+          <div>
+            <dt>Registration ID</dt>
+            <dd>{{ selectedAttendee.id || 'Not available' }}</dd>
+          </div>
+          <div>
+            <dt>Registered At</dt>
+            <dd>{{ selectedAttendee.registeredDate }} {{ selectedAttendee.registeredTime }}</dd>
+          </div>
+          <div>
+            <dt>Activity</dt>
+            <dd>{{ event.title }}</dd>
+          </div>
+        </dl>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -163,7 +232,9 @@ import {
   Edit,
   Location,
   Plus,
+  Refresh,
   Search,
+  Tickets,
   User,
   UserFilled,
   View
@@ -171,16 +242,25 @@ import {
 import {
   deleteRegistration,
   getEvent,
+  getPublicUser,
   getRegistration,
   getEventRegistrations,
   updateRegistration
 } from '@/api/manager/AttendeeList'
+import useUserStore from '@/store/modules/user'
+import { canManageActivityForUser } from '@/utils/accessControl'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const eventId = computed(() => route.query.id || route.query.eventId || route.query.activityId || '')
+const originalEvent = ref(null)
 
 const loading = ref(false)
+const updatingId = ref('')
+const removingId = ref('')
+const detailVisible = ref(false)
+const selectedAttendee = ref(null)
 const searchText = ref('')
 const statusFilter = ref('all')
 const attendees = ref([])
@@ -200,7 +280,8 @@ const event = reactive({
 })
 
 const capacity = computed(() => event.capacity)
-const registered = computed(() => attendees.value.filter((attendee) => attendee.status !== 'CANCELLED').length)
+const registered = computed(() => attendees.value.filter((attendee) => isActiveRegistration(attendee.status)).length)
+const confirmedCount = computed(() => attendees.value.filter((attendee) => attendee.status === 'CONFIRMED').length)
 const remainingSpots = computed(() => Math.max(capacity.value - registered.value, 0))
 
 function unwrapResponse(res) {
@@ -216,13 +297,29 @@ function extractList(res) {
   return data?.rows || data?.list || data?.content || []
 }
 
+function normalizeImageUrl(value) {
+  const url = String(value || '').trim()
+  if (!url) return ''
+  if (/^(https?:|data:|blob:)/i.test(url)) return url
+  if (url.startsWith('//')) return `${window.location.protocol}${url}`
+  if (url.startsWith('/')) return url
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (supabaseUrl) {
+    return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${url.replace(/^\/+/, '')}`
+  }
+
+  return url
+}
+
 const filteredAttendees = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
 
   return attendees.value.filter((attendee) => {
     const matchesSearch = !keyword ||
       attendee.name.toLowerCase().includes(keyword) ||
-      attendee.role.toLowerCase().includes(keyword)
+      attendee.role.toLowerCase().includes(keyword) ||
+      attendee.userId.toLowerCase().includes(keyword)
     const matchesStatus = statusFilter.value === 'all' || attendee.status === statusFilter.value
 
     return matchesSearch && matchesStatus
@@ -273,12 +370,16 @@ function avatarUrl(name) {
 }
 
 function normalizeStatus(status) {
-  return String(status || 'PENDING').toUpperCase()
+  return String(status || 'REGISTERED').trim().toUpperCase()
 }
 
-function mapRegistration(registration) {
+function isActiveRegistration(status) {
+  return !['CANCELLED', 'CANCELED', 'REJECTED'].includes(normalizeStatus(status))
+}
+
+function mapRegistration(registration, userDetails = null) {
   const eventData = registration.event || {}
-  const user = registration.user || {}
+  const user = userDetails || registration.user || {}
   const name = user.fullName || user.name || user.email || 'Unknown attendee'
   const registeredAt = formatDateTimeParts(registration.registeredAt)
 
@@ -292,7 +393,7 @@ function mapRegistration(registration) {
     registeredDate: registeredAt.date,
     registeredTime: registeredAt.time,
     raw: registration,
-    avatar: user.photo || avatarUrl(name)
+    avatar: normalizeImageUrl(user.photo || user.avatar) || avatarUrl(name)
   }
 }
 
@@ -305,9 +406,28 @@ function applyEvent(data) {
   event.date = formatDate(eventData.startTime)
   event.time = formatTime(eventData.startTime, eventData.endTime)
   event.location = [location.name, location.address, location.city, location.country].filter(Boolean).join(', ') || 'Location TBA'
-  event.image = eventData.coverImageUrl || eventData.imageUrls?.[0] || defaultEventImage
+  event.image = normalizeImageUrl(eventData.coverImageUrl) || normalizeImageUrl(eventData.imageUrls?.[0]) || defaultEventImage
   event.status = normalizeStatus(eventData.status || 'DRAFT')
   event.capacity = Number(eventData.capacity || 0)
+}
+
+async function hydrateRegistration(registration) {
+  const userId = registration.user?.id || registration.userId
+  if (!userId) {
+    return mapRegistration(registration)
+  }
+
+  try {
+    const user = unwrapResponse(await getPublicUser(userId))
+    return mapRegistration(registration, user)
+  } catch (error) {
+    console.error('Failed to load attendee profile:', userId, error)
+    return mapRegistration(registration)
+  }
+}
+
+async function mapRegistrations(registrations) {
+  return Promise.all(registrations.map(hydrateRegistration))
 }
 
 async function loadAttendees() {
@@ -317,13 +437,23 @@ async function loadAttendees() {
 
   loading.value = true
   try {
-    const [eventData, registrations] = await Promise.all([
-      getEvent(eventId.value),
-      getEventRegistrations(eventId.value)
-    ])
+    if (!userStore.userInfo) {
+      await userStore.getInfo()
+    }
+
+    const eventData = await getEvent(eventId.value)
+    const rawEvent = unwrapResponse(eventData)
+    originalEvent.value = rawEvent
+
+    if (!canManageActivityForUser(userStore.userInfo, rawEvent)) {
+      ElMessage.warning('You do not have permission to view attendees')
+      router.replace('/product/mainEvent')
+      return
+    }
 
     applyEvent(eventData)
-    attendees.value = extractList(registrations).map(mapRegistration)
+    const registrations = await getEventRegistrations(eventId.value)
+    attendees.value = await mapRegistrations(extractList(registrations))
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to load attendees')
@@ -342,8 +472,8 @@ function backToManage() {
 async function viewAttendee(attendee) {
   try {
     const registration = unwrapResponse(await getRegistration(attendee.id))
-    const latest = mapRegistration(registration)
-    ElMessage.info(`${latest.name} - ${latest.status}`)
+    selectedAttendee.value = await hydrateRegistration(registration)
+    detailVisible.value = true
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to load attendee details')
@@ -351,40 +481,67 @@ async function viewAttendee(attendee) {
 }
 
 async function changeStatus(attendee, status) {
+  if (!canManageActivityForUser(userStore.userInfo, originalEvent.value)) {
+    ElMessage.warning('You do not have permission to update attendees')
+    return
+  }
+
   if (attendee.status === status) {
     return
   }
 
+  updatingId.value = attendee.id
   try {
     const updated = unwrapResponse(await updateRegistration(attendee.id, {
       eventId: attendee.eventId,
       status
     }))
-    const nextAttendee = updated?.id ? mapRegistration(updated) : { ...attendee, status }
+    const nextAttendee = updated?.id ? await hydrateRegistration(updated) : { ...attendee, status }
     attendees.value = attendees.value.map((item) => item.id === attendee.id ? nextAttendee : item)
+    if (selectedAttendee.value?.id === attendee.id) {
+      selectedAttendee.value = nextAttendee
+    }
     ElMessage.success('Attendee status updated')
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to update attendee status')
+  } finally {
+    updatingId.value = ''
   }
 }
 
 async function removeAttendee(attendee) {
+  if (!canManageActivityForUser(userStore.userInfo, originalEvent.value)) {
+    ElMessage.warning('You do not have permission to remove attendees')
+    return
+  }
+
   try {
     await ElMessageBox.confirm(`Remove ${attendee.name} from this event?`, 'Warning', {
       confirmButtonText: 'Confirm',
       cancelButtonText: 'Cancel',
       type: 'warning'
     })
+    removingId.value = attendee.id
     await deleteRegistration(attendee.id)
+    attendees.value = attendees.value.filter((item) => item.id !== attendee.id)
+    if (selectedAttendee.value?.id === attendee.id) {
+      detailVisible.value = false
+      selectedAttendee.value = null
+    }
     ElMessage.success('Attendee removed')
-    await loadAttendees()
   } catch (error) {
     if (error !== 'cancel') {
       console.error(error)
       ElMessage.error('Failed to remove attendee')
     }
+  } finally {
+    removingId.value = ''
   }
+}
+
+function handleAvatarError(error) {
+  error.target.src = defaultAvatar
 }
 
 onMounted(loadAttendees)
@@ -409,6 +566,11 @@ onMounted(loadAttendees)
   gap: 22px;
 }
 
+.page-heading > div {
+  min-width: 0;
+  flex: 1;
+}
+
 .back-icon {
   width: 48px;
   height: 48px;
@@ -418,6 +580,16 @@ onMounted(loadAttendees)
   color: #0f66e9;
   background: #fff;
   font-size: 20px;
+}
+
+.refresh-button {
+  height: 44px;
+  padding: 0 18px;
+  border-color: #c7d8f4;
+  border-radius: 10px;
+  color: #0f66e9;
+  background: #fff;
+  font-weight: 700;
 }
 
 .page-heading h1 {
@@ -506,7 +678,7 @@ onMounted(loadAttendees)
 .summary-grid {
   margin-top: 20px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -535,6 +707,11 @@ onMounted(loadAttendees)
 .summary-icon.green {
   color: #159947;
   background: #e9f9ef;
+}
+
+.summary-icon.purple {
+  color: #7344c9;
+  background: #f1ebff;
 }
 
 .summary-icon.amber {
@@ -596,6 +773,12 @@ onMounted(loadAttendees)
   gap: 14px;
 }
 
+.attendee-cell > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
 .attendee-cell img {
   width: 42px;
   height: 42px;
@@ -606,6 +789,15 @@ onMounted(loadAttendees)
 .attendee-cell span {
   color: #071a47;
   font-weight: 700;
+}
+
+.attendee-cell small {
+  max-width: 260px;
+  overflow: hidden;
+  color: #667091;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ticket-cell {
@@ -634,6 +826,12 @@ onMounted(loadAttendees)
 .status-tag.confirmed {
   color: #16833d;
   background: #dcf6e3;
+}
+
+.status-tag.registered,
+.status-tag.attended {
+  color: #0f66e9;
+  background: #e8f1ff;
 }
 
 .status-tag.pending {
@@ -665,6 +863,58 @@ onMounted(loadAttendees)
 
 .row-actions .remove-button {
   color: #ef3c4d;
+}
+
+.detail-panel {
+  display: grid;
+  gap: 28px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.detail-header img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.detail-header h2 {
+  margin: 0 0 10px;
+  color: #071a47;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.detail-list {
+  margin: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.detail-list div {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-list dt {
+  color: #667091;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.detail-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #1c2c57;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
 @media (max-width: 980px) {

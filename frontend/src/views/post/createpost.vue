@@ -86,7 +86,13 @@
             <el-button size="large" class="draft-button" @click="backToPosts">
               Back to Posts
             </el-button>
-            <el-button size="large" type="primary" class="publish-button" @click="goEditPost">
+            <el-button
+              v-if="canManageLoadedPost"
+              size="large"
+              type="primary"
+              class="publish-button"
+              @click="goEditPost"
+            >
               Edit Post
             </el-button>
           </section>
@@ -108,6 +114,8 @@ import {
   updatePost,
   uploadPostImage
 } from '@/api/post'
+import useUserStore from '@/store/modules/user'
+import { canManagePostForUser } from '@/utils/accessControl'
 import {
   Plus,
   Reading
@@ -116,11 +124,20 @@ import {
 // 路由参数决定页面模式：无 id 为创建，有 id 为编辑，mode=view 为只读查看
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const postId = computed(() => route.query.id)
 const isEditMode = computed(() => Boolean(postId.value))
 const isViewMode = computed(() => route.query.mode === 'view')
 const loading = ref(false)
 const submitting = ref(false)
+const loadedPost = ref(null)
+const canManageLoadedPost = computed(() => {
+  if (!loadedPost.value) {
+    return !isEditMode.value
+  }
+
+  return canManagePostForUser(userStore.userInfo, loadedPost.value)
+})
 
 // 帖子表单数据，对应 POST /api/posts 和 PUT /api/posts/{id}
 const postForm = ref({
@@ -221,12 +238,25 @@ async function loadPostForEdit() {
   }
 
   const post = await getPost(postId.value)
+  loadedPost.value = post
+
+  if (!isViewMode.value && !canManageLoadedPost.value) {
+    ElMessage.warning('You do not have permission to edit this post')
+    router.replace({ name: 'MainPost' })
+    return
+  }
+
   fillPostForm(post)
   imageList.value = normalizeImages(extractList(await getPostImages(postId.value)))
 }
 
 // 保存帖子主流程：校验表单 -> 创建/更新 post -> 上传新增图片 -> 返回列表页
 async function savePost(status) {
+  if (isEditMode.value && !canManageLoadedPost.value) {
+    ElMessage.warning('You do not have permission to edit this post')
+    return
+  }
+
   if (!validateForm()) {
     return
   }
@@ -281,6 +311,11 @@ function backToPosts() {
 
 // 从只读查看模式切换到编辑模式
 function goEditPost() {
+  if (!canManageLoadedPost.value) {
+    ElMessage.warning('You do not have permission to edit this post')
+    return
+  }
+
   router.push({ name: 'CreatePost', query: { id: postId.value } })
 }
 

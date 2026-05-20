@@ -73,7 +73,7 @@
             <h3>Activity List</h3>
             <div class="header-controls">
               <el-button
-                v-if="props.managerMode && canCreateActivity"
+                v-if="canCreateActivity"
                 type="success"
                 icon="el-icon-plus"
                 @click="openCreateDialog"
@@ -115,6 +115,29 @@
                     <span>{{ item.reviews }} reviews</span>
                   </div>
                   <el-button type="primary" @click="goToDetails(item)">View Details</el-button>
+                  <el-button v-if="showParentActions" @click="joinActivity(item)">Join Activity</el-button>
+                  <el-button v-if="showParentActions" @click="saveActivity(item)">Save</el-button>
+                  <el-button v-if="showParentActions" @click="createPost(item)">Create Post</el-button>
+                  <el-button v-if="canManageEvent(item) && !props.managerMode" @click="openEditDialog(item)">
+                    Manage Activity
+                  </el-button>
+                  <el-button v-if="canManageEvent(item) && !props.managerMode" @click="viewAttendees(item)">
+                    View Attendees
+                  </el-button>
+                  <el-button
+                    v-if="isCurrentAdmin && !props.managerMode"
+                    type="primary"
+                    @click="openEditDialog(item)"
+                  >
+                    Edit
+                  </el-button>
+                  <el-button
+                    v-if="isCurrentAdmin && !props.managerMode"
+                    type="danger"
+                    @click="handleDelete(item.id)"
+                  >
+                    Delete
+                  </el-button>
                 </div>
               </div>
             </div>
@@ -233,14 +256,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createEvent,
   delEvent,
-  getCurrentUserProfile,
   listEvent,
   searchEvent,
   updateEvent
 } from '@/api/events/index.js'
+import { createRegistration } from '@/api/events/joinActivity.js'
 import { listLocations } from '@/api/location/index.js'
 import useUserStore from '@/store/modules/user'
-import { getToken } from '@/utils/auth'
+import { canCreateActivityForUser, canManageActivityForUser, isAdmin, isParent } from '@/utils/accessControl'
 import { useRoute } from 'vue-router'
 
 const props = defineProps({
@@ -261,7 +284,6 @@ const goToDetails = (item) => {
 }
 const searchKeyword = ref('')
 const locationOptions = ref([])
-const currentUser = ref(null)
 // 筛选表单
 const form = reactive({
   locationId: '',
@@ -276,53 +298,17 @@ const popularEvents = ref([])
 const isEdit = ref(false)
 const currentEventId = ref(null)
 
-const managerRoles = [
-  'admin',
-  'role_admin',
-  'administrator',
-  'manager',
-  'role_manager',
-  'staff',
-  'employee',
-  'organizer',
-  'publisher',
-  'creator'
-]
-const currentRoleNames = computed(() => {
-  const profileRole = currentUser.value?.role
-  return [
-    profileRole,
-    ...userStore.roles
-  ].filter(Boolean).map((role) => String(role).toLowerCase())
-})
-const isManagerUser = computed(() => currentRoleNames.value.some((role) => managerRoles.includes(role)))
-const canCreateActivity = computed(() => isManagerUser.value)
+const canCreateActivity = computed(() => canCreateActivityForUser(userStore.userInfo))
+const showParentActions = computed(() => isParent(userStore.userInfo))
+const isCurrentAdmin = computed(() => isAdmin(userStore.userInfo))
 
 function canManageEvent(item) {
-  if (isManagerUser.value) {
-    return true
-  }
-
-  const currentUserId = currentUser.value?.id || userStore.id
-  const organizerId = item?.organizer?.id
-  return Boolean(currentUserId && organizerId && currentUserId === organizerId)
+  return canManageActivityForUser(userStore.userInfo, item)
 }
 
 async function fetchCurrentUser() {
-  if (!props.managerMode) {
-    currentUser.value = null
-    return
-  }
-
-  if (!getToken()) {
-    currentUser.value = null
-    return
-  }
-
-  try {
-    currentUser.value = await getCurrentUserProfile()
-  } catch (error) {
-    currentUser.value = null
+  if (!userStore.userInfo) {
+    await userStore.getInfo()
   }
 }
 
@@ -381,7 +367,8 @@ function mapEvent(event, index) {
     capacity: event.capacity || 10,
     price: event.price || 0,
     location: location,
-    organizer: event.organizer || null
+    organizer: event.organizer || null,
+    organizerId: event.organizerId || event.organizer?.id || event.createdBy || event.userId
   }
 }
 //获取locaiton列表
@@ -432,10 +419,6 @@ const eventForm = reactive({
 })
 
 const openEditDialog = (item) => {
-  if (!props.managerMode) {
-    return
-  }
-
   if (!canManageEvent(item)) {
     ElMessage.warning('You do not have permission to edit this event')
     return
@@ -448,7 +431,8 @@ const openEditDialog = (item) => {
 }
 
 const openCreateDialog = () => {
-  if (!props.managerMode) {
+  if (!canCreateActivity.value) {
+    ElMessage.warning('You do not have permission to create activities')
     return
   }
 
@@ -493,10 +477,6 @@ const handleUpdateEvent = async () => {
 
 // 删除活动
 const handleDelete = async (id) => {
-  if (!props.managerMode) {
-    return
-  }
-
   const item = activityList.value.find((event) => event.id === id)
   if (!canManageEvent(item)) {
     ElMessage.warning('You do not have permission to delete this event')
@@ -525,8 +505,52 @@ const handleDelete = async (id) => {
   })
 }
 
+function viewAttendees(item) {
+  if (!canManageEvent(item)) {
+    ElMessage.warning('You do not have permission to view attendees')
+    return
+  }
+
+  router.push({
+    path: '/manager/attendeeList',
+    query: { id: item.id }
+  })
+}
+
+async function joinActivity(item) {
+  if (!showParentActions.value) {
+    return
+  }
+
+  try {
+    await createRegistration({
+      eventId: item.id,
+      status: 'CONFIRMED'
+    })
+    ElMessage.success('Activity joined')
+  } catch (error) {
+    console.error('Failed to join activity:', error)
+  }
+}
+
+function saveActivity(item) {
+  ElMessage.success(`Saved "${item.title}"`)
+}
+
+function createPost(item) {
+  router.push({
+    name: 'CreatePost',
+    query: { eventId: item.id }
+  })
+}
+
 const handleCreateEvent = async () => {
   if (!props.managerMode) {
+    return
+  }
+
+  if (!canCreateActivity.value) {
+    ElMessage.warning('You do not have permission to create activities')
     return
   }
 

@@ -67,7 +67,7 @@
         <el-sub-menu index="/my-events">
           <template #title>My Events</template>
           <el-menu-item index="/my-events/joined">Joined Activities</el-menu-item>
-          <el-menu-item index="/manager/manageEvent">Created Activities</el-menu-item>
+          <el-menu-item v-if="canCreateActivity" index="/manager/manageEvent">Created Activities</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/notifications">
           <span>Notifications</span>
@@ -100,7 +100,8 @@ import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import { searchEvent } from '@/api/events/index.js'
 import { useRouter } from 'vue-router'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { canCreateActivityForUser } from '@/utils/accessControl'
 
 
 const router = useRouter()
@@ -117,6 +118,7 @@ function handleSearch() {
 const appStore = useAppStore()
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
+const canCreateActivity = computed(() => canCreateActivityForUser(userStore.userInfo))
 
 function toggleSideBar() {
   appStore.toggleSideBar()

@@ -14,3 +14,14 @@ export function updateCurrentUserProfile(data) {
     data
   })
 }
+
+export function uploadCurrentUserAvatar(file) {
+  const data = new FormData()
+  data.append('file', file)
+
+  return request({
+    url: '/api/users/me/avatar',
+    method: 'post',
+    data
+  })
+}

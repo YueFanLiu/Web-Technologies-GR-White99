@@ -102,8 +102,10 @@ const registerForm = ref({
   fullName:"",
   email: "",
   password: "",
-  role: ""
+  role: "PARENT"
 })
+
+const allowedRegisterRoles = ['PARENT', 'ORGANIZER']
 
 const equalToPassword = (rule, value, callback) => {
   if (registerForm.value.password !== value) {
@@ -147,8 +149,21 @@ function resolveApiMessage(error, fallbackMessage) {
 function handleRegister() {
   proxy.$refs.registerRef.validate(valid => {
     if (valid) {
+      if (!allowedRegisterRoles.includes(registerForm.value.role)) {
+        ElMessageBox.alert("Registration only supports PARENT or ORGANIZER.", "Registration Failed", {
+          type: "error"
+        })
+        return
+      }
+
       loading.value = true
-      register(registerForm.value).then(res => {
+      const payload = {
+        fullName: registerForm.value.fullName,
+        email: registerForm.value.email,
+        password: registerForm.value.password,
+        role: registerForm.value.role
+      }
+      register(payload).then(res => {
         const message = res?.message || "Registration request sent. Please check your email to verify your account."
         ElMessageBox.alert(message, "Email Verification Required", {
           type: "success"

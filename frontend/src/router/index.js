@@ -85,7 +85,7 @@ export const constantRoutes = [
         path: 'profile/:activeTab?',
         component: () => import('@/views/system/user/profile/index'),
         name: 'Profile',
-        meta: { title: '个人中心', icon: 'user' }
+        meta: { title: '个人中心', icon: 'user', requiresAuth: true }
       }
     ]
   },
@@ -99,39 +99,41 @@ export const constantRoutes = [
         path: 'mainEvent',
         component: () => import('@/views/accessible-events/index'),
         name: 'MainEvent',
-        meta: { title: 'Accessible-events', icon: 'user' }
+        meta: { title: 'Accessible-events', icon: 'user', requiresAuth: true }
       },
       {
         path: 'eventDetails',
         component: () => import('@/views/accessible-events/detail.vue'),
         name: 'eventDetails',
-        meta: { title: 'Event-details', icon: 'user' }
+        meta: { title: 'Event-details', icon: 'user', requiresAuth: true }
       },
       {
         path: 'bookActivity',
         component: () => import('@/views/accessible-events/booking.vue'),
         name: 'BookActivity',
-        meta: { title: 'Book Activity', icon: 'date' }
+        meta: { title: 'Book Activity', icon: 'date', requiresAuth: true }
       },
       {
         path: 'bookingConfirmation',
         component: () => import('@/views/accessible-events/BookingConfirmation.vue'),
         name: 'BookingConfirmation',
-        meta: { title: 'Booking Confirmation', icon: 'success' }
+        meta: { title: 'Booking Confirmation', icon: 'success', requiresAuth: true }
       },
       {
         path: 'writeReview',
         component: () => import('@/views/accessible-events/WriteReview.vue'),
         name: 'WriteReview',
-        meta: { title: 'Write Review', icon: 'edit' }
+        meta: { title: 'Write Review', icon: 'edit', requiresAuth: true }
       },
       {
         path: 'createActivity',
-        redirect: '/manager/createActivity'
+        redirect: '/manager/createActivity',
+        meta: { requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
       {
         path: 'attendeeList',
-        redirect: '/manager/attendeeList'
+        redirect: '/manager/attendeeList',
+        meta: { requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
 
     ]
@@ -146,7 +148,7 @@ export const constantRoutes = [
         path: 'joined',
         component: () => import('@/views/accessible-events/joinActivity.vue'),
         name: 'JoinedActivities',
-        meta: { title: 'Joined Activities', icon: 'date' }
+        meta: { title: 'Joined Activities', icon: 'date', requiresAuth: true }
       }
     ]
   },
@@ -160,13 +162,13 @@ export const constantRoutes = [
         path: 'mainPost',
         component: () => import('@/views/post/mainpost.vue'),
         name: 'MainPost',
-        meta: { title: 'My Posts', icon: 'post' }
+        meta: { title: 'My Posts', icon: 'post', requiresAuth: true }
       },
       {
         path: 'createPost',
         component: () => import('@/views/post/createpost.vue'),
         name: 'CreatePost',
-        meta: { title: 'Create Post', icon: 'edit' }
+        meta: { title: 'Create Post', icon: 'edit', requiresAuth: true }
       },
     ]
   },
@@ -180,37 +182,37 @@ export const constantRoutes = [
         path: 'mainActivity',
         component: () => import('@/views/manager/manageEvent.vue'),
         name: 'MainActivity',
-        meta: { title: 'My Activities', icon: 'post' }
+        meta: { title: 'My Activities', icon: 'post', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
       {
         path: 'manageEvent',
         component: () => import('@/views/manager/manageEvent.vue'),
         name: 'ManageEvent',
-        meta: { title: 'Manage Events', icon: 'post' }
+        meta: { title: 'Manage Events', icon: 'post', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
       {
         path: 'manageActivity',
         component: () => import('@/views/manager/manageActivity.vue'),
         name: 'ManageActivity',
-        meta: { title: 'Manage Activity', icon: 'edit' }
+        meta: { title: 'Manage Activity', icon: 'edit', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
       {
         path: 'managePost',
         component: () => import('@/views/manager/managePost.vue'),
         name: 'ManagePost',
-        meta: { title: 'Manage Posts', icon: 'post' }
+        meta: { title: 'Manage Posts', icon: 'post', requiresAuth: true }
       },
       {
         path: 'createActivity',
         component: () => import('@/views/manager/createActivity.vue'),
         name: 'CreateActivity',
-        meta: { title: 'Create Activity', icon: 'plus' }
+        meta: { title: 'Create Activity', icon: 'plus', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
       {
         path: 'attendeeList',
         component: () => import('@/views/manager/AttendeeList.vue'),
         name: 'AttendeeList',
-        meta: { title: 'Attendee List', icon: 'user' }
+        meta: { title: 'Attendee List', icon: 'user', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
       },
     ]
   },
