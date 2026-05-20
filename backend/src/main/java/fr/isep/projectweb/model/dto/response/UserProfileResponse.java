@@ -13,6 +13,7 @@ public class UserProfileResponse {
     private String role;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private AccessibilityPreferencesResponse accessibilityPreferences;
 
     public UUID getId() {
         return id;
@@ -76,5 +77,13 @@ public class UserProfileResponse {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public AccessibilityPreferencesResponse getAccessibilityPreferences() {
+        return accessibilityPreferences;
+    }
+
+    public void setAccessibilityPreferences(AccessibilityPreferencesResponse accessibilityPreferences) {
+        this.accessibilityPreferences = accessibilityPreferences;
     }
 }

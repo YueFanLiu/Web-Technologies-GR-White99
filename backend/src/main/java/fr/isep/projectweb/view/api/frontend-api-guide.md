@@ -301,20 +301,32 @@ Response body:
   "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
   "role": "ORGANIZER",
   "createdAt": "2026-05-03T12:00:00",
-  "updatedAt": "2026-05-03T12:00:00"
+  "updatedAt": "2026-05-03T12:00:00",
+  "accessibilityPreferences": {
+    "wheelchairAccessible": true,
+    "elevatorNeeded": true,
+    "accessibleRestroom": true,
+    "quietEnvironment": false
+  }
 }
 ```
 
 ### PUT /api/users/me
 
-Protected.
+Protected. Updates only editable profile fields. `email` and `role` are read-only and must not be sent by the frontend for profile editing.
 
 Request body:
 
 ```json
 {
   "fullName": "Alice Martin",
-  "phone": "+33123456789"
+  "phone": "+33123456789",
+  "accessibilityPreferences": {
+    "wheelchairAccessible": true,
+    "elevatorNeeded": true,
+    "accessibleRestroom": true,
+    "quietEnvironment": false
+  }
 }
 ```
 
@@ -358,7 +370,13 @@ Response body:
   "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
   "role": "ORGANIZER",
   "createdAt": "2026-05-03T12:00:00",
-  "updatedAt": "2026-05-03T12:00:00"
+  "updatedAt": "2026-05-03T12:00:00",
+  "accessibilityPreferences": {
+    "wheelchairAccessible": true,
+    "elevatorNeeded": true,
+    "accessibleRestroom": true,
+    "quietEnvironment": false
+  }
 }
 ```
 
