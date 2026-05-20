@@ -7,10 +7,32 @@ export function getEvent(id) {
   })
 }
 
+export function listRegistrations() {
+  return request({
+    url: '/api/registrations',
+    method: 'get'
+  })
+}
+
+export function getRegistration(id) {
+  return request({
+    url: `/api/registrations/${id}`,
+    method: 'get'
+  })
+}
+
 export function getEventRegistrations(eventId) {
   return request({
     url: `/api/registrations/event/${eventId}`,
     method: 'get'
+  })
+}
+
+export function createRegistration(data) {
+  return request({
+    url: '/api/registrations',
+    method: 'post',
+    data
   })
 }
 

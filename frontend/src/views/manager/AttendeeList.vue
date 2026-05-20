@@ -171,13 +171,14 @@ import {
 import {
   deleteRegistration,
   getEvent,
+  getRegistration,
   getEventRegistrations,
   updateRegistration
 } from '@/api/manager/AttendeeList'
 
 const route = useRoute()
 const router = useRouter()
-const eventId = computed(() => route.query.id)
+const eventId = computed(() => route.query.id || route.query.eventId || route.query.activityId || '')
 
 const loading = ref(false)
 const searchText = ref('')
@@ -201,6 +202,19 @@ const event = reactive({
 const capacity = computed(() => event.capacity)
 const registered = computed(() => attendees.value.filter((attendee) => attendee.status !== 'CANCELLED').length)
 const remainingSpots = computed(() => Math.max(capacity.value - registered.value, 0))
+
+function unwrapResponse(res) {
+  return res?.data ?? res
+}
+
+function extractList(res) {
+  const data = unwrapResponse(res)
+  if (Array.isArray(data)) {
+    return data
+  }
+
+  return data?.rows || data?.list || data?.content || []
+}
 
 const filteredAttendees = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
@@ -263,33 +277,37 @@ function normalizeStatus(status) {
 }
 
 function mapRegistration(registration) {
+  const eventData = registration.event || {}
   const user = registration.user || {}
-  const name = user.fullName || 'Unknown attendee'
+  const name = user.fullName || user.name || user.email || 'Unknown attendee'
   const registeredAt = formatDateTimeParts(registration.registeredAt)
 
   return {
     id: registration.id,
-    eventId: registration.event?.id || eventId.value,
+    eventId: eventData.id || registration.eventId || eventId.value,
+    userId: user.id || registration.userId || '',
     name,
     role: user.role || 'USER',
     status: normalizeStatus(registration.status),
     registeredDate: registeredAt.date,
     registeredTime: registeredAt.time,
-    avatar: avatarUrl(name)
+    raw: registration,
+    avatar: user.photo || avatarUrl(name)
   }
 }
 
 function applyEvent(data) {
-  const location = data.location || {}
+  const eventData = unwrapResponse(data) || {}
+  const location = eventData.location || {}
 
-  event.id = data.id || ''
-  event.title = data.title || 'Untitled activity'
-  event.date = formatDate(data.startTime)
-  event.time = formatTime(data.startTime, data.endTime)
+  event.id = eventData.id || ''
+  event.title = eventData.title || 'Untitled activity'
+  event.date = formatDate(eventData.startTime)
+  event.time = formatTime(eventData.startTime, eventData.endTime)
   event.location = [location.name, location.address, location.city, location.country].filter(Boolean).join(', ') || 'Location TBA'
-  event.image = data.coverImageUrl || data.imageUrls?.[0] || defaultEventImage
-  event.status = data.status || 'DRAFT'
-  event.capacity = Number(data.capacity || 0)
+  event.image = eventData.coverImageUrl || eventData.imageUrls?.[0] || defaultEventImage
+  event.status = normalizeStatus(eventData.status || 'DRAFT')
+  event.capacity = Number(eventData.capacity || 0)
 }
 
 async function loadAttendees() {
@@ -305,7 +323,7 @@ async function loadAttendees() {
     ])
 
     applyEvent(eventData)
-    attendees.value = Array.isArray(registrations) ? registrations.map(mapRegistration) : []
+    attendees.value = extractList(registrations).map(mapRegistration)
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to load attendees')
@@ -321,8 +339,15 @@ function backToManage() {
   })
 }
 
-function viewAttendee(attendee) {
-  ElMessage.info(`${attendee.name} - ${attendee.status}`)
+async function viewAttendee(attendee) {
+  try {
+    const registration = unwrapResponse(await getRegistration(attendee.id))
+    const latest = mapRegistration(registration)
+    ElMessage.info(`${latest.name} - ${latest.status}`)
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('Failed to load attendee details')
+  }
 }
 
 async function changeStatus(attendee, status) {
@@ -331,12 +356,13 @@ async function changeStatus(attendee, status) {
   }
 
   try {
-    await updateRegistration(attendee.id, {
+    const updated = unwrapResponse(await updateRegistration(attendee.id, {
       eventId: attendee.eventId,
       status
-    })
+    }))
+    const nextAttendee = updated?.id ? mapRegistration(updated) : { ...attendee, status }
+    attendees.value = attendees.value.map((item) => item.id === attendee.id ? nextAttendee : item)
     ElMessage.success('Attendee status updated')
-    await loadAttendees()
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to update attendee status')
