@@ -37,8 +37,9 @@ public class EventService {
 
     private static final int SEARCH_RESULT_LIMIT = 20;
     private static final int DEFAULT_MAIN_PAGE_LIMIT = 20;
-    private static final int MAX_MAIN_PAGE_LIMIT = 100;
+    private static final int MAX_MAIN_PAGE_LIMIT = 1000;
     private static final String ORGANIZER_ROLE = "ORGANIZER";
+    private static final String ADMIN_ROLE = "ADMIN";
 
     private final EventRepository eventRepository;
     private final EventImageRepository eventImageRepository;
@@ -307,16 +308,27 @@ public class EventService {
     }
 
     private void ensureOrganizer(User user) {
-        if (!ORGANIZER_ROLE.equalsIgnoreCase(user.getRole())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only organizers can manage events");
+        if (!isOrganizer(user) && !isAdmin(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only organizers or admins can manage events");
         }
     }
 
     private void ensureEventOrganizer(Event event, User currentUser) {
         ensureOrganizer(currentUser);
+        if (isAdmin(currentUser)) {
+            return;
+        }
         if (event.getOrganizer() == null || !Objects.equals(event.getOrganizer().getId(), currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the event organizer can manage this event");
         }
+    }
+
+    private boolean isOrganizer(User user) {
+        return user != null && ORGANIZER_ROLE.equalsIgnoreCase(user.getRole());
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && ADMIN_ROLE.equalsIgnoreCase(user.getRole());
     }
 
     private int normalizeLimit(Integer limit) {
