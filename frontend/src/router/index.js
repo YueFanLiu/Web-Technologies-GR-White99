@@ -137,6 +137,20 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/my-events',
+    component: Layout,
+    hidden: true,
+    redirect: '/my-events/joined',
+    children: [
+      {
+        path: 'joined',
+        component: () => import('@/views/accessible-events/joinActivity.vue'),
+        name: 'JoinedActivities',
+        meta: { title: 'Joined Activities', icon: 'date' }
+      }
+    ]
+  },
+  {
     path: '/post',
     component: Layout,
     hidden: true,

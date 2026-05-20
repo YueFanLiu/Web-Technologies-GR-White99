@@ -113,7 +113,7 @@ const booking = {
 }
 
 function viewMyEvents() {
-  router.push('/product/mainEvent')
+  router.push('/my-events/joined')
 }
 
 function backToEvent() {

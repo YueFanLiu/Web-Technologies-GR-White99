@@ -66,15 +66,19 @@
         <el-menu-item index="/product/mainEvent">Home</el-menu-item>
         <el-sub-menu index="/my-events">
           <template #title>My Events</template>
-          <el-menu-item index="/product/createActivity">My Created Activities</el-menu-item>
-          <el-menu-item index="/my-events/joined">My Joined Activities</el-menu-item>
+          <el-menu-item index="/my-events/joined">Joined Activities</el-menu-item>
+          <el-menu-item index="/manager/manageEvent">Created Activities</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/notifications">
           <span>Notifications</span>
           <el-badge :value="unreadNotifications" class="nav-badge" />
         </el-menu-item>
         <el-menu-item index="/user/profile">Profile</el-menu-item>
-        <el-menu-item index="/post/mainPost">Post</el-menu-item>
+        <el-sub-menu index="/post">
+          <template #title>Posts</template>
+          <el-menu-item index="/post/createPost">Create Post</el-menu-item>
+          <el-menu-item index="/manager/managePost">My Posts</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </div>
 </template>
@@ -258,6 +262,29 @@ async function toggleTheme(event) {
         color: #409eff;
       }
     }
+  }
+}
+
+.sub-nav {
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+
+  .sub-nav-menu {
+    justify-content: center;
+    border-bottom: none;
+    background: transparent;
+  }
+
+  :deep(.el-menu-item),
+  :deep(.el-sub-menu__title) {
+    color: #1d3264;
+    font-weight: 600;
+  }
+
+  :deep(.el-menu-item.is-active),
+  :deep(.el-sub-menu.is-active .el-sub-menu__title) {
+    color: #409eff;
+    border-bottom-color: #409eff;
   }
 }
 </style>
