@@ -6,10 +6,10 @@ import fr.isep.projectweb.model.dao.EventReviewRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dto.request.EventRequest;
 import fr.isep.projectweb.model.dto.response.EventResponse;
+import fr.isep.projectweb.model.entity.AccessibilityPreference;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.Location;
-import fr.isep.projectweb.model.entity.LocationAccessibility;
 import fr.isep.projectweb.model.entity.User;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -197,37 +197,44 @@ public class EventService {
             }
 
             if (!accessibilityFilter.isEmpty()) {
-                Subquery<UUID> subquery = query.subquery(UUID.class);
-                Root<LocationAccessibility> accessibility = subquery.from(LocationAccessibility.class);
-                List<Predicate> accessibilityPredicates = new ArrayList<>();
-
-                accessibilityPredicates.add(criteriaBuilder.equal(
-                        accessibility.get("location").get("id"),
-                        root.get("location").get("id")
-                ));
                 if (accessibilityFilter.wheelchairAccessible()) {
-                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("wheelchairAccessible")));
+                    predicates.add(hasAccessibilityFeature(root, query, criteriaBuilder,
+                            AccessibilityFeatureKeys.WHEELCHAIR_ACCESSIBLE));
                 }
                 if (accessibilityFilter.hasElevator()) {
-                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("hasElevator")));
+                    predicates.add(hasAccessibilityFeature(root, query, criteriaBuilder,
+                            AccessibilityFeatureKeys.ELEVATOR));
                 }
                 if (accessibilityFilter.accessibleToilet()) {
-                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("accessibleToilet")));
+                    predicates.add(hasAccessibilityFeature(root, query, criteriaBuilder,
+                            AccessibilityFeatureKeys.ACCESSIBLE_RESTROOM));
                 }
                 if (accessibilityFilter.quietEnvironment()) {
-                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("quietEnvironment")));
+                    predicates.add(hasAccessibilityFeature(root, query, criteriaBuilder,
+                            AccessibilityFeatureKeys.QUIET_ENVIRONMENT));
                 }
                 if (accessibilityFilter.stepFreeAccess()) {
-                    accessibilityPredicates.add(criteriaBuilder.isTrue(accessibility.get("stepFreeAccess")));
+                    predicates.add(hasAccessibilityFeature(root, query, criteriaBuilder,
+                            AccessibilityFeatureKeys.STEP_FREE_ACCESS));
                 }
-
-                subquery.select(accessibility.get("id"))
-                        .where(criteriaBuilder.and(accessibilityPredicates.toArray(Predicate[]::new)));
-                predicates.add(criteriaBuilder.exists(subquery));
             }
 
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private Predicate hasAccessibilityFeature(Root<Event> root,
+                                              jakarta.persistence.criteria.CriteriaQuery<?> query,
+                                              jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder,
+                                              String featureKey) {
+        Subquery<UUID> subquery = query.subquery(UUID.class);
+        Root<AccessibilityPreference> accessibility = subquery.from(AccessibilityPreference.class);
+        subquery.select(accessibility.get("id"))
+                .where(criteriaBuilder.and(
+                        criteriaBuilder.equal(accessibility.get("location").get("id"), root.get("location").get("id")),
+                        criteriaBuilder.equal(accessibility.get("featureKey"), featureKey)
+                ));
+        return criteriaBuilder.exists(subquery);
     }
 
     public EventResponse getEventById(UUID id) {

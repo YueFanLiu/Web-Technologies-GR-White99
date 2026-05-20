@@ -246,6 +246,7 @@ import {
   Upload,
   User,
   UserFilled,
+  Van,
   VideoCamera
 } from '@element-plus/icons-vue'
 
@@ -293,7 +294,8 @@ const accessibilityFeatures = [
   { label: 'Wheelchair Accessible', icon: Service, key: 'wheelchairAccessible' },
   { label: 'Elevator Available', icon: UserFilled, key: 'hasElevator' },
   { label: 'Accessible Restroom', icon: VideoCamera, key: 'accessibleToilet' },
-  { label: 'Quiet / Low Noise', icon: Microphone, key: 'quietEnvironment' }
+  { label: 'Quiet / Low Noise', icon: Microphone, key: 'quietEnvironment' },
+  { label: 'Step-free Access', icon: Van, key: 'stepFreeAccess' }
 ]
 
 function toEntityId(response) {
@@ -324,9 +326,12 @@ function buildAccessibilityPayload() {
 
   return {
     ...payload,
-    stepFreeAccess: payload.wheelchairAccessible || payload.hasElevator,
     notes: ''
   }
+}
+
+function hasSelectedAccessibility(payload) {
+  return accessibilityFeatures.some((feature) => Boolean(payload[feature.key]))
 }
 
 function validateBusinessFields(startTime, endTime) {
@@ -419,7 +424,10 @@ async function publishActivity() {
       throw new Error('Create location response did not include an id')
     }
 
-    await createLocationAccessibility(locationId, buildAccessibilityPayload())
+    const accessibilityPayload = buildAccessibilityPayload()
+    if (hasSelectedAccessibility(accessibilityPayload)) {
+      await createLocationAccessibility(locationId, accessibilityPayload)
+    }
 
     const event = await createEvent({
       title: form.value.title,

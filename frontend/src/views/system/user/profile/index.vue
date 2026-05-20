@@ -145,7 +145,8 @@ const profileForm = reactive({
     wheelchair: false,
     elevator: false,
     restroom: false,
-    quiet: false
+    quiet: false,
+    stepFree: false
   }
 })
 
@@ -173,6 +174,12 @@ const accessibilityPreferences = [
     icon: 'QL',
     label: 'Quiet / Low Noise',
     description: 'I prefer quiet or low noise environments'
+  },
+  {
+    key: 'stepFree',
+    icon: 'SF',
+    label: 'Step-free Access',
+    description: 'I need routes without steps'
   }
 ]
 
@@ -204,6 +211,7 @@ function applyPreferences(preferences = {}) {
   profileForm.preferences.elevator = Boolean(preferences.elevatorNeeded)
   profileForm.preferences.restroom = Boolean(preferences.accessibleRestroom)
   profileForm.preferences.quiet = Boolean(preferences.quietEnvironment)
+  profileForm.preferences.stepFree = Boolean(preferences.stepFreeAccess)
 }
 
 function buildPreferencesPayload() {
@@ -211,7 +219,8 @@ function buildPreferencesPayload() {
     wheelchairAccessible: Boolean(profileForm.preferences.wheelchair),
     elevatorNeeded: Boolean(profileForm.preferences.elevator),
     accessibleRestroom: Boolean(profileForm.preferences.restroom),
-    quietEnvironment: Boolean(profileForm.preferences.quiet)
+    quietEnvironment: Boolean(profileForm.preferences.quiet),
+    stepFreeAccess: Boolean(profileForm.preferences.stepFree)
   }
 }
 

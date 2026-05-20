@@ -46,6 +46,13 @@ export function updateLocationAccessibility(locationId, data) {
   })
 }
 
+export function deleteLocationAccessibility(locationId) {
+  return request({
+    url: `/api/locations/${locationId}/accessibility`,
+    method: 'delete'
+  })
+}
+
 export function getEventRegistrations(eventId) {
   return request({
     url: `/api/registrations/event/${eventId}`,

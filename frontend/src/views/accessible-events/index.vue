@@ -50,10 +50,11 @@
                 <div class="filter-item">
                   <label>Accessibility Options</label>
                   <el-checkbox-group v-model="form.accessibility">
-                    <el-checkbox label="wheelchair">Wheelchair Accessible</el-checkbox>
+                    <el-checkbox label="wheelchairAccessible">Wheelchair Accessible</el-checkbox>
                     <el-checkbox label="elevator">Elevator</el-checkbox>
-                    <el-checkbox label="restroom">Accessible Restroom</el-checkbox>
-                    <el-checkbox label="low-noise">Low Noise Level</el-checkbox>
+                    <el-checkbox label="accessibleToilet">Accessible Restroom</el-checkbox>
+                    <el-checkbox label="quietEnvironment">Low Noise Level</el-checkbox>
+                    <el-checkbox label="stepFreeAccess">Step-free Access</el-checkbox>
                   </el-checkbox-group>
                 </div>
 

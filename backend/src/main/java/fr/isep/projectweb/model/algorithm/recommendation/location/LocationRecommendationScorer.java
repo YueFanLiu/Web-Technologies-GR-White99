@@ -12,7 +12,7 @@ import java.util.Locale;
  *
  * 接口调用流程如下：
  * 1. LocationService.searchLocations 先根据 keyword 从 locations 表中查一批候选地点。
- * 2. LocationService 再从 events、posts、location_images、location_accessibility 等表中
+ * 2. LocationService 再从 events、posts、location_images、accessibility_preferences 等表中
  *    收集每个候选地点的辅助信息。
  * 3. 这些数据会被组装成 LocationRecommendationFeatures。
  * 4. 本类只负责根据 features 计算 score。

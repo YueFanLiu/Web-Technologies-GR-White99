@@ -6,6 +6,7 @@ public class AccessibilityPreferencesResponse {
     private Boolean elevatorNeeded;
     private Boolean accessibleRestroom;
     private Boolean quietEnvironment;
+    private Boolean stepFreeAccess;
 
     public Boolean getWheelchairAccessible() {
         return wheelchairAccessible;
@@ -37,5 +38,13 @@ public class AccessibilityPreferencesResponse {
 
     public void setQuietEnvironment(Boolean quietEnvironment) {
         this.quietEnvironment = quietEnvironment;
+    }
+
+    public Boolean getStepFreeAccess() {
+        return stepFreeAccess;
+    }
+
+    public void setStepFreeAccess(Boolean stepFreeAccess) {
+        this.stepFreeAccess = stepFreeAccess;
     }
 }

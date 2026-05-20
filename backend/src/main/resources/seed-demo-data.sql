@@ -84,6 +84,15 @@ BEGIN
         RAISE EXCEPTION 'Seed aborted: public.users must contain at least one user.';
     END IF;
 
+    INSERT INTO public.accessibility_features (key, label)
+    VALUES
+        ('wheelchair_accessible', 'Wheelchair accessible'),
+        ('elevator', 'Elevator'),
+        ('accessible_restroom', 'Accessible restroom'),
+        ('quiet_environment', 'Quiet environment'),
+        ('step_free_access', 'Step-free access')
+    ON CONFLICT (key) DO NOTHING;
+
     INSERT INTO public.locations (
         id, name, description, address, city, country, latitude, longitude
     )
@@ -107,7 +116,24 @@ BEGIN
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude;
 
-    INSERT INTO public.location_accessibility (
+    DELETE FROM public.accessibility_preferences
+    WHERE location_id = ANY(location_ids);
+
+    INSERT INTO public.accessibility_preferences (location_id, feature_key, notes)
+    SELECT accessibility.location_id, accessibility.feature_key, accessibility.notes
+    FROM (
+        VALUES
+            (location_ids[1], true, true, true, false, true, 'Main entrance is step-free and staff can assist families.'),
+            (location_ids[2], true, false, true, false, true, 'Outdoor paths are mostly flat, but some garden areas are uneven.'),
+            (location_ids[3], true, true, true, false, true, 'Elevator available near the main reception.'),
+            (location_ids[4], true, true, true, true, true, 'Quiet rooms are available during sensory-friendly hours.'),
+            (location_ids[5], true, false, true, false, true, 'Sports floor is accessible from the side entrance.'),
+            (location_ids[6], false, false, false, true, false, 'Small studio on the first floor without elevator.'),
+            (location_ids[7], true, true, true, false, true, 'Robotics room has wide table spacing.'),
+            (location_ids[8], true, true, true, true, true, 'Designed for calm small-group activities.'),
+            (location_ids[9], false, false, false, false, false, 'Outdoor seating includes stairs and uneven paths.'),
+            (location_ids[10], true, false, true, true, true, 'Step-free entrance and quiet morning hours.')
+    ) AS source(
         location_id,
         wheelchair_accessible,
         has_elevator,
@@ -116,24 +142,15 @@ BEGIN
         step_free_access,
         notes
     )
-    VALUES
-        (location_ids[1], true, true, true, false, true, 'Main entrance is step-free and staff can assist families.'),
-        (location_ids[2], true, false, true, false, true, 'Outdoor paths are mostly flat, but some garden areas are uneven.'),
-        (location_ids[3], true, true, true, false, true, 'Elevator available near the main reception.'),
-        (location_ids[4], true, true, true, true, true, 'Quiet rooms are available during sensory-friendly hours.'),
-        (location_ids[5], true, false, true, false, true, 'Sports floor is accessible from the side entrance.'),
-        (location_ids[6], false, false, false, true, false, 'Small studio on the first floor without elevator.'),
-        (location_ids[7], true, true, true, false, true, 'Robotics room has wide table spacing.'),
-        (location_ids[8], true, true, true, true, true, 'Designed for calm small-group activities.'),
-        (location_ids[9], false, false, false, false, false, 'Outdoor seating includes stairs and uneven paths.'),
-        (location_ids[10], true, false, true, true, true, 'Step-free entrance and quiet morning hours.')
-    ON CONFLICT (location_id) DO UPDATE SET
-        wheelchair_accessible = EXCLUDED.wheelchair_accessible,
-        has_elevator = EXCLUDED.has_elevator,
-        accessible_toilet = EXCLUDED.accessible_toilet,
-        quiet_environment = EXCLUDED.quiet_environment,
-        step_free_access = EXCLUDED.step_free_access,
-        notes = EXCLUDED.notes;
+    CROSS JOIN LATERAL (
+        VALUES
+            ('wheelchair_accessible', source.wheelchair_accessible),
+            ('elevator', source.has_elevator),
+            ('accessible_restroom', source.accessible_toilet),
+            ('quiet_environment', source.quiet_environment),
+            ('step_free_access', source.step_free_access)
+    ) AS accessibility(feature_key, enabled)
+    WHERE accessibility.enabled = true;
 
     INSERT INTO public.location_images (location_id, image_url)
     SELECT v.location_id, v.image_url

@@ -119,6 +119,7 @@
               <el-checkbox label="Elevator Available" />
               <el-checkbox label="Accessible Restroom" />
               <el-checkbox label="Quiet / Low Noise" />
+              <el-checkbox label="Step-free Access" />
             </el-checkbox-group>
           </section>
         </div>
@@ -211,6 +212,7 @@ import {
 } from '@element-plus/icons-vue'
 import {
   createLocationAccessibility,
+  deleteLocationAccessibility,
   getEvent,
   getEventRegistrations,
   getLocationAccessibility,
@@ -270,7 +272,8 @@ const accessibilityFeatures = [
   { label: 'Wheelchair Accessible', key: 'wheelchairAccessible' },
   { label: 'Elevator Available', key: 'hasElevator' },
   { label: 'Accessible Restroom', key: 'accessibleToilet' },
-  { label: 'Quiet / Low Noise', key: 'quietEnvironment' }
+  { label: 'Quiet / Low Noise', key: 'quietEnvironment' },
+  { label: 'Step-free Access', key: 'stepFreeAccess' }
 ]
 
 const remainingSpots = computed(() => Math.max(registration.capacity - registration.registered, 0))
@@ -375,9 +378,12 @@ function buildAccessibilityPayload() {
 
   return {
     ...payload,
-    stepFreeAccess: payload.wheelchairAccessible || payload.hasElevator,
     notes: ''
   }
+}
+
+function hasSelectedAccessibility(payload) {
+  return accessibilityFeatures.some((feature) => Boolean(payload[feature.key]))
 }
 
 async function loadActivity() {
@@ -515,9 +521,13 @@ async function saveChanges() {
     })
 
     const accessibilityPayload = buildAccessibilityPayload()
-    if (hasAccessibility.value) {
+    const hasSelectedAccessibilityFeatures = hasSelectedAccessibility(accessibilityPayload)
+    if (hasAccessibility.value && hasSelectedAccessibilityFeatures) {
       await updateLocationAccessibility(originalLocation.value.id, accessibilityPayload)
-    } else {
+    } else if (hasAccessibility.value) {
+      await deleteLocationAccessibility(originalLocation.value.id)
+      hasAccessibility.value = false
+    } else if (hasSelectedAccessibilityFeatures) {
       await createLocationAccessibility(originalLocation.value.id, accessibilityPayload)
       hasAccessibility.value = true
     }

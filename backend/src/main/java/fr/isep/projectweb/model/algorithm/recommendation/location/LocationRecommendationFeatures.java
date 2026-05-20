@@ -88,7 +88,7 @@ public class LocationRecommendationFeatures {
     private int imageCount;
 
     /**
-     * Accessibility signals from location_accessibility.
+     * Accessibility signals from accessibility_preferences.
      *
      * Boolean is used instead of boolean so "unknown" can be represented as
      * null. The scorer currently treats null as false, but preserving null here

@@ -2,7 +2,6 @@ package fr.isep.projectweb.model.service;
 
 import fr.isep.projectweb.model.dto.response.EventSummaryResponse;
 import fr.isep.projectweb.model.dto.response.ImageResponse;
-import fr.isep.projectweb.model.dto.response.LocationAccessibilityResponse;
 import fr.isep.projectweb.model.dto.response.LocationResponse;
 import fr.isep.projectweb.model.dto.response.PostResponse;
 import fr.isep.projectweb.model.dto.response.PublicUserResponse;
@@ -13,7 +12,6 @@ import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.EventReview;
 import fr.isep.projectweb.model.entity.Location;
-import fr.isep.projectweb.model.entity.LocationAccessibility;
 import fr.isep.projectweb.model.entity.LocationImage;
 import fr.isep.projectweb.model.entity.Post;
 import fr.isep.projectweb.model.entity.PostImage;
@@ -153,18 +151,4 @@ final class ResponseMapper {
         return response;
     }
 
-    static LocationAccessibilityResponse toLocationAccessibilityResponse(LocationAccessibility accessibility) {
-        LocationAccessibilityResponse response = new LocationAccessibilityResponse();
-        response.setId(accessibility.getId());
-        response.setLocation(toLocationResponse(accessibility.getLocation()));
-        response.setWheelchairAccessible(accessibility.getWheelchairAccessible());
-        response.setHasElevator(accessibility.getHasElevator());
-        response.setAccessibleToilet(accessibility.getAccessibleToilet());
-        response.setQuietEnvironment(accessibility.getQuietEnvironment());
-        response.setStepFreeAccess(accessibility.getStepFreeAccess());
-        response.setNotes(accessibility.getNotes());
-        response.setCreatedAt(accessibility.getCreatedAt());
-        response.setUpdatedAt(accessibility.getUpdatedAt());
-        return response;
-    }
 }

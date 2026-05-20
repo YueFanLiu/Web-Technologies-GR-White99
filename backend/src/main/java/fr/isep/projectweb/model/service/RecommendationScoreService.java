@@ -9,15 +9,15 @@ import fr.isep.projectweb.model.algorithm.recommendation.post.PostRecommendation
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
-import fr.isep.projectweb.model.dao.LocationAccessibilityRepository;
+import fr.isep.projectweb.model.dao.AccessibilityPreferenceRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dao.LocationImageRepository;
 import fr.isep.projectweb.model.dao.PostImageRepository;
 import fr.isep.projectweb.model.dao.PostRepository;
 import fr.isep.projectweb.model.dao.PostReviewRepository;
+import fr.isep.projectweb.model.entity.AccessibilityPreference;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Location;
-import fr.isep.projectweb.model.entity.LocationAccessibility;
 import fr.isep.projectweb.model.entity.Post;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -26,7 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class RecommendationScoreService {
@@ -39,7 +41,7 @@ public class RecommendationScoreService {
     private final PostImageRepository postImageRepository;
     private final PostReviewRepository postReviewRepository;
     private final LocationImageRepository locationImageRepository;
-    private final LocationAccessibilityRepository locationAccessibilityRepository;
+    private final AccessibilityPreferenceRepository accessibilityPreferenceRepository;
     private final EventRecommendationScorer eventRecommendationScorer;
     private final PostRecommendationScorer postRecommendationScorer;
     private final LocationRecommendationScorer locationRecommendationScorer;
@@ -52,7 +54,7 @@ public class RecommendationScoreService {
                                       PostImageRepository postImageRepository,
                                       PostReviewRepository postReviewRepository,
                                       LocationImageRepository locationImageRepository,
-                                      LocationAccessibilityRepository locationAccessibilityRepository,
+                                      AccessibilityPreferenceRepository accessibilityPreferenceRepository,
                                       EventRecommendationScorer eventRecommendationScorer,
                                       PostRecommendationScorer postRecommendationScorer,
                                       LocationRecommendationScorer locationRecommendationScorer) {
@@ -64,7 +66,7 @@ public class RecommendationScoreService {
         this.postImageRepository = postImageRepository;
         this.postReviewRepository = postReviewRepository;
         this.locationImageRepository = locationImageRepository;
-        this.locationAccessibilityRepository = locationAccessibilityRepository;
+        this.accessibilityPreferenceRepository = accessibilityPreferenceRepository;
         this.eventRecommendationScorer = eventRecommendationScorer;
         this.postRecommendationScorer = postRecommendationScorer;
         this.locationRecommendationScorer = locationRecommendationScorer;
@@ -205,19 +207,22 @@ public class RecommendationScoreService {
         features.setPostCount(toIntCount(postRepository.countByLocationId(locationId)));
         features.setImageCount(toIntCount(locationImageRepository.countByLocationId(locationId)));
 
-        locationAccessibilityRepository.findByLocationId(locationId)
-                .ifPresent(accessibility -> applyAccessibilityFeatures(features, accessibility));
+        applyAccessibilityFeatures(features, accessibilityPreferenceRepository.findByLocationId(locationId));
 
         return features;
     }
 
     private void applyAccessibilityFeatures(LocationRecommendationFeatures features,
-                                            LocationAccessibility accessibility) {
-        features.setWheelchairAccessible(accessibility.getWheelchairAccessible());
-        features.setHasElevator(accessibility.getHasElevator());
-        features.setAccessibleToilet(accessibility.getAccessibleToilet());
-        features.setQuietEnvironment(accessibility.getQuietEnvironment());
-        features.setStepFreeAccess(accessibility.getStepFreeAccess());
+                                            Iterable<AccessibilityPreference> preferences) {
+        Set<String> featureKeys = java.util.stream.StreamSupport.stream(preferences.spliterator(), false)
+                .map(AccessibilityPreference::getFeatureKey)
+                .collect(Collectors.toSet());
+
+        features.setWheelchairAccessible(featureKeys.contains(AccessibilityFeatureKeys.WHEELCHAIR_ACCESSIBLE));
+        features.setHasElevator(featureKeys.contains(AccessibilityFeatureKeys.ELEVATOR));
+        features.setAccessibleToilet(featureKeys.contains(AccessibilityFeatureKeys.ACCESSIBLE_RESTROOM));
+        features.setQuietEnvironment(featureKeys.contains(AccessibilityFeatureKeys.QUIET_ENVIRONMENT));
+        features.setStepFreeAccess(featureKeys.contains(AccessibilityFeatureKeys.STEP_FREE_ACCESS));
     }
 
     private int toIntCount(long count) {

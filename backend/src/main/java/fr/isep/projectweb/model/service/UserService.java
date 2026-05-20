@@ -1,32 +1,36 @@
 package fr.isep.projectweb.model.service;
 
-import fr.isep.projectweb.model.dao.UserAccessibilityPreferenceRepository;
+import fr.isep.projectweb.model.dao.AccessibilityPreferenceRepository;
 import fr.isep.projectweb.model.dao.UserRepository;
 import fr.isep.projectweb.model.dto.request.AccessibilityPreferencesRequest;
 import fr.isep.projectweb.model.dto.request.UpdateMyProfileRequest;
 import fr.isep.projectweb.model.dto.response.AccessibilityPreferencesResponse;
 import fr.isep.projectweb.model.dto.response.PublicUserResponse;
 import fr.isep.projectweb.model.dto.response.UserProfileResponse;
-import fr.isep.projectweb.model.entity.UserAccessibilityPreference;
+import fr.isep.projectweb.model.entity.AccessibilityPreference;
 import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
-    private final UserAccessibilityPreferenceRepository accessibilityPreferenceRepository;
+    private final AccessibilityPreferenceRepository accessibilityPreferenceRepository;
     private final CurrentUserService currentUserService;
     private final SupabaseStorageService supabaseStorageService;
 
     public UserService(UserRepository userRepository,
-                       UserAccessibilityPreferenceRepository accessibilityPreferenceRepository,
+                       AccessibilityPreferenceRepository accessibilityPreferenceRepository,
                        CurrentUserService currentUserService,
                        SupabaseStorageService supabaseStorageService) {
         this.userRepository = userRepository;
@@ -39,6 +43,7 @@ public class UserService {
         return toUserProfileResponse(currentUserService.getOrCreateCurrentUser(jwt));
     }
 
+    @Transactional
     public UserProfileResponse updateMyProfile(Jwt jwt, UpdateMyProfileRequest request) {
         User user = currentUserService.getOrCreateCurrentUser(jwt);
         applyUpdate(user, request);
@@ -77,18 +82,9 @@ public class UserService {
             return;
         }
 
-        UserAccessibilityPreference preference = accessibilityPreferenceRepository.findByUserId(user.getId())
-                .orElseGet(() -> {
-                    UserAccessibilityPreference newPreference = new UserAccessibilityPreference();
-                    newPreference.setUser(user);
-                    return newPreference;
-                });
-
-        preference.setWheelchairAccessible(Boolean.TRUE.equals(request.getWheelchairAccessible()));
-        preference.setElevatorNeeded(Boolean.TRUE.equals(request.getElevatorNeeded()));
-        preference.setAccessibleRestroom(Boolean.TRUE.equals(request.getAccessibleRestroom()));
-        preference.setQuietEnvironment(Boolean.TRUE.equals(request.getQuietEnvironment()));
-        accessibilityPreferenceRepository.save(preference);
+        accessibilityPreferenceRepository.deleteByUserId(user.getId());
+        accessibilityPreferenceRepository.flush();
+        accessibilityPreferenceRepository.saveAll(toUserPreferences(user, request));
     }
 
     private String normalizePhone(String phone) {
@@ -114,27 +110,49 @@ public class UserService {
     }
 
     private AccessibilityPreferencesResponse toAccessibilityPreferencesResponse(User user) {
-        return accessibilityPreferenceRepository.findByUserId(user.getId())
-                .map(this::toAccessibilityPreferencesResponse)
-                .orElseGet(this::defaultAccessibilityPreferencesResponse);
+        return toAccessibilityPreferencesResponse(accessibilityPreferenceRepository.findByUserId(user.getId()));
     }
 
-    private AccessibilityPreferencesResponse toAccessibilityPreferencesResponse(UserAccessibilityPreference preference) {
+    private AccessibilityPreferencesResponse toAccessibilityPreferencesResponse(List<AccessibilityPreference> preferences) {
+        Set<String> featureKeys = preferences.stream()
+                .map(AccessibilityPreference::getFeatureKey)
+                .collect(Collectors.toSet());
+
         AccessibilityPreferencesResponse response = new AccessibilityPreferencesResponse();
-        response.setWheelchairAccessible(Boolean.TRUE.equals(preference.getWheelchairAccessible()));
-        response.setElevatorNeeded(Boolean.TRUE.equals(preference.getElevatorNeeded()));
-        response.setAccessibleRestroom(Boolean.TRUE.equals(preference.getAccessibleRestroom()));
-        response.setQuietEnvironment(Boolean.TRUE.equals(preference.getQuietEnvironment()));
+        response.setWheelchairAccessible(featureKeys.contains(AccessibilityFeatureKeys.WHEELCHAIR_ACCESSIBLE));
+        response.setElevatorNeeded(featureKeys.contains(AccessibilityFeatureKeys.ELEVATOR));
+        response.setAccessibleRestroom(featureKeys.contains(AccessibilityFeatureKeys.ACCESSIBLE_RESTROOM));
+        response.setQuietEnvironment(featureKeys.contains(AccessibilityFeatureKeys.QUIET_ENVIRONMENT));
+        response.setStepFreeAccess(featureKeys.contains(AccessibilityFeatureKeys.STEP_FREE_ACCESS));
         return response;
     }
 
-    private AccessibilityPreferencesResponse defaultAccessibilityPreferencesResponse() {
-        AccessibilityPreferencesResponse response = new AccessibilityPreferencesResponse();
-        response.setWheelchairAccessible(false);
-        response.setElevatorNeeded(false);
-        response.setAccessibleRestroom(false);
-        response.setQuietEnvironment(false);
-        return response;
+    private List<AccessibilityPreference> toUserPreferences(User user, AccessibilityPreferencesRequest request) {
+        return java.util.stream.Stream.of(
+                        toUserPreference(user, AccessibilityFeatureKeys.WHEELCHAIR_ACCESSIBLE,
+                                request.getWheelchairAccessible()),
+                        toUserPreference(user, AccessibilityFeatureKeys.ELEVATOR,
+                                request.getElevatorNeeded()),
+                        toUserPreference(user, AccessibilityFeatureKeys.ACCESSIBLE_RESTROOM,
+                                request.getAccessibleRestroom()),
+                        toUserPreference(user, AccessibilityFeatureKeys.QUIET_ENVIRONMENT,
+                                request.getQuietEnvironment()),
+                        toUserPreference(user, AccessibilityFeatureKeys.STEP_FREE_ACCESS,
+                                request.getStepFreeAccess())
+                )
+                .filter(preference -> preference != null)
+                .toList();
+    }
+
+    private AccessibilityPreference toUserPreference(User user, String featureKey, Boolean enabled) {
+        if (!Boolean.TRUE.equals(enabled)) {
+            return null;
+        }
+
+        AccessibilityPreference preference = new AccessibilityPreference();
+        preference.setUser(user);
+        preference.setFeatureKey(featureKey);
+        return preference;
     }
 
     private PublicUserResponse toPublicUserResponse(User user) {
