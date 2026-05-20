@@ -123,18 +123,18 @@ public class EventService {
     public List<EventResponse> searchEvents(String keyword,
                                             String locationId,
                                             String date,
-                                            String activityType,
+                                            List<String> activityTypes,
                                             List<String> accessibilityOptions) {
         String normalizedKeyword = normalizeOptional(keyword);
         UUID normalizedLocationId = normalizeOptionalUuid(locationId, "locationId");
         LocalDate normalizedDate = normalizeOptionalDate(date);
-        String normalizedActivityType = normalizeOptionalFilter(activityType);
+        List<String> normalizedActivityTypes = normalizeOptionalFilters(activityTypes);
         AccessibilityFilter accessibilityFilter = normalizeAccessibilityOptions(accessibilityOptions);
 
         if (normalizedKeyword == null
                 && normalizedLocationId == null
                 && normalizedDate == null
-                && normalizedActivityType == null
+                && normalizedActivityTypes.isEmpty()
                 && accessibilityFilter.isEmpty()) {
             return getMainPageEvents(null, null, null, null, null, null);
         }
@@ -144,7 +144,7 @@ public class EventService {
                                 normalizedKeyword,
                                 normalizedLocationId,
                                 normalizedDate,
-                                normalizedActivityType,
+                                normalizedActivityTypes,
                                 accessibilityFilter
                         ),
                         PageRequest.of(0, SEARCH_RESULT_LIMIT, Sort.by(
@@ -162,7 +162,7 @@ public class EventService {
     private Specification<Event> buildSearchSpecification(String keyword,
                                                           UUID locationId,
                                                           LocalDate date,
-                                                          String activityType,
+                                                          List<String> activityTypes,
                                                           AccessibilityFilter accessibilityFilter) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -189,10 +189,11 @@ public class EventService {
                 ));
             }
 
-            if (activityType != null) {
-                predicates.add(criteriaBuilder.equal(
-                        criteriaBuilder.lower(root.get("category")),
-                        activityType.toLowerCase(Locale.ROOT)
+            if (!activityTypes.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(root.get("category")).in(
+                        activityTypes.stream()
+                                .map(activityType -> activityType.toLowerCase(Locale.ROOT))
+                                .toList()
                 ));
             }
 
@@ -366,6 +367,20 @@ public class EventService {
             return null;
         }
         return normalized;
+    }
+
+    private List<String> normalizeOptionalFilters(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+
+        return values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .flatMap(value -> java.util.Arrays.stream(value.split(",")))
+                .map(this::normalizeOptionalFilter)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     private UUID normalizeOptionalUuid(String value, String fieldName) {

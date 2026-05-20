@@ -59,7 +59,7 @@ public class EventController {
                                             @RequestParam(required = false) String locationId,
                                             @RequestParam(name = "location", required = false) String location,
                                             @RequestParam(required = false) String date,
-                                            @RequestParam(required = false) String activityType,
+                                            @RequestParam(required = false) List<String> activityType,
                                             @RequestParam(required = false) List<String> accessibilityOptions) {
         return eventService.searchEvents(keyword, locationId != null ? locationId : location, date, activityType, accessibilityOptions);
     }

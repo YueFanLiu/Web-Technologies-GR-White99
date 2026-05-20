@@ -608,7 +608,7 @@ const handleApplyFilters = () => {
   const params = {}
   if (form.locationId)                 params.locationId = form.locationId
   if (form.date)                       params.date = form.date
-  if (form.activityType.length > 0)  params.activityType = form.activityType[0]
+  if (form.activityType.length > 0)  params.activityType = form.activityType
   if (form.accessibility.length > 0) params.accessibilityOptions = form.accessibility
   searchEvents(params)
 }
