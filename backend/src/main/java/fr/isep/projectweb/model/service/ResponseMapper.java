@@ -5,6 +5,7 @@ import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.dto.response.LocationAccessibilityResponse;
 import fr.isep.projectweb.model.dto.response.LocationResponse;
 import fr.isep.projectweb.model.dto.response.PostResponse;
+import fr.isep.projectweb.model.dto.response.PublicUserResponse;
 import fr.isep.projectweb.model.dto.response.RegistrationResponse;
 import fr.isep.projectweb.model.dto.response.ReviewResponse;
 import fr.isep.projectweb.model.dto.response.UserSummaryResponse;
@@ -33,6 +34,19 @@ final class ResponseMapper {
         UserSummaryResponse response = new UserSummaryResponse();
         response.setId(user.getId());
         response.setFullName(user.getFullName());
+        response.setRole(user.getRole());
+        return response;
+    }
+
+    static PublicUserResponse toPublicUserResponse(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        PublicUserResponse response = new PublicUserResponse();
+        response.setId(user.getId());
+        response.setFullName(user.getFullName());
+        response.setPhoto(user.getPhoto());
         response.setRole(user.getRole());
         return response;
     }

@@ -3,6 +3,7 @@ package fr.isep.projectweb.controller;
 import fr.isep.projectweb.model.dto.request.UpdateMyProfileRequest;
 import fr.isep.projectweb.model.dto.response.PublicUserResponse;
 import fr.isep.projectweb.model.dto.response.UserProfileResponse;
+import fr.isep.projectweb.model.service.FriendService;
 import fr.isep.projectweb.model.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,9 +30,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final FriendService friendService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, FriendService friendService) {
         this.userService = userService;
+        this.friendService = friendService;
     }
 
     @GetMapping("/me")
@@ -59,5 +62,13 @@ public class UserController {
     @Operation(summary = "Get a public user profile by id")
     public PublicUserResponse getUserById(@PathVariable UUID id) {
         return userService.getPublicUserById(id);
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search public users by full name")
+    public java.util.List<PublicUserResponse> searchUsers(@RequestParam(required = false) String keyword,
+                                                          @RequestParam(required = false) Integer limit,
+                                                          @AuthenticationPrincipal Jwt jwt) {
+        return friendService.searchUsers(keyword, limit, jwt);
     }
 }
