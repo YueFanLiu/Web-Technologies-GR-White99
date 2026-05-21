@@ -1,253 +1,256 @@
 <template>
-  <div class="page-wrapper">
-    <el-container class="full-container">
-      <!-- 主体三栏布局 -->
-      <el-container class="main-container">
-        <!-- 左侧筛选栏 -->
-        <el-aside width="240px" class="aside-left">
-          <div class="filters-panel">
-            <el-collapse accordion>
-              <el-collapse-item title="Filters" name="1">
-                <!-- 位置筛选 -->
-                <div class="filter-item">
-                  <label>Location</label>
-                  <el-select v-model="form.locationId" placeholder="Select location" clearable>
-                    <el-option
-                      v-for="loc in locationOptions"
-                      :key="loc.id"
-                      :label="`${loc.name} - ${loc.address || loc.city || ''}`"
-                      :value="loc.id"
-                    />
-                  </el-select>
-                </div>
-
-                <!-- 日期筛选 -->
-                <div class="filter-item">
-                  <label>Date</label>
-                  <el-date-picker
-                    v-model="form.date"
-                    type="date"
-                    placeholder="Select date"
-                    value-format="YYYY-MM-DD"
-                    format="YYYY-MM-DD"
-                    style="width: 100%"
-                    clearable
-                  />
-                </div>
-
-                <!-- 活动类型 -->
-                <div class="filter-item">
-                  <label>Activity Type</label>
-                  <el-checkbox-group v-model="form.activityType">
-                    <el-checkbox label="all">All</el-checkbox>
-                    <el-checkbox label="outdoor">Outdoor</el-checkbox>
-                    <el-checkbox label="class">Class</el-checkbox>
-                    <el-checkbox label="workshop">Workshop</el-checkbox>
-                  </el-checkbox-group>
-                </div>
-
-                <!-- 无障碍选项 -->
-                <div class="filter-item">
-                  <label>Accessibility Options</label>
-                  <el-checkbox-group v-model="form.accessibility">
-                    <el-checkbox label="wheelchairAccessible">Wheelchair Accessible</el-checkbox>
-                    <el-checkbox label="elevator">Elevator</el-checkbox>
-                    <el-checkbox label="accessibleToilet">Accessible Restroom</el-checkbox>
-                    <el-checkbox label="quietEnvironment">Low Noise Level</el-checkbox>
-                    <el-checkbox label="stepFreeAccess">Step-free Access</el-checkbox>
-                  </el-checkbox-group>
-                </div>
-
-                <el-button type="primary" style="width: 100%; margin-top: 15px;" @click="handleApplyFilters">Apply Filters</el-button>
-              </el-collapse-item>
-            </el-collapse>
-
-            <div class="suggestion-box">
-              Can't decide? Here are some events you might like!
-            </div>
-          </div>
-        </el-aside>
-
-        <!-- 中间活动列表 -->
-        <el-main class="main-content">
-          <div class="activity-header">
-            <h3>Activity List</h3>
-            <div class="header-controls">
-              <el-button
-                v-if="canCreateActivity"
-                type="success"
-                icon="el-icon-plus"
-                @click="openCreateDialog"
-              >
-                Create Activity
-              </el-button>
-
-              <el-button-group>
-                <el-button icon="el-icon-arrow-left" size="small"></el-button>
-                <el-button size="small">Today</el-button>
-                <el-button icon="el-icon-arrow-right" size="small"></el-button>
-              </el-button-group>
-            </div>
-          </div>
-
-          <!-- 活动卡片列表（模拟数据） -->
-          <div class="activity-list" v-loading="loading">
-            <div class="activity-card" v-for="(item, index) in activityList" :key="index">
-              <div v-if="props.managerMode && canManageEvent(item)" class="delete-btn">
-                <el-button type="danger" size="mini" @click.stop="handleDelete(item.id)">Delete</el-button>
-                <el-button type="primary" size="mini" @click.stop="openEditDialog(item)">Edit</el-button>
-              </div>
-              <div class="card-image">
-                <img :src="item.image" alt="activity" />
-              </div>
-              <div class="card-info">
-                <div class="card-header">
-                  <h4>{{ item.title }}</h4>
-                  <el-tag type="primary" v-if="item.recommended">Recommended</el-tag>
-                </div>
-                <p><i class="el-icon-date"></i> {{ item.date }}</p>
-                <p><i class="el-icon-time"></i> {{ item.time }}</p>
-                <p><i class="el-icon-location"></i> {{ item.locationName }}</p>
-                <p><i class="el-icon-location-outline"></i> {{ item.locationAddress }}</p>
-
-                <div class="card-footer">
-                  <div class="rating">
-                    <el-rate v-model="item.rating" disabled show-score text-color="#ff9900"></el-rate>
-                    <span>{{ item.reviews }} reviews</span>
+  <div>
+    <div class="page-wrapper">
+      <el-container class="full-container">
+        <!-- 主体三栏布局 -->
+        <el-container class="main-container">
+          <!-- 左侧筛选栏 -->
+          <el-aside width="240px" class="aside-left">
+            <div class="filters-panel">
+              <el-collapse accordion>
+                <el-collapse-item title="Filters" name="1">
+                  <!-- 位置筛选 -->
+                  <div class="filter-item">
+                    <label>Location</label>
+                    <el-select v-model="form.locationId" placeholder="Select location" clearable>
+                      <el-option
+                        v-for="loc in locationOptions"
+                        :key="loc.id"
+                        :label="`${loc.name} - ${loc.address || loc.city || ''}`"
+                        :value="loc.id"
+                      />
+                    </el-select>
                   </div>
-                  <el-button type="primary" @click="goToDetails(item)">View Details</el-button>
-                  <el-button v-if="showParentActions" @click="joinActivity(item)">Join Activity</el-button>
-                  <el-button v-if="showParentActions" @click="saveActivity(item)">Save</el-button>
-                  <el-button v-if="showParentActions" @click="createPost(item)">Create Post</el-button>
-                  <el-button v-if="canManageEvent(item) && !props.managerMode" @click="openEditDialog(item)">
-                    Manage Activity
-                  </el-button>
-                  <el-button v-if="canManageEvent(item) && !props.managerMode" @click="viewAttendees(item)">
-                    View Attendees
-                  </el-button>
-                  <el-button
-                    v-if="isCurrentAdmin && !props.managerMode"
-                    type="primary"
-                    @click="openEditDialog(item)"
-                  >
-                    Edit
-                  </el-button>
-                  <el-button
-                    v-if="isCurrentAdmin && !props.managerMode"
-                    type="danger"
-                    @click="handleDelete(item.id)"
-                  >
-                    Delete
-                  </el-button>
+
+                  <!-- 日期筛选 -->
+                  <div class="filter-item">
+                    <label>Date</label>
+                    <el-date-picker
+                      v-model="form.date"
+                      type="date"
+                      placeholder="Select date"
+                      value-format="YYYY-MM-DD"
+                      format="YYYY-MM-DD"
+                      style="width: 100%"
+                      clearable
+                    />
+                  </div>
+
+                  <!-- 活动类型 -->
+                  <div class="filter-item">
+                    <label>Activity Type</label>
+                    <el-checkbox-group v-model="form.activityType">
+                      <el-checkbox label="all">All</el-checkbox>
+                      <el-checkbox label="outdoor">Outdoor</el-checkbox>
+                      <el-checkbox label="class">Class</el-checkbox>
+                      <el-checkbox label="workshop">Workshop</el-checkbox>
+                    </el-checkbox-group>
+                  </div>
+
+                  <!-- 无障碍选项 -->
+                  <div class="filter-item">
+                    <label>Accessibility Options</label>
+                    <el-checkbox-group v-model="form.accessibility">
+                      <el-checkbox label="wheelchairAccessible">Wheelchair Accessible</el-checkbox>
+                      <el-checkbox label="elevator">Elevator</el-checkbox>
+                      <el-checkbox label="accessibleToilet">Accessible Restroom</el-checkbox>
+                      <el-checkbox label="quietEnvironment">Low Noise Level</el-checkbox>
+                      <el-checkbox label="stepFreeAccess">Step-free Access</el-checkbox>
+                    </el-checkbox-group>
+                  </div>
+
+                  <el-button type="primary" style="width: 100%; margin-top: 15px;" @click="handleApplyFilters">Apply Filters</el-button>
+                </el-collapse-item>
+              </el-collapse>
+
+              <div class="suggestion-box">
+                Can't decide? Here are some events you might like!
+              </div>
+            </div>
+          </el-aside>
+
+          <!-- 中间活动列表 -->
+          <el-main class="main-content">
+            <div class="activity-header">
+              <h3>Activity List</h3>
+              <div class="header-controls">
+                <el-button
+                  v-if="canCreateActivity"
+                  type="success"
+                  icon="el-icon-plus"
+                  @click="openCreateDialog"
+                >
+                  Create Activity
+                </el-button>
+
+                <el-button-group>
+                  <el-button icon="el-icon-arrow-left" size="small"></el-button>
+                  <el-button size="small">Today</el-button>
+                  <el-button icon="el-icon-arrow-right" size="small"></el-button>
+                </el-button-group>
+              </div>
+            </div>
+
+            <!-- 活动卡片列表（模拟数据） -->
+            <div class="activity-list" v-loading="loading">
+              <div class="activity-card" v-for="(item, index) in activityList" :key="index">
+                <div v-if="props.managerMode && canManageEvent(item)" class="delete-btn">
+                  <el-button type="danger" size="mini" @click.stop="handleDelete(item.id)">Delete</el-button>
+                  <el-button type="primary" size="mini" @click.stop="openEditDialog(item)">Edit</el-button>
+                </div>
+                <div class="card-image">
+                  <img :src="item.image" alt="activity" />
+                </div>
+                <div class="card-info">
+                  <div class="card-header">
+                    <h4>{{ item.title }}</h4>
+                    <el-tag type="primary" v-if="item.recommended">Recommended</el-tag>
+                  </div>
+                  <p><i class="el-icon-date"></i> {{ item.date }}</p>
+                  <p><i class="el-icon-time"></i> {{ item.time }}</p>
+                  <p><i class="el-icon-location"></i> {{ item.locationName }}</p>
+                  <p><i class="el-icon-location-outline"></i> {{ item.locationAddress }}</p>
+
+                  <div class="card-footer">
+                    <div class="rating">
+                      <el-rate v-model="item.rating" disabled show-score text-color="#ff9900"></el-rate>
+                      <span>{{ item.reviews }} reviews</span>
+                    </div>
+                    <el-button type="primary" @click="goToDetails(item)">View Details</el-button>
+                    <el-button v-if="showParentActions" @click="joinActivity(item)">Join Activity</el-button>
+                    <el-button v-if="showParentActions" @click="saveActivity(item)">Save</el-button>
+                    <el-button v-if="showParentActions" @click="createPost(item)">Create Post</el-button>
+                    <el-button v-if="canManageEvent(item) && !props.managerMode" @click="openEditDialog(item)">
+                      Manage Activity
+                    </el-button>
+                    <el-button v-if="canManageEvent(item) && !props.managerMode" @click="viewAttendees(item)">
+                      View Attendees
+                    </el-button>
+                    <el-button
+                      v-if="isCurrentAdmin && !props.managerMode"
+                      type="primary"
+                      @click="openEditDialog(item)"
+                    >
+                      Edit
+                    </el-button>
+                    <el-button
+                      v-if="isCurrentAdmin && !props.managerMode"
+                      type="danger"
+                      @click="handleDelete(item.id)"
+                    >
+                      Delete
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+              <el-empty v-if="!loading && activityList.length === 0" description="No events found" />
+            </div>
+          </el-main>
+
+          <!-- 右侧地图 + 热门活动 -->
+          <el-aside width="320px" class="aside-right">
+            <!-- 地图区域 -->
+            <div class="map-container">
+              <img src="https://picsum.photos/id/101/320/200" alt="map" class="map-image" />
+              <div class="map-controls">
+                <el-button icon="el-icon-plus" circle size="small"></el-button>
+              </div>
+            </div>
+
+            <!-- 热门活动 -->
+            <div class="popular-events">
+              <div class="section-header">
+                <h4>Popular Events</h4>
+                <el-dropdown>
+                  <el-button icon="el-icon-more" size="small" text></el-button>
+                  <el-dropdown-menu slot="dropdown">
+                    <el-dropdown-item>View All</el-dropdown-item>
+                  </el-dropdown-menu>
+                </el-dropdown>
+              </div>
+
+              <div class="event-item" v-for="(item, index) in popularEvents" :key="index">
+                <img :src="item.image" alt="event" class="event-thumb" />
+                <div class="event-info">
+                  <p class="event-title">{{ item.title }}</p>
+                  <p class="event-meta">{{ item.date }}</p>
+                  <p class="event-meta">{{ item.time }}</p>
                 </div>
               </div>
             </div>
-            <el-empty v-if="!loading && activityList.length === 0" description="No events found" />
-          </div>
-        </el-main>
-
-        <!-- 右侧地图 + 热门活动 -->
-        <el-aside width="320px" class="aside-right">
-          <!-- 地图区域 -->
-          <div class="map-container">
-            <img src="https://picsum.photos/id/101/320/200" alt="map" class="map-image" />
-            <div class="map-controls">
-              <el-button icon="el-icon-plus" circle size="small"></el-button>
-            </div>
-          </div>
-
-          <!-- 热门活动 -->
-          <div class="popular-events">
-            <div class="section-header">
-              <h4>Popular Events</h4>
-              <el-dropdown>
-                <el-button icon="el-icon-more" size="small" text></el-button>
-                <el-dropdown-menu slot="dropdown">
-                  <el-dropdown-item>View All</el-dropdown-item>
-                </el-dropdown-menu>
-              </el-dropdown>
-            </div>
-
-            <div class="event-item" v-for="(item, index) in popularEvents" :key="index">
-              <img :src="item.image" alt="event" class="event-thumb" />
-              <div class="event-info">
-                <p class="event-title">{{ item.title }}</p>
-                <p class="event-meta">{{ item.date }}</p>
-                <p class="event-meta">{{ item.time }}</p>
-              </div>
-            </div>
-          </div>
-        </el-aside>
+          </el-aside>
+        </el-container>
       </el-container>
-    </el-container>
+    </div>
+    <div>
+      <el-dialog
+        v-if="props.managerMode"
+        v-model="dialogVisible"
+        :title="isEdit ? 'Edit Activity' : 'Create New Activity'"
+        width="500px"
+      >
+        <el-form :model="eventForm" label-width="120px">
+          <el-form-item label="Title">
+            <el-input v-model="eventForm.title" placeholder="Please enter activity title" />
+          </el-form-item>
+
+          <el-form-item label="Description">
+            <el-input v-model="eventForm.description" type="textarea" rows="3" />
+          </el-form-item>
+
+          <el-form-item label="Category">
+            <el-select v-model="eventForm.category" placeholder="select category">
+              <el-option label="concert" value="concert" />
+              <el-option label="workshop" value="workshop" />
+              <el-option label="outdoor" value="outdoor" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="Start Time">
+            <el-date-picker v-model="eventForm.startTime" type="datetime" 
+              placeholder="Select start time" value-format="YYYY-MM-DDTHH:mm:ss" 
+              format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
+            />
+          </el-form-item>
+          <el-form-item label="End Time">
+            <el-date-picker v-model="eventForm.endTime" type="datetime" 
+              placeholder="Select end time" value-format="YYYY-MM-DDTHH:mm:ss" 
+              format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
+            />
+          </el-form-item>
+
+          <el-form-item label="Capacity">
+            <el-input v-model="eventForm.capacity" type="number" />
+          </el-form-item>
+          <el-form-item label="Price">
+            <el-input v-model="eventForm.price" type="number" />
+          </el-form-item>
+
+          <el-form-item label="Location">
+            <el-select 
+              v-model="eventForm.locationId" 
+              placeholder="Select a location"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="loc in locationOptions"
+                :key="loc.id"
+                :label="`${loc.name} - ${loc.address || loc.city || ''}`"
+                :value="loc.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+
+        <template #footer>
+          <el-button @click="dialogVisible = false">Cancel</el-button>
+          <el-button type="primary" @click="isEdit ? handleUpdateEvent() : handleCreateEvent()">
+            {{ isEdit ? 'Confirm Update' : 'Confirm Create' }}
+          </el-button>
+        </template>
+      </el-dialog>
+    </div>
   </div>
-
-  <el-dialog
-    v-if="props.managerMode"
-    v-model="dialogVisible"
-    :title="isEdit ? 'Edit Activity' : 'Create New Activity'"
-    width="500px"
-  >
-    <el-form :model="eventForm" label-width="120px">
-      <el-form-item label="Title">
-        <el-input v-model="eventForm.title" placeholder="Please enter activity title" />
-      </el-form-item>
-
-      <el-form-item label="Description">
-        <el-input v-model="eventForm.description" type="textarea" rows="3" />
-      </el-form-item>
-
-      <el-form-item label="Category">
-        <el-select v-model="eventForm.category" placeholder="select category">
-          <el-option label="concert" value="concert" />
-          <el-option label="workshop" value="workshop" />
-          <el-option label="outdoor" value="outdoor" />
-        </el-select>
-      </el-form-item>
-
-      <el-form-item label="Start Time">
-        <el-date-picker v-model="eventForm.startTime" type="datetime" 
-          placeholder="Select start time" value-format="YYYY-MM-DDTHH:mm:ss" 
-          format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
-        />
-      </el-form-item>
-      <el-form-item label="End Time">
-        <el-date-picker v-model="eventForm.endTime" type="datetime" 
-          placeholder="Select end time" value-format="YYYY-MM-DDTHH:mm:ss" 
-          format="YYYY-MM-DD HH:mm:ss" style="width: 100%"
-        />
-      </el-form-item>
-
-      <el-form-item label="Capacity">
-        <el-input v-model="eventForm.capacity" type="number" />
-      </el-form-item>
-      <el-form-item label="Price">
-        <el-input v-model="eventForm.price" type="number" />
-      </el-form-item>
-
-      <el-form-item label="Location">
-        <el-select 
-          v-model="eventForm.locationId" 
-          placeholder="Select a location"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="loc in locationOptions"
-            :key="loc.id"
-            :label="`${loc.name} - ${loc.address || loc.city || ''}`"
-            :value="loc.id"
-          />
-        </el-select>
-      </el-form-item>
-    </el-form>
-
-    <template #footer>
-      <el-button @click="dialogVisible = false">Cancel</el-button>
-      <el-button type="primary" @click="isEdit ? handleUpdateEvent() : handleCreateEvent()">
-        {{ isEdit ? 'Confirm Update' : 'Confirm Create' }}
-      </el-button>
-    </template>
-  </el-dialog>
 </template>
 
 <script setup>
