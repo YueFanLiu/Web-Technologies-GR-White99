@@ -41,19 +41,22 @@ public class ChatService {
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final FriendService friendService;
+    private final NotificationService notificationService;
 
     public ChatService(ChatConversationRepository chatConversationRepository,
                        ChatParticipantRepository chatParticipantRepository,
                        ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository,
                        CurrentUserService currentUserService,
-                       FriendService friendService) {
+                       FriendService friendService,
+                       NotificationService notificationService) {
         this.chatConversationRepository = chatConversationRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
         this.friendService = friendService;
+        this.notificationService = notificationService;
     }
 
     public List<ChatConversationResponse> getMyConversations(Jwt jwt) {
@@ -115,7 +118,31 @@ public class ChatService {
         ChatMessage savedMessage = chatMessageRepository.save(message);
         conversation.setUpdatedAt(LocalDateTime.now());
         chatConversationRepository.save(conversation);
+        notifyMessageRecipients(savedMessage);
         return toMessageResponse(savedMessage);
+    }
+
+    private void notifyMessageRecipients(ChatMessage message) {
+        chatParticipantRepository.findByConversationIdOrderByJoinedAtAsc(message.getConversation().getId())
+                .stream()
+                .map(ChatParticipant::getUser)
+                .filter(user -> !Objects.equals(user.getId(), message.getSender().getId()))
+                .forEach(user -> notificationService.create(
+                        user,
+                        message.getSender(),
+                        NotificationService.CHAT_MESSAGE_RECEIVED,
+                        "New message",
+                        message.getSender().getFullName() + " sent you a message",
+                        "CHAT_CONVERSATION",
+                        message.getConversation().getId(),
+                        "CHAT_MESSAGE",
+                        message.getId(),
+                        "chat_message:" + message.getId(),
+                        java.util.Map.of(
+                                "conversationId", message.getConversation().getId().toString(),
+                                "messageId", message.getId().toString()
+                        )
+                ));
     }
 
     public ChatConversationResponse markAsRead(UUID conversationId, ChatReadRequest request, Jwt jwt) {

@@ -20,20 +20,41 @@ public class RegistrationService {
     private final RegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
 
     public RegistrationService(RegistrationRepository registrationRepository,
                                EventRepository eventRepository,
-                               CurrentUserService currentUserService) {
+                               CurrentUserService currentUserService,
+                               NotificationService notificationService) {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.currentUserService = currentUserService;
+        this.notificationService = notificationService;
     }
 
     public RegistrationResponse createRegistration(RegistrationRequest request, Jwt jwt) {
         Registration registration = new Registration();
         registration.setUser(currentUserService.getOrCreateCurrentUser(jwt));
         applyRequest(registration, request);
-        return ResponseMapper.toRegistrationResponse(registrationRepository.save(registration));
+        Registration savedRegistration = registrationRepository.save(registration);
+        Event event = savedRegistration.getEvent();
+        notificationService.create(
+                event.getOrganizer(),
+                savedRegistration.getUser(),
+                NotificationService.EVENT_REGISTRATION_CREATED,
+                "New event registration",
+                savedRegistration.getUser().getFullName() + " registered for " + event.getTitle(),
+                "EVENT",
+                event.getId(),
+                "REGISTRATION",
+                savedRegistration.getId(),
+                "registration:" + savedRegistration.getId() + ":created",
+                java.util.Map.of(
+                        "registrationId", savedRegistration.getId().toString(),
+                        "eventId", event.getId().toString()
+                )
+        );
+        return ResponseMapper.toRegistrationResponse(savedRegistration);
     }
 
     public List<RegistrationResponse> getAllRegistrations() {
@@ -63,8 +84,30 @@ public class RegistrationService {
 
     public RegistrationResponse updateRegistration(UUID id, RegistrationRequest request) {
         Registration registration = findRegistrationById(id);
+        String previousStatus = registration.getStatus();
         applyRequest(registration, request);
-        return ResponseMapper.toRegistrationResponse(registrationRepository.save(registration));
+        Registration savedRegistration = registrationRepository.save(registration);
+        if (!java.util.Objects.equals(previousStatus, savedRegistration.getStatus())) {
+            Event event = savedRegistration.getEvent();
+            notificationService.create(
+                    savedRegistration.getUser(),
+                    event.getOrganizer(),
+                    NotificationService.EVENT_REGISTRATION_STATUS_CHANGED,
+                    "Registration status updated",
+                    "Your registration for " + event.getTitle() + " is now " + savedRegistration.getStatus(),
+                    "REGISTRATION",
+                    savedRegistration.getId(),
+                    "REGISTRATION",
+                    savedRegistration.getId(),
+                    "registration:" + savedRegistration.getId() + ":status:" + savedRegistration.getStatus(),
+                    java.util.Map.of(
+                            "registrationId", savedRegistration.getId().toString(),
+                            "eventId", event.getId().toString(),
+                            "status", savedRegistration.getStatus() != null ? savedRegistration.getStatus() : ""
+                    )
+            );
+        }
+        return ResponseMapper.toRegistrationResponse(savedRegistration);
     }
 
     public void deleteRegistration(UUID id) {

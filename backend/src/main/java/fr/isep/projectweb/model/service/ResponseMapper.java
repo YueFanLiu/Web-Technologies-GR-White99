@@ -3,6 +3,7 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dto.response.EventSummaryResponse;
 import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.dto.response.LocationResponse;
+import fr.isep.projectweb.model.dto.response.NotificationResponse;
 import fr.isep.projectweb.model.dto.response.PostResponse;
 import fr.isep.projectweb.model.dto.response.PublicUserResponse;
 import fr.isep.projectweb.model.dto.response.RegistrationResponse;
@@ -13,6 +14,7 @@ import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.EventReview;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.LocationImage;
+import fr.isep.projectweb.model.entity.Notification;
 import fr.isep.projectweb.model.entity.Post;
 import fr.isep.projectweb.model.entity.PostImage;
 import fr.isep.projectweb.model.entity.PostReview;
@@ -46,6 +48,24 @@ final class ResponseMapper {
         response.setFullName(user.getFullName());
         response.setPhoto(user.getPhoto());
         response.setRole(user.getRole());
+        return response;
+    }
+
+    static NotificationResponse toNotificationResponse(Notification notification) {
+        NotificationResponse response = new NotificationResponse();
+        response.setId(notification.getId());
+        response.setType(notification.getType());
+        response.setTitle(notification.getTitle());
+        response.setBody(notification.getBody());
+        response.setActor(toPublicUserResponse(notification.getActor()));
+        response.setTargetType(notification.getTargetType());
+        response.setTargetId(notification.getTargetId());
+        response.setSourceType(notification.getSourceType());
+        response.setSourceId(notification.getSourceId());
+        response.setPayload(notification.getPayload());
+        response.setReadAt(notification.getReadAt());
+        response.setArchivedAt(notification.getArchivedAt());
+        response.setCreatedAt(notification.getCreatedAt());
         return response;
     }
 

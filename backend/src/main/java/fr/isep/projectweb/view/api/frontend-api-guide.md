@@ -76,7 +76,7 @@ await fetch(`http://localhost:9192/api/events/${eventId}`, {
 Important frontend rules:
 
 - `GET /api/events/**`, `GET /api/locations/**`, and `GET /api/posts/**` can be called without token.
-- Protected `GET` endpoints still need `Authorization`, for example `/api/users/me`, `/api/users/{id}`, `/api/users/search`, `/api/friends`, `/api/chats`, `/api/registrations`, and `/api/auth/debug`.
+- Protected `GET` endpoints still need `Authorization`, for example `/api/users/me`, `/api/users/{id}`, `/api/users/search`, `/api/friends`, `/api/chats`, `/api/notifications`, `/api/registrations`, and `/api/auth/debug`.
 - `DELETE` endpoints return `204 No Content`, so the frontend must not call `res.json()` for successful delete responses.
 - Multipart image upload endpoints return JSON containing the Supabase public URL.
 - Image delete endpoints currently delete the database image record only. The public file object in Supabase Storage is not removed by the backend.
@@ -727,6 +727,211 @@ const chat = await apiPost(`/api/chats/${conversationId}/read`, {
 ```
 
 Response body: `ChatConversationResponse`.
+
+## Notifications
+
+All notification endpoints are protected. Notifications are created by backend business events such as friend requests, chat messages, event registrations, reviews, event updates/cancellations, and automatic event reminders.
+
+The first frontend version can use polling:
+
+- Call `GET /api/notifications/unread-count` every 30-60 seconds while the user is logged in.
+- Call `GET /api/notifications?status=unread&limit=20` when opening the notification dropdown.
+- Call `POST /api/notifications/{id}/read` when the user opens or clicks one notification.
+- Call `POST /api/notifications/read-all` for a "mark all as read" action.
+
+Notification `type` values:
+
+```text
+FRIEND_REQUEST_RECEIVED
+FRIEND_REQUEST_ACCEPTED
+FRIEND_REQUEST_REJECTED
+CHAT_MESSAGE_RECEIVED
+EVENT_REGISTRATION_CREATED
+EVENT_REGISTRATION_STATUS_CHANGED
+POST_REVIEW_CREATED
+EVENT_REVIEW_CREATED
+EVENT_UPDATED
+EVENT_CANCELLED
+EVENT_STARTS_IN_1_DAY
+EVENT_STARTS_IN_2_HOURS
+```
+
+Common `targetType` values:
+
+```text
+FRIEND_REQUEST
+USER
+CHAT_CONVERSATION
+EVENT
+REGISTRATION
+POST
+```
+
+Use `targetType` and `targetId` to navigate after a click:
+
+- `FRIEND_REQUEST` -> friend request page or incoming requests panel.
+- `USER` -> user profile or friends page.
+- `CHAT_CONVERSATION` -> chat page with `targetId` as conversation id.
+- `EVENT` -> event detail page with `targetId` as event id.
+- `REGISTRATION` -> registration/booking detail if the frontend has that page.
+- `POST` -> post detail page with `targetId` as post id.
+
+### GET /api/notifications
+
+Returns current user's notifications, newest first.
+
+Optional query params:
+
+```text
+status=all
+status=unread
+status=read
+type=CHAT_MESSAGE_RECEIVED
+before=2026-05-21T10:00:00
+limit=20
+```
+
+`status` defaults to `all`. `limit` defaults to `20` and is capped at `100`. Use `before` with the last loaded notification's `createdAt` for pagination.
+
+Frontend example:
+
+```js
+const params = new URLSearchParams({
+  status: "unread",
+  limit: "20"
+});
+
+const notifications = await apiGet(`/api/notifications?${params}`, accessToken);
+```
+
+Response body:
+
+```json
+[
+  {
+    "id": "uuid",
+    "type": "CHAT_MESSAGE_RECEIVED",
+    "title": "New message",
+    "body": "Alice Dupont sent you a message",
+    "actor": {
+      "id": "uuid",
+      "fullName": "Alice Dupont",
+      "photo": "https://project.supabase.co/storage/v1/object/public/images/userAvatar/user-id/avatar.jpg",
+      "role": "PARENT"
+    },
+    "targetType": "CHAT_CONVERSATION",
+    "targetId": "conversation-uuid",
+    "sourceType": "CHAT_MESSAGE",
+    "sourceId": "message-uuid",
+    "payload": {
+      "conversationId": "conversation-uuid",
+      "messageId": "message-uuid"
+    },
+    "readAt": null,
+    "archivedAt": null,
+    "createdAt": "2026-05-21T10:00:00"
+  }
+]
+```
+
+Event reminder example:
+
+```json
+{
+  "id": "uuid",
+  "type": "EVENT_STARTS_IN_2_HOURS",
+  "title": "Event starts soon",
+  "body": "Music Night starts in 2 hours",
+  "actor": null,
+  "targetType": "EVENT",
+  "targetId": "event-uuid",
+  "sourceType": "EVENT",
+  "sourceId": "event-uuid",
+  "payload": {
+    "eventId": "event-uuid",
+    "eventTitle": "Music Night",
+    "startTime": "2026-05-21T18:00:00",
+    "reminder": "2_HOURS"
+  },
+  "readAt": null,
+  "archivedAt": null,
+  "createdAt": "2026-05-21T16:00:00"
+}
+```
+
+### GET /api/notifications/unread-count
+
+Returns current user's unread notification count.
+
+Frontend example:
+
+```js
+const { count } = await apiGet("/api/notifications/unread-count", accessToken);
+```
+
+Response body:
+
+```json
+{
+  "count": 7
+}
+```
+
+### POST /api/notifications/{id}/read
+
+Marks one notification as read. Only the notification recipient can read it.
+
+Frontend example:
+
+```js
+const notification = await apiPost(`/api/notifications/${notificationId}/read`, {}, accessToken);
+```
+
+Response body: `NotificationResponse` with `readAt` set.
+
+### POST /api/notifications/read-all
+
+Marks all current user's notifications as read. The request body is optional.
+
+Request body to mark everything:
+
+```json
+{}
+```
+
+Request body to mark only one type:
+
+```json
+{
+  "type": "CHAT_MESSAGE_RECEIVED"
+}
+```
+
+Frontend example:
+
+```js
+const { count } = await apiPost("/api/notifications/read-all", {}, accessToken);
+```
+
+Response body:
+
+```json
+{
+  "count": 0
+}
+```
+
+### DELETE /api/notifications/{id}
+
+Archives one notification. It is hidden from future `GET /api/notifications` responses.
+
+Frontend example:
+
+```js
+await apiDelete(`/api/notifications/${notificationId}`, accessToken);
+```
+
+Response body: empty, status `204 No Content`.
 
 ## Events
 
@@ -1577,7 +1782,7 @@ async function uploadImage(path, file, token) {
 Helper applicability:
 
 - Use `apiGet(path)` for public GET endpoints such as `/api/events`, `/api/locations`, `/api/posts`.
-- Use `apiGet(path, accessToken)` for protected GET endpoints such as `/api/users/me`, `/api/users/{id}`, `/api/users/search`, `/api/friends`, `/api/chats`, `/api/registrations`, `/api/auth/debug`.
+- Use `apiGet(path, accessToken)` for protected GET endpoints such as `/api/users/me`, `/api/users/{id}`, `/api/users/search`, `/api/friends`, `/api/chats`, `/api/notifications`, `/api/registrations`, `/api/auth/debug`.
 - Use `apiPost(path, body, accessToken)` for protected create/action endpoints such as `/api/friend-requests`, `/api/friend-requests/{id}/accept`, `/api/chats/direct`, and `/api/chats/{id}/messages`.
 - Use `apiPut(path, body, accessToken)` for protected update endpoints.
 - Use `apiDelete(path, accessToken)` for protected delete endpoints; it returns `null` on `204 No Content`.

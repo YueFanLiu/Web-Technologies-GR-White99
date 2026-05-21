@@ -21,15 +21,18 @@ public class EventReviewService {
     private final EventRepository eventRepository;
     private final CurrentUserService currentUserService;
     private final RecommendationScoreService recommendationScoreService;
+    private final NotificationService notificationService;
 
     public EventReviewService(EventReviewRepository eventReviewRepository,
                               EventRepository eventRepository,
                               CurrentUserService currentUserService,
-                              RecommendationScoreService recommendationScoreService) {
+                              RecommendationScoreService recommendationScoreService,
+                              NotificationService notificationService) {
         this.eventReviewRepository = eventReviewRepository;
         this.eventRepository = eventRepository;
         this.currentUserService = currentUserService;
         this.recommendationScoreService = recommendationScoreService;
+        this.notificationService = notificationService;
     }
 
     public List<ReviewResponse> getByEventId(UUID eventId) {
@@ -47,6 +50,20 @@ public class EventReviewService {
         applyRequest(review, request);
         EventReview savedReview = eventReviewRepository.save(review);
         recommendationScoreService.recomputeEventScore(eventId);
+        Event event = savedReview.getEvent();
+        notificationService.create(
+                event.getOrganizer(),
+                savedReview.getUser(),
+                NotificationService.EVENT_REVIEW_CREATED,
+                "New event review",
+                savedReview.getUser().getFullName() + " reviewed your event",
+                "EVENT",
+                event.getId(),
+                "EVENT_REVIEW",
+                savedReview.getId(),
+                "event_review:" + savedReview.getId() + ":created",
+                java.util.Map.of("eventId", event.getId().toString(), "reviewId", savedReview.getId().toString())
+        );
         return ResponseMapper.toEventReviewResponse(savedReview);
     }
 

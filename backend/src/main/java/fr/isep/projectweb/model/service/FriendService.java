@@ -33,13 +33,16 @@ public class FriendService {
     private final FriendRequestRepository friendRequestRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
 
     public FriendService(FriendRequestRepository friendRequestRepository,
                          UserRepository userRepository,
-                         CurrentUserService currentUserService) {
+                         CurrentUserService currentUserService,
+                         NotificationService notificationService) {
         this.friendRequestRepository = friendRequestRepository;
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
+        this.notificationService = notificationService;
     }
 
     public List<PublicUserResponse> searchUsers(String keyword, Integer limit, Jwt jwt) {
@@ -81,7 +84,21 @@ public class FriendService {
         friendRequest.setStatus(STATUS_PENDING);
 
         try {
-            return toFriendRequestResponse(friendRequestRepository.save(friendRequest));
+            FriendRequest savedRequest = friendRequestRepository.save(friendRequest);
+            notificationService.create(
+                    addressee,
+                    requester,
+                    NotificationService.FRIEND_REQUEST_RECEIVED,
+                    "New friend request",
+                    requester.getFullName() + " sent you a friend request",
+                    "FRIEND_REQUEST",
+                    savedRequest.getId(),
+                    "FRIEND_REQUEST",
+                    savedRequest.getId(),
+                    "friend_request:" + savedRequest.getId() + ":received",
+                    java.util.Map.of("requestId", savedRequest.getId().toString())
+            );
+            return toFriendRequestResponse(savedRequest);
         } catch (DataIntegrityViolationException exception) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Friend request or friendship already exists");
         }
@@ -118,7 +135,21 @@ public class FriendService {
         ensurePending(friendRequest);
         friendRequest.setStatus(STATUS_ACCEPTED);
         friendRequest.setUpdatedAt(LocalDateTime.now());
-        return toFriendRequestResponse(friendRequestRepository.save(friendRequest));
+        FriendRequest savedRequest = friendRequestRepository.save(friendRequest);
+        notificationService.create(
+                savedRequest.getRequester(),
+                currentUser,
+                NotificationService.FRIEND_REQUEST_ACCEPTED,
+                "Friend request accepted",
+                currentUser.getFullName() + " accepted your friend request",
+                "USER",
+                currentUser.getId(),
+                "FRIEND_REQUEST",
+                savedRequest.getId(),
+                "friend_request:" + savedRequest.getId() + ":accepted",
+                java.util.Map.of("requestId", savedRequest.getId().toString(), "friendUserId", currentUser.getId().toString())
+        );
+        return toFriendRequestResponse(savedRequest);
     }
 
     public FriendRequestResponse rejectRequest(UUID requestId, Jwt jwt) {
@@ -128,7 +159,21 @@ public class FriendService {
         ensurePending(friendRequest);
         friendRequest.setStatus(STATUS_REJECTED);
         friendRequest.setUpdatedAt(LocalDateTime.now());
-        return toFriendRequestResponse(friendRequestRepository.save(friendRequest));
+        FriendRequest savedRequest = friendRequestRepository.save(friendRequest);
+        notificationService.create(
+                savedRequest.getRequester(),
+                savedRequest.getAddressee(),
+                NotificationService.FRIEND_REQUEST_REJECTED,
+                "Friend request declined",
+                savedRequest.getAddressee().getFullName() + " declined your friend request",
+                "FRIEND_REQUEST",
+                savedRequest.getId(),
+                "FRIEND_REQUEST",
+                savedRequest.getId(),
+                "friend_request:" + savedRequest.getId() + ":rejected",
+                java.util.Map.of("requestId", savedRequest.getId().toString())
+        );
+        return toFriendRequestResponse(savedRequest);
     }
 
     public void cancelRequest(UUID requestId, Jwt jwt) {

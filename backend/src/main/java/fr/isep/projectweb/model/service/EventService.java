@@ -4,12 +4,14 @@ import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
+import fr.isep.projectweb.model.dao.RegistrationRepository;
 import fr.isep.projectweb.model.dto.request.EventRequest;
 import fr.isep.projectweb.model.dto.response.EventResponse;
 import fr.isep.projectweb.model.entity.AccessibilityPreference;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.Location;
+import fr.isep.projectweb.model.entity.Registration;
 import fr.isep.projectweb.model.entity.User;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -20,6 +22,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -45,21 +48,27 @@ public class EventService {
     private final EventImageRepository eventImageRepository;
     private final EventReviewRepository eventReviewRepository;
     private final LocationDAO locationDAO;
+    private final RegistrationRepository registrationRepository;
     private final CurrentUserService currentUserService;
     private final RecommendationScoreService recommendationScoreService;
+    private final NotificationService notificationService;
 
     public EventService(EventRepository eventRepository,
                         EventImageRepository eventImageRepository,
                         EventReviewRepository eventReviewRepository,
                         LocationDAO locationDAO,
+                        RegistrationRepository registrationRepository,
                         CurrentUserService currentUserService,
-                        RecommendationScoreService recommendationScoreService) {
+                        RecommendationScoreService recommendationScoreService,
+                        NotificationService notificationService) {
         this.eventRepository = eventRepository;
         this.eventImageRepository = eventImageRepository;
         this.eventReviewRepository = eventReviewRepository;
         this.locationDAO = locationDAO;
+        this.registrationRepository = registrationRepository;
         this.currentUserService = currentUserService;
         this.recommendationScoreService = recommendationScoreService;
+        this.notificationService = notificationService;
     }
 
     public EventResponse createEvent(EventRequest request, Jwt jwt) {
@@ -242,6 +251,7 @@ public class EventService {
         return toResponse(findEventById(id), true);
     }
 
+    @Transactional
     public EventResponse updateEvent(UUID id, EventRequest request, Jwt jwt) {
         Event event = findEventById(id);
         User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
@@ -253,18 +263,56 @@ public class EventService {
         recommendationScoreService.recomputeEventScore(savedEvent.getId());
         recommendationScoreService.recomputePostScoresByEvent(savedEvent.getId());
         refreshChangedLocations(previousLocationId, savedEvent.getLocation() != null ? savedEvent.getLocation().getId() : null);
+        notifyRegisteredUsers(savedEvent, currentUser, NotificationService.EVENT_UPDATED, "Event updated",
+                savedEvent.getTitle() + " has been updated", "event:" + savedEvent.getId() + ":updated:" + System.currentTimeMillis());
         return toResponse(savedEvent, true);
     }
 
+    @Transactional
     public void deleteEvent(UUID id, Jwt jwt) {
         Event event = findEventById(id);
         User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
         ensureEventOrganizer(event, currentUser);
         UUID locationId = event.getLocation() != null ? event.getLocation().getId() : null;
+        notifyRegisteredUsers(event, currentUser, NotificationService.EVENT_CANCELLED, "Event cancelled",
+                event.getTitle() + " has been cancelled", "event:" + event.getId() + ":cancelled");
         eventRepository.delete(event);
         if (locationId != null) {
             recommendationScoreService.recomputeLocationScore(locationId);
         }
+    }
+
+    private void notifyRegisteredUsers(Event event,
+                                       User actor,
+                                       String type,
+                                       String title,
+                                       String body,
+                                       String dedupeKey) {
+        registrationRepository.findByEventIdOrderByRegisteredAtDesc(event.getId())
+                .stream()
+                .filter(registration -> isActiveRegistration(registration.getStatus()))
+                .map(Registration::getUser)
+                .forEach(user -> notificationService.create(
+                        user,
+                        actor,
+                        type,
+                        title,
+                        body,
+                        "EVENT",
+                        event.getId(),
+                        "EVENT",
+                        event.getId(),
+                        dedupeKey + ":" + user.getId(),
+                        java.util.Map.of("eventId", event.getId().toString())
+                ));
+    }
+
+    private boolean isActiveRegistration(String status) {
+        if (status == null) {
+            return true;
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return !normalized.equals("CANCELLED") && !normalized.equals("REJECTED");
     }
 
     private Event findEventById(UUID id) {

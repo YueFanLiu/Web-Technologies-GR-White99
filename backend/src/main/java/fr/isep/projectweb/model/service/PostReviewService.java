@@ -21,15 +21,18 @@ public class PostReviewService {
     private final PostRepository postRepository;
     private final CurrentUserService currentUserService;
     private final RecommendationScoreService recommendationScoreService;
+    private final NotificationService notificationService;
 
     public PostReviewService(PostReviewRepository postReviewRepository,
                              PostRepository postRepository,
                              CurrentUserService currentUserService,
-                             RecommendationScoreService recommendationScoreService) {
+                             RecommendationScoreService recommendationScoreService,
+                             NotificationService notificationService) {
         this.postReviewRepository = postReviewRepository;
         this.postRepository = postRepository;
         this.currentUserService = currentUserService;
         this.recommendationScoreService = recommendationScoreService;
+        this.notificationService = notificationService;
     }
 
     public List<ReviewResponse> getByPostId(UUID postId) {
@@ -47,6 +50,20 @@ public class PostReviewService {
         applyRequest(review, request);
         PostReview savedReview = postReviewRepository.save(review);
         recommendationScoreService.recomputePostScore(postId);
+        Post post = savedReview.getPost();
+        notificationService.create(
+                post.getUser(),
+                savedReview.getUser(),
+                NotificationService.POST_REVIEW_CREATED,
+                "New post review",
+                savedReview.getUser().getFullName() + " reviewed your post",
+                "POST",
+                post.getId(),
+                "POST_REVIEW",
+                savedReview.getId(),
+                "post_review:" + savedReview.getId() + ":created",
+                java.util.Map.of("postId", post.getId().toString(), "reviewId", savedReview.getId().toString())
+        );
         return ResponseMapper.toPostReviewResponse(savedReview);
     }
 
