@@ -6,16 +6,21 @@ import fr.isep.projectweb.model.dto.request.RegistrationRequest;
 import fr.isep.projectweb.model.dto.response.RegistrationResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Registration;
+import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class RegistrationService {
+
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String ORGANIZER_ROLE = "ORGANIZER";
 
     private final RegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
@@ -57,33 +62,44 @@ public class RegistrationService {
         return ResponseMapper.toRegistrationResponse(savedRegistration);
     }
 
-    public List<RegistrationResponse> getAllRegistrations() {
+    public List<RegistrationResponse> getAllRegistrations(Jwt jwt) {
+        ensureAdmin(currentUserService.getCurrentUser(jwt));
         return registrationRepository.findAll()
                 .stream()
                 .map(ResponseMapper::toRegistrationResponse)
                 .toList();
     }
 
-    public List<RegistrationResponse> getRegistrationsByEventId(UUID eventId) {
+    public List<RegistrationResponse> getRegistrationsByEventId(UUID eventId, Jwt jwt) {
+        Event event = findEventById(eventId);
+        ensureCanManageEventRegistrations(event, currentUserService.getCurrentUser(jwt));
         return registrationRepository.findByEventIdOrderByRegisteredAtDesc(eventId)
                 .stream()
                 .map(ResponseMapper::toRegistrationResponse)
                 .toList();
     }
 
-    public List<RegistrationResponse> getRegistrationsByUserId(UUID userId) {
+    public List<RegistrationResponse> getRegistrationsByUserId(UUID userId, Jwt jwt) {
+        User currentUser = currentUserService.getCurrentUser(jwt);
+        if (!isAdmin(currentUser) && !Objects.equals(currentUser.getId(), userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only view your own registrations");
+        }
         return registrationRepository.findByUserIdOrderByRegisteredAtDesc(userId)
                 .stream()
                 .map(ResponseMapper::toRegistrationResponse)
                 .toList();
     }
 
-    public RegistrationResponse getRegistrationById(UUID id) {
-        return ResponseMapper.toRegistrationResponse(findRegistrationById(id));
+    public RegistrationResponse getRegistrationById(UUID id, Jwt jwt) {
+        Registration registration = findRegistrationById(id);
+        ensureCanViewRegistration(registration, currentUserService.getCurrentUser(jwt));
+        return ResponseMapper.toRegistrationResponse(registration);
     }
 
-    public RegistrationResponse updateRegistration(UUID id, RegistrationRequest request) {
+    public RegistrationResponse updateRegistration(UUID id, RegistrationRequest request, Jwt jwt) {
         Registration registration = findRegistrationById(id);
+        ensureCanUpdateRegistration(registration, currentUserService.getCurrentUser(jwt));
+        ensureSameEvent(registration, request);
         String previousStatus = registration.getStatus();
         applyRequest(registration, request);
         Registration savedRegistration = registrationRepository.save(registration);
@@ -110,8 +126,9 @@ public class RegistrationService {
         return ResponseMapper.toRegistrationResponse(savedRegistration);
     }
 
-    public void deleteRegistration(UUID id) {
+    public void deleteRegistration(UUID id, Jwt jwt) {
         Registration registration = findRegistrationById(id);
+        ensureCanManageRegistration(registration, currentUserService.getCurrentUser(jwt));
         registrationRepository.delete(registration);
     }
 
@@ -132,5 +149,65 @@ public class RegistrationService {
 
         return eventRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+    }
+
+    private void ensureAdmin(User currentUser) {
+        if (!isAdmin(currentUser)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can view all registrations");
+        }
+    }
+
+    private void ensureCanViewRegistration(Registration registration, User currentUser) {
+        if (isAdmin(currentUser) || isRegistrationOwner(registration, currentUser) || isEventOrganizer(registration.getEvent(), currentUser)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only view registrations you manage");
+    }
+
+    private void ensureCanManageRegistration(Registration registration, User currentUser) {
+        if (isAdmin(currentUser) || isRegistrationOwner(registration, currentUser) || isEventOrganizer(registration.getEvent(), currentUser)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only manage registrations you own or organize");
+    }
+
+    private void ensureCanUpdateRegistration(Registration registration, User currentUser) {
+        if (isAdmin(currentUser) || isEventOrganizer(registration.getEvent(), currentUser)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins or the event organizer can update registration status");
+    }
+
+    private void ensureSameEvent(Registration registration, RegistrationRequest request) {
+        UUID currentEventId = registration.getEvent() != null ? registration.getEvent().getId() : null;
+        if (!Objects.equals(currentEventId, request.getEventId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Registration event cannot be changed");
+        }
+    }
+
+    private void ensureCanManageEventRegistrations(Event event, User currentUser) {
+        if (isAdmin(currentUser) || isEventOrganizer(event, currentUser)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins or the event organizer can view event registrations");
+    }
+
+    private boolean isRegistrationOwner(Registration registration, User user) {
+        return registration.getUser() != null && user != null && Objects.equals(registration.getUser().getId(), user.getId());
+    }
+
+    private boolean isEventOrganizer(Event event, User user) {
+        return isOrganizer(user)
+                && event != null
+                && event.getOrganizer() != null
+                && Objects.equals(event.getOrganizer().getId(), user.getId());
+    }
+
+    private boolean isOrganizer(User user) {
+        return user != null && ORGANIZER_ROLE.equalsIgnoreCase(user.getRole());
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && ADMIN_ROLE.equalsIgnoreCase(user.getRole());
     }
 }

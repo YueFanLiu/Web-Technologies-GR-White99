@@ -94,14 +94,16 @@ public class PostController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a post")
-    public PostResponse updatePost(@PathVariable UUID id, @RequestBody PostRequest request) {
-        return postService.updatePost(id, request);
+    public PostResponse updatePost(@PathVariable UUID id,
+                                   @RequestBody PostRequest request,
+                                   @AuthenticationPrincipal Jwt jwt) {
+        return postService.updatePost(id, request, jwt);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a post")
-    public ResponseEntity<Void> deletePost(@PathVariable UUID id) {
-        postService.deletePost(id);
+    public ResponseEntity<Void> deletePost(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        postService.deletePost(id, jwt);
         return ResponseEntity.noContent().build();
     }
 }

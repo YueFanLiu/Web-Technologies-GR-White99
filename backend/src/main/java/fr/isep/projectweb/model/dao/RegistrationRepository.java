@@ -15,6 +15,8 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     List<Registration> findByUserIdOrderByRegisteredAtDesc(UUID userId);
 
+    boolean existsByEventIdAndUserIdAndStatusIgnoreCase(UUID eventId, UUID userId, String status);
+
     @Query("""
             SELECT r
             FROM Registration r

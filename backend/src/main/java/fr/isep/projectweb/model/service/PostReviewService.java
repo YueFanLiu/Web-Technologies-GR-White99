@@ -4,18 +4,24 @@ import fr.isep.projectweb.model.dao.PostRepository;
 import fr.isep.projectweb.model.dao.PostReviewRepository;
 import fr.isep.projectweb.model.dto.request.ReviewRequest;
 import fr.isep.projectweb.model.dto.response.ReviewResponse;
+import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Post;
 import fr.isep.projectweb.model.entity.PostReview;
+import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class PostReviewService {
+
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String ORGANIZER_ROLE = "ORGANIZER";
 
     private final PostReviewRepository postReviewRepository;
     private final PostRepository postRepository;
@@ -67,16 +73,18 @@ public class PostReviewService {
         return ResponseMapper.toPostReviewResponse(savedReview);
     }
 
-    public ReviewResponse update(UUID postId, UUID reviewId, ReviewRequest request) {
+    public ReviewResponse update(UUID postId, UUID reviewId, ReviewRequest request, Jwt jwt) {
         PostReview review = findReview(postId, reviewId);
+        ensureCanManageReview(review, currentUserService.getCurrentUser(jwt));
         applyRequest(review, request);
         PostReview savedReview = postReviewRepository.save(review);
         recommendationScoreService.recomputePostScore(postId);
         return ResponseMapper.toPostReviewResponse(savedReview);
     }
 
-    public void delete(UUID postId, UUID reviewId) {
+    public void delete(UUID postId, UUID reviewId, Jwt jwt) {
         PostReview review = findReview(postId, reviewId);
+        ensureCanManageReview(review, currentUserService.getCurrentUser(jwt));
         postReviewRepository.delete(review);
         recommendationScoreService.recomputePostScore(postId);
     }
@@ -105,5 +113,42 @@ public class PostReviewService {
         if (request.getComment() == null || request.getComment().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Comment must not be blank");
         }
+    }
+
+    private void ensureCanManageReview(PostReview review, User currentUser) {
+        if (isAdmin(currentUser)
+                || isReviewAuthor(review, currentUser)
+                || isPostAuthor(review.getPost(), currentUser)
+                || isRelatedEventOrganizer(review.getPost(), currentUser)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only manage your own post reviews");
+    }
+
+    private boolean isReviewAuthor(PostReview review, User user) {
+        return review.getUser() != null && user != null && Objects.equals(review.getUser().getId(), user.getId());
+    }
+
+    private boolean isPostAuthor(Post post, User user) {
+        return post != null
+                && post.getUser() != null
+                && user != null
+                && Objects.equals(post.getUser().getId(), user.getId());
+    }
+
+    private boolean isRelatedEventOrganizer(Post post, User user) {
+        Event event = post != null ? post.getEvent() : null;
+        return isOrganizer(user)
+                && event != null
+                && event.getOrganizer() != null
+                && Objects.equals(event.getOrganizer().getId(), user.getId());
+    }
+
+    private boolean isOrganizer(User user) {
+        return user != null && ORGANIZER_ROLE.equalsIgnoreCase(user.getRole());
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && ADMIN_ROLE.equalsIgnoreCase(user.getRole());
     }
 }
