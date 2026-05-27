@@ -98,10 +98,10 @@ import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
-import { searchEvent } from '@/api/events/index.js'
 import { useRouter } from 'vue-router'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { canCreateActivityForUser } from '@/utils/accessControl'
+import { getUnreadNotificationCount } from '@/api/notifications'
 
 
 const router = useRouter()
@@ -119,6 +119,22 @@ const appStore = useAppStore()
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
 const canCreateActivity = computed(() => canCreateActivityForUser(userStore.userInfo))
+const unreadNotifications = ref(0)
+const unreadMessages = ref(0)
+
+function normalizeCount(res) {
+  return Number(res?.unreadCount ?? res?.count ?? res?.data?.unreadCount ?? res?.data?.count ?? 0)
+}
+
+function loadUnreadNotifications() {
+  getUnreadNotificationCount()
+    .then((res) => {
+      unreadNotifications.value = normalizeCount(res)
+    })
+    .catch(() => {
+      unreadNotifications.value = 0
+    })
+}
 
 function toggleSideBar() {
   appStore.toggleSideBar()
@@ -193,6 +209,8 @@ async function toggleTheme(event) {
     settingsStore.toggleTheme()
   }
 }
+
+onMounted(loadUnreadNotifications)
 </script>
 
 <style lang='scss' scoped>

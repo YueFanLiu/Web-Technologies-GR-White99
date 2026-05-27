@@ -128,12 +128,12 @@ export const constantRoutes = [
       {
         path: 'createActivity',
         redirect: '/manager/createActivity',
-        meta: { requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
       {
         path: 'attendeeList',
         redirect: '/manager/attendeeList',
-        meta: { requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
 
     ]
@@ -182,19 +182,19 @@ export const constantRoutes = [
         path: 'mainActivity',
         component: () => import('@/views/manager/manageEvent.vue'),
         name: 'MainActivity',
-        meta: { title: 'My Activities', icon: 'post', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { title: 'My Activities', icon: 'post', requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
       {
         path: 'manageEvent',
         component: () => import('@/views/manager/manageEvent.vue'),
         name: 'ManageEvent',
-        meta: { title: 'Manage Events', icon: 'post', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { title: 'Manage Events', icon: 'post', requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
       {
         path: 'manageActivity',
         component: () => import('@/views/manager/manageActivity.vue'),
         name: 'ManageActivity',
-        meta: { title: 'Manage Activity', icon: 'edit', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { title: 'Manage Activity', icon: 'edit', requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
       {
         path: 'managePost',
@@ -206,14 +206,27 @@ export const constantRoutes = [
         path: 'createActivity',
         component: () => import('@/views/manager/createActivity.vue'),
         name: 'CreateActivity',
-        meta: { title: 'Create Activity', icon: 'plus', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { title: 'Create Activity', icon: 'plus', requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
       {
         path: 'attendeeList',
         component: () => import('@/views/manager/AttendeeList.vue'),
         name: 'AttendeeList',
-        meta: { title: 'Attendee List', icon: 'user', requiresAuth: true, roles: ['ADMIN', 'ORGANIZER'] }
+        meta: { title: 'Attendee List', icon: 'user', requiresAuth: true, roles: ['ORGANIZER', 'ADMIN'] }
       },
+    ]
+  },
+  {
+    path: '/notifications',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/notifications/index.vue'),
+        name: 'Notifications',
+        meta: { title: 'Notifications', icon: 'bell', requiresAuth: true }
+      }
     ]
   },
   {

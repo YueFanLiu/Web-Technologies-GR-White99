@@ -224,6 +224,19 @@ function buildPreferencesPayload() {
   }
 }
 
+function buildProfilePayload(includePreferences = true) {
+  const payload = {
+    fullName: profileForm.fullName,
+    phone: profileForm.phone
+  }
+
+  if (includePreferences) {
+    payload.accessibilityPreferences = buildPreferencesPayload()
+  }
+
+  return payload
+}
+
 function applyProfile(profile) {
   const role = profile.role || userStore.role
 
@@ -258,11 +271,13 @@ async function saveChanges() {
 
   loading.value = true
   try {
-    const updatedProfile = unwrapResponse(await updateCurrentUserProfile({
-      fullName: profileForm.fullName,
-      phone: profileForm.phone,
-      accessibilityPreferences: buildPreferencesPayload()
-    }))
+    let updatedProfile
+    try {
+      updatedProfile = unwrapResponse(await updateCurrentUserProfile(buildProfilePayload(true)))
+    } catch (error) {
+      updatedProfile = unwrapResponse(await updateCurrentUserProfile(buildProfilePayload(false)))
+      ElMessage.warning('Profile saved without accessibility preferences')
+    }
     applyProfile(updatedProfile)
     await userStore.getInfo()
     isEditing.value = false

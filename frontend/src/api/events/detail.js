@@ -66,6 +66,9 @@ export function getCurrentUserProfile() {
 export function getLocationAccessibility(locationId) {
     return request({
         url: `/api/locations/${locationId}/accessibility`,
-        method: 'get'
+        method: 'get',
+        headers: {
+            showErrorMessage: false
+        }
     })
 }

@@ -4,6 +4,8 @@ import { isHttp } from '@/utils/validate'
 import defAva from '@/assets/images/profile.jpg'
 import { normalizeRole } from '@/utils/accessControl'
 
+let getInfoPromise = null
+
 function unwrapCurrentUser(res) {
   const data = res?.data ?? res
   return data?.user || data
@@ -65,7 +67,11 @@ const useUserStore = defineStore(
         })
       },
       getInfo() {
-        return getInfo().then((res) => {
+        if (getInfoPromise) {
+          return getInfoPromise
+        }
+
+        getInfoPromise = getInfo().then((res) => {
           const user = normalizeUser(unwrapCurrentUser(res))
 
           if (!user.id) {
@@ -90,10 +96,13 @@ const useUserStore = defineStore(
           this.permissions = res?.permissions || user.permissions || []
 
           return user
+        }).finally(() => {
+          getInfoPromise = null
         })
       },
       logOut() {
         return new Promise((resolve) => {
+          getInfoPromise = null
           this.token = ''
           this.userInfo = null
           this.roles = []

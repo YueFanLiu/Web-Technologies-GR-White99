@@ -143,6 +143,7 @@ service.interceptors.response.use(res => {
   },
   error => {
     console.log('err' + error)
+    const shouldShowError = error?.config?.headers?.showErrorMessage !== false
     if (error?.response?.status === 401) {
       // 处理后端直接返回 HTTP 401 的情况，避免只显示“系统接口401异常”
       handleUnauthorized()
@@ -156,7 +157,9 @@ service.interceptors.response.use(res => {
     } else if (message && message.includes("Request failed with status code")) {
       message = "系统接口" + message.slice(-3) + "异常"
     }
-    ElMessage({ message: message, type: 'error', duration: 5 * 1000 })
+    if (shouldShowError) {
+      ElMessage({ message: message, type: 'error', duration: 5 * 1000 })
+    }
     return Promise.reject(error)
   }
 )

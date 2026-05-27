@@ -82,5 +82,9 @@ export function roleAllowed(userInfo, allowedRoles = []) {
   }
 
   const currentRole = normalizeRole(userInfo?.role)
+  if (currentRole === ROLES.ADMIN) {
+    return true
+  }
+
   return allowedRoles.some((role) => normalizeRole(role) === currentRole)
 }
