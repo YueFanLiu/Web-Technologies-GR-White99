@@ -1,8 +1,16 @@
 backend/HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
+backend/.maven-user-home/
 !**/src/main/**/target/
 !**/src/test/**/target/
+
+### Codex local workspace ###
+.agents/
+.claude/
+.codex/
+.mcp.json
+skills-lock.json
 
 ### STS ###
 .apt_generated

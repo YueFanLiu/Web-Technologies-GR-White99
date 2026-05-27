@@ -1,6 +1,7 @@
 package fr.isep.projectweb.model.service;
 
 import fr.isep.projectweb.model.dto.response.EventSummaryResponse;
+import fr.isep.projectweb.model.dto.response.EventSaveResponse;
 import fr.isep.projectweb.model.dto.response.ImageResponse;
 import fr.isep.projectweb.model.dto.response.LocationResponse;
 import fr.isep.projectweb.model.dto.response.NotificationResponse;
@@ -12,6 +13,7 @@ import fr.isep.projectweb.model.dto.response.UserSummaryResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.EventImage;
 import fr.isep.projectweb.model.entity.EventReview;
+import fr.isep.projectweb.model.entity.EventSave;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.LocationImage;
 import fr.isep.projectweb.model.entity.Notification;
@@ -100,6 +102,14 @@ final class ResponseMapper {
         response.setStartTime(event.getStartTime());
         response.setEndTime(event.getEndTime());
         response.setStatus(event.getStatus());
+        return response;
+    }
+
+    static EventSaveResponse toEventSaveResponse(EventSave eventSave) {
+        EventSaveResponse response = new EventSaveResponse();
+        response.setId(eventSave.getId());
+        response.setEvent(toEventSummary(eventSave.getEvent()));
+        response.setCreatedAt(eventSave.getCreatedAt());
         return response;
     }
 

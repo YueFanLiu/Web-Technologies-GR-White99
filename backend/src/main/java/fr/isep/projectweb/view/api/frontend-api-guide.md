@@ -1060,6 +1060,60 @@ Public. Returns `EventResponse[]`.
 
 Public. Returns `EventResponse[]`.
 
+### POST /api/events/{eventId}/save
+
+Protected. Saves an event for the current authenticated user. This is a
+bookmark/favorite action and is separate from event registrations.
+
+Frontend example:
+
+```js
+const saved = await apiPost(`/api/events/${eventId}/save`, {}, accessToken);
+```
+
+Response body:
+
+```json
+{
+  "id": "uuid",
+  "event": {
+    "id": "uuid",
+    "title": "Music Night",
+    "category": "concert",
+    "startTime": "2026-05-10T18:00:00",
+    "endTime": "2026-05-10T20:00:00",
+    "status": "PUBLISHED"
+  },
+  "createdAt": "2026-05-03T12:00:00"
+}
+```
+
+### GET /api/events/{eventId}/save
+
+Protected. Returns whether the current authenticated user has saved the event.
+
+Response body:
+
+```json
+{
+  "eventId": "uuid",
+  "saved": true
+}
+```
+
+### DELETE /api/events/{eventId}/save
+
+Protected. Removes the current authenticated user's saved event record.
+
+Response body: empty, status `204 No Content`.
+
+### GET /api/users/me/saved-events
+
+Protected. Returns the current authenticated user's saved events ordered by save
+time descending.
+
+Response body: `EventSaveResponse[]`.
+
 ### POST /api/events
 
 Protected. Current user must have role `ORGANIZER`.
