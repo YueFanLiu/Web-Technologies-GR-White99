@@ -40,38 +40,42 @@ public class RegistrationController {
 
     @GetMapping
     @Operation(summary = "Get all registrations")
-    public List<RegistrationResponse> getAllRegistrations() {
-        return registrationService.getAllRegistrations();
+    public List<RegistrationResponse> getAllRegistrations(@AuthenticationPrincipal Jwt jwt) {
+        return registrationService.getAllRegistrations(jwt);
     }
 
     @GetMapping("/event/{eventId}")
     @Operation(summary = "Get registrations by event id")
-    public List<RegistrationResponse> getRegistrationsByEventId(@PathVariable UUID eventId) {
-        return registrationService.getRegistrationsByEventId(eventId);
+    public List<RegistrationResponse> getRegistrationsByEventId(@PathVariable UUID eventId,
+                                                                @AuthenticationPrincipal Jwt jwt) {
+        return registrationService.getRegistrationsByEventId(eventId, jwt);
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Get registrations by user id")
-    public List<RegistrationResponse> getRegistrationsByUserId(@PathVariable UUID userId) {
-        return registrationService.getRegistrationsByUserId(userId);
+    public List<RegistrationResponse> getRegistrationsByUserId(@PathVariable UUID userId,
+                                                               @AuthenticationPrincipal Jwt jwt) {
+        return registrationService.getRegistrationsByUserId(userId, jwt);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get one registration by id")
-    public RegistrationResponse getRegistrationById(@PathVariable UUID id) {
-        return registrationService.getRegistrationById(id);
+    public RegistrationResponse getRegistrationById(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return registrationService.getRegistrationById(id, jwt);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a registration")
-    public RegistrationResponse updateRegistration(@PathVariable UUID id, @RequestBody RegistrationRequest request) {
-        return registrationService.updateRegistration(id, request);
+    public RegistrationResponse updateRegistration(@PathVariable UUID id,
+                                                   @RequestBody RegistrationRequest request,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        return registrationService.updateRegistration(id, request, jwt);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a registration")
-    public ResponseEntity<Void> deleteRegistration(@PathVariable UUID id) {
-        registrationService.deleteRegistration(id);
+    public ResponseEntity<Void> deleteRegistration(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        registrationService.deleteRegistration(id, jwt);
         return ResponseEntity.noContent().build();
     }
 }

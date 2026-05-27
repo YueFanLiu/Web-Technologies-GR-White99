@@ -1116,7 +1116,7 @@ Response body: `EventSaveResponse[]`.
 
 ### POST /api/events
 
-Protected. Current user must have role `ORGANIZER`.
+Protected. Current user must have role `ORGANIZER` or `ADMIN`.
 
 Request body:
 
@@ -1139,7 +1139,7 @@ Response body: `EventResponse`.
 
 ### PUT /api/events/{id}
 
-Protected. Current user must be the event organizer.
+Protected. Current user must be an admin or the event organizer.
 
 Request body: same as `EventRequest`.
 
@@ -1147,7 +1147,7 @@ Response body: `EventResponse`.
 
 ### DELETE /api/events/{id}
 
-Protected. Current user must be the event organizer.
+Protected. Current user must be an admin or the event organizer.
 
 Response body: empty, status `204 No Content`.
 
@@ -1250,7 +1250,8 @@ Response body:
 
 ### POST /api/events/{eventId}/reviews
 
-Protected.
+Protected. Current user must have a `CONFIRMED` registration for the event, and
+the event must already be ended.
 
 Request body:
 
@@ -1265,7 +1266,8 @@ Response body: `ReviewResponse`.
 
 ### PUT /api/events/{eventId}/reviews/{reviewId}
 
-Protected.
+Protected. Current user must be the review author, an admin, or the organizer
+of the reviewed event.
 
 Request body: same as `ReviewRequest`.
 
@@ -1273,7 +1275,8 @@ Response body: `ReviewResponse`.
 
 ### DELETE /api/events/{eventId}/reviews/{reviewId}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Current user must be the review author, an admin, or the organizer
+of the reviewed event. Response body empty, status `204 No Content`.
 
 ## Locations
 
@@ -1580,7 +1583,8 @@ Response body: `PostResponse`.
 
 ### PUT /api/posts/{id}
 
-Protected.
+Protected. Current user must be the post author, an admin, or the organizer of
+the related event when the post is linked to an event.
 
 Request body: same as `PostRequest`.
 
@@ -1588,7 +1592,9 @@ Response body: `PostResponse`.
 
 ### DELETE /api/posts/{id}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Current user must be the post author, an admin, or the organizer of
+the related event when the post is linked to an event. Response body empty,
+status `204 No Content`.
 
 ## Post Images
 
@@ -1674,7 +1680,8 @@ Response body: `ReviewResponse`.
 
 ### PUT /api/posts/{postId}/reviews/{reviewId}
 
-Protected.
+Protected. Current user must be the review author, the post author, an admin,
+or the organizer of the related event when the post is linked to an event.
 
 Request body: same as `ReviewRequest`.
 
@@ -1682,7 +1689,9 @@ Response body: `ReviewResponse`.
 
 ### DELETE /api/posts/{postId}/reviews/{reviewId}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Current user must be the review author, the post author, an admin,
+or the organizer of the related event when the post is linked to an event.
+Response body empty, status `204 No Content`.
 
 ## Registrations
 
@@ -1724,23 +1733,27 @@ Response body:
 
 ### GET /api/registrations
 
-Protected. Returns `RegistrationResponse[]`.
+Protected. Admin only. Returns `RegistrationResponse[]`.
 
 ### GET /api/registrations/{id}
 
-Protected. Returns one `RegistrationResponse`.
+Protected. Current user must own the registration, be an admin, or organize the
+registration's event. Returns one `RegistrationResponse`.
 
 ### GET /api/registrations/event/{eventId}
 
-Protected. Returns `RegistrationResponse[]`.
+Protected. Admins and the event organizer only. Returns
+`RegistrationResponse[]`.
 
 ### GET /api/registrations/user/{userId}
 
-Protected. Returns `RegistrationResponse[]`.
+Protected. Current user can view their own registrations. Admins can view any
+user's registrations. Returns `RegistrationResponse[]`.
 
 ### PUT /api/registrations/{id}
 
-Protected.
+Protected. Admins and the event organizer only. The registration `eventId`
+cannot be changed.
 
 Request body: same as `RegistrationRequest`.
 
@@ -1748,7 +1761,8 @@ Response body: `RegistrationResponse`.
 
 ### DELETE /api/registrations/{id}
 
-Protected. Response body empty, status `204 No Content`.
+Protected. Current user must own the registration, be an admin, or organize the
+registration's event. Response body empty, status `204 No Content`.
 
 ## Common Frontend Helpers
 

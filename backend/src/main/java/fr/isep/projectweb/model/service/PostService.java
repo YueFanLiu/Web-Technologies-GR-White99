@@ -8,6 +8,7 @@ import fr.isep.projectweb.model.dto.response.PostResponse;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Location;
 import fr.isep.projectweb.model.entity.Post;
+import fr.isep.projectweb.model.entity.User;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -24,6 +25,8 @@ public class PostService {
     private static final int SEARCH_RESULT_LIMIT = 20;
     private static final int DEFAULT_MAIN_FEED_LIMIT = 20;
     private static final int MAX_MAIN_FEED_LIMIT = 100;
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String ORGANIZER_ROLE = "ORGANIZER";
 
     private final PostRepository postRepository;
     private final LocationDAO locationDAO;
@@ -116,8 +119,9 @@ public class PostService {
         return ResponseMapper.toPostResponse(findPostById(id));
     }
 
-    public PostResponse updatePost(UUID id, PostRequest request) {
+    public PostResponse updatePost(UUID id, PostRequest request, Jwt jwt) {
         Post post = findPostById(id);
+        ensureCanManagePost(post, currentUserService.getCurrentUser(jwt));
         UUID previousLocationId = post.getLocation() != null ? post.getLocation().getId() : null;
         applyRequest(post, request);
         Post savedPost = postRepository.save(post);
@@ -126,8 +130,9 @@ public class PostService {
         return ResponseMapper.toPostResponse(savedPost);
     }
 
-    public void deletePost(UUID id) {
+    public void deletePost(UUID id, Jwt jwt) {
         Post post = findPostById(id);
+        ensureCanManagePost(post, currentUserService.getCurrentUser(jwt));
         UUID locationId = post.getLocation() != null ? post.getLocation().getId() : null;
         postRepository.delete(post);
         if (locationId != null) {
@@ -196,5 +201,32 @@ public class PostService {
         if (currentLocationId != null && !Objects.equals(previousLocationId, currentLocationId)) {
             recommendationScoreService.recomputeLocationScore(currentLocationId);
         }
+    }
+
+    private void ensureCanManagePost(Post post, User currentUser) {
+        if (isAdmin(currentUser) || isPostAuthor(post, currentUser) || isRelatedEventOrganizer(post, currentUser)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only manage your own posts");
+    }
+
+    private boolean isPostAuthor(Post post, User user) {
+        return post.getUser() != null && user != null && Objects.equals(post.getUser().getId(), user.getId());
+    }
+
+    private boolean isRelatedEventOrganizer(Post post, User user) {
+        Event event = post.getEvent();
+        return isOrganizer(user)
+                && event != null
+                && event.getOrganizer() != null
+                && Objects.equals(event.getOrganizer().getId(), user.getId());
+    }
+
+    private boolean isOrganizer(User user) {
+        return user != null && ORGANIZER_ROLE.equalsIgnoreCase(user.getRole());
+    }
+
+    private boolean isAdmin(User user) {
+        return user != null && ADMIN_ROLE.equalsIgnoreCase(user.getRole());
     }
 }

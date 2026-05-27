@@ -49,14 +49,17 @@ public class EventReviewController {
     @Operation(summary = "Update a review for an event")
     public ReviewResponse updateEventReview(@PathVariable UUID eventId,
                                             @PathVariable UUID reviewId,
-                                            @RequestBody ReviewRequest request) {
-        return eventReviewService.update(eventId, reviewId, request);
+                                            @RequestBody ReviewRequest request,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        return eventReviewService.update(eventId, reviewId, request, jwt);
     }
 
     @DeleteMapping("/{reviewId}")
     @Operation(summary = "Delete a review from an event")
-    public ResponseEntity<Void> deleteEventReview(@PathVariable UUID eventId, @PathVariable UUID reviewId) {
-        eventReviewService.delete(eventId, reviewId);
+    public ResponseEntity<Void> deleteEventReview(@PathVariable UUID eventId,
+                                                  @PathVariable UUID reviewId,
+                                                  @AuthenticationPrincipal Jwt jwt) {
+        eventReviewService.delete(eventId, reviewId, jwt);
         return ResponseEntity.noContent().build();
     }
 }

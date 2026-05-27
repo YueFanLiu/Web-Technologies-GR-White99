@@ -49,14 +49,17 @@ public class PostReviewController {
     @Operation(summary = "Update a review for a post")
     public ReviewResponse updatePostReview(@PathVariable UUID postId,
                                            @PathVariable UUID reviewId,
-                                           @RequestBody ReviewRequest request) {
-        return postReviewService.update(postId, reviewId, request);
+                                           @RequestBody ReviewRequest request,
+                                           @AuthenticationPrincipal Jwt jwt) {
+        return postReviewService.update(postId, reviewId, request, jwt);
     }
 
     @DeleteMapping("/{reviewId}")
     @Operation(summary = "Delete a review from a post")
-    public ResponseEntity<Void> deletePostReview(@PathVariable UUID postId, @PathVariable UUID reviewId) {
-        postReviewService.delete(postId, reviewId);
+    public ResponseEntity<Void> deletePostReview(@PathVariable UUID postId,
+                                                 @PathVariable UUID reviewId,
+                                                 @AuthenticationPrincipal Jwt jwt) {
+        postReviewService.delete(postId, reviewId, jwt);
         return ResponseEntity.noContent().build();
     }
 }
