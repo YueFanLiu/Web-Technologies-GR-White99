@@ -8,6 +8,7 @@ public class ChatConversationResponse {
 
     private UUID id;
     private String type;
+    private EventSummaryResponse event;
     private List<PublicUserResponse> participants;
     private ChatMessageResponse lastMessage;
     private long unreadCount;
@@ -28,6 +29,14 @@ public class ChatConversationResponse {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public EventSummaryResponse getEvent() {
+        return event;
+    }
+
+    public void setEvent(EventSummaryResponse event) {
+        this.event = event;
     }
 
     public List<PublicUserResponse> getParticipants() {

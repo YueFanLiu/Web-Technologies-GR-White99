@@ -3,6 +3,7 @@ package fr.isep.projectweb.controller;
 import fr.isep.projectweb.model.dto.request.ChatMessageRequest;
 import fr.isep.projectweb.model.dto.request.ChatReadRequest;
 import fr.isep.projectweb.model.dto.request.DirectChatRequest;
+import fr.isep.projectweb.model.dto.request.EventDirectChatRequest;
 import fr.isep.projectweb.model.dto.response.ChatConversationResponse;
 import fr.isep.projectweb.model.dto.response.ChatMessageResponse;
 import fr.isep.projectweb.model.service.ChatService;
@@ -44,6 +45,14 @@ public class ChatController {
     public ChatConversationResponse getOrCreateDirectConversation(@RequestBody DirectChatRequest request,
                                                                   @AuthenticationPrincipal Jwt jwt) {
         return chatService.getOrCreateDirectConversation(request, jwt);
+    }
+
+    @PostMapping("/events/{eventId}/direct")
+    @Operation(summary = "Get or create an event-based direct chat between an organizer and attendee")
+    public ChatConversationResponse getOrCreateEventDirectConversation(@PathVariable UUID eventId,
+                                                                       @RequestBody EventDirectChatRequest request,
+                                                                       @AuthenticationPrincipal Jwt jwt) {
+        return chatService.getOrCreateEventDirectConversation(eventId, request, jwt);
     }
 
     @GetMapping("/{conversationId}/messages")

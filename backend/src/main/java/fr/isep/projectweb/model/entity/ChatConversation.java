@@ -31,6 +31,10 @@ public class ChatConversation {
     @JoinColumn(name = "direct_user_two_id")
     private User directUserTwo;
 
+    @ManyToOne
+    @JoinColumn(name = "event_id")
+    private Event event;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -67,6 +71,14 @@ public class ChatConversation {
 
     public void setDirectUserTwo(User directUserTwo) {
         this.directUserTwo = directUserTwo;
+    }
+
+    public Event getEvent() {
+        return event;
+    }
+
+    public void setEvent(Event event) {
+        this.event = event;
     }
 
     public LocalDateTime getCreatedAt() {

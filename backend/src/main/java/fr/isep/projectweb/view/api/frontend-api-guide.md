@@ -567,7 +567,10 @@ Response body: empty, status `204 No Content`.
 
 All chat endpoints are protected. The first version is REST-based direct chat. The frontend can poll `GET /api/chats/{conversationId}/messages` to refresh messages.
 
-Direct chats can only be created between accepted friends. Message read and write access is limited to conversation participants.
+Regular direct chats can only be created between accepted friends. Event-based
+direct chats can be created between an event organizer and a confirmed attendee
+for that event. Message read and write access is limited to conversation
+participants.
 
 ### GET /api/chats
 
@@ -584,6 +587,7 @@ Response body:
   {
     "id": "uuid",
     "type": "DIRECT",
+    "event": null,
     "participants": [
       {
         "id": "uuid",
@@ -641,6 +645,65 @@ const chat = await apiPost("/api/chats/direct", {
 ```
 
 Response body: `ChatConversationResponse`.
+
+### POST /api/chats/events/{eventId}/direct
+
+Gets or creates an event-based direct chat between the event organizer and one
+confirmed attendee. This does not require the users to be friends.
+
+Rules:
+
+- The event organizer can create/open a chat with a confirmed attendee.
+- A confirmed attendee can create/open a chat with the event organizer.
+- Attendee-to-attendee event chats are not allowed.
+- Users unrelated to the event receive `403 Forbidden`.
+
+Request body:
+
+```json
+{
+  "userId": "uuid"
+}
+```
+
+Frontend examples:
+
+```js
+// Organizer opens a chat with one attendee.
+const chat = await apiPost(`/api/chats/events/${eventId}/direct`, {
+  userId: attendeeUserId
+}, accessToken);
+
+// Attendee opens a chat with the organizer.
+const chat = await apiPost(`/api/chats/events/${eventId}/direct`, {
+  userId: organizerUserId
+}, accessToken);
+```
+
+Response body: `ChatConversationResponse`.
+
+For event-based chats, `ChatConversationResponse.event` is an
+`EventSummaryResponse`:
+
+```json
+{
+  "id": "uuid",
+  "type": "DIRECT",
+  "event": {
+    "id": "uuid",
+    "title": "Music Night",
+    "category": "concert",
+    "startTime": "2026-05-10T18:00:00",
+    "endTime": "2026-05-10T20:00:00",
+    "status": "PUBLISHED"
+  },
+  "participants": [],
+  "lastMessage": null,
+  "unreadCount": 0,
+  "createdAt": "2026-05-20T13:00:00",
+  "updatedAt": "2026-05-20T13:00:00"
+}
+```
 
 ### GET /api/chats/{conversationId}/messages
 
