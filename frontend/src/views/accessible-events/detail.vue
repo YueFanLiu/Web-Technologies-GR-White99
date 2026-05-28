@@ -96,7 +96,9 @@
           <el-button circle size="small" @click="decreaseCount">-</el-button>
           <span class="count">{{ childCount }}</span>
           <el-button circle size="small" @click="increaseCount">+</el-button>
-          <el-button type="primary" class="book-btn" @click="goBookActivity">Book Now</el-button>
+          <el-button type="primary" class="book-btn" @click="goBookActivity">
+            {{ isCurrentUserRegistered ? 'Already Booked' : 'Book Now' }}
+          </el-button>
         </div>
 
         <el-button
@@ -240,9 +242,9 @@ const accessibilityTags = ref([])
 // 2. GET /api/events/{eventId}/images 返回的 ImageResponse[]，字段为 imageUrl
 const mainEventImage = computed(() => {
   return normalizeImageUrl(eventDetail.value.coverImageUrl)
-    || getImageUrl(eventImages.value[0])
     || normalizeImageUrl(eventDetail.value.imageUrls?.[0])
-    || fallbackEventImage
+    || getImageUrl(eventImages.value[0])
+    || fallbackEventSeedImage(eventDetail.value.id || eventId)
 })
 
 const formattedEventDate = computed(() => {
@@ -294,6 +296,10 @@ const canContactOrganizer = computed(() => {
   return String(currentRegistration.value?.status || '').toUpperCase() === 'CONFIRMED'
 })
 
+const isCurrentUserRegistered = computed(() => {
+  return currentRegistration.value && isActiveRegistration(currentRegistration.value)
+})
+
 // 儿童数量
 const childCount = ref(1)
 
@@ -335,6 +341,20 @@ const decreaseCount = () => {
 }
 
 const goBookActivity = () => {
+  if (isCurrentUserRegistered.value) {
+    sessionStorage.setItem('lastBookingConfirmation', JSON.stringify({
+      registration: currentRegistration.value,
+      event: eventDetail.value,
+      quantity: childCount.value
+    }))
+    ElMessage.info('You are already registered for this activity.')
+    router.push({
+      path: '/product/bookingConfirmation',
+      query: { eventId }
+    })
+    return
+  }
+
   router.push({
     path: '/product/bookActivity',
     query: {
@@ -415,6 +435,10 @@ const fetchEventImages = () => {
 
 const getImageUrl = (image) => {
   return normalizeImageUrl(image?.imageUrl || image?.url || image?.publicUrl || image?.path)
+}
+
+const fallbackEventSeedImage = (id) => {
+  return `https://picsum.photos/seed/detail-${encodeURIComponent(id || 'event')}/900/560`
 }
 
 const normalizeImageUrl = (value) => {

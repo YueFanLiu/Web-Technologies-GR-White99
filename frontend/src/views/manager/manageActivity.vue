@@ -53,11 +53,12 @@
 
                 <el-form-item label="Category" prop="category">
                   <el-select v-model="form.category" size="large">
-                    <el-option label="Music" value="Music" />
-                    <el-option label="Workshop" value="Workshop" />
-                    <el-option label="Concert" value="Concert" />
-                    <el-option label="Family Activity" value="Family Activity" />
-                    <el-option label="Community Event" value="Community Event" />
+                    <el-option
+                      v-for="category in EVENT_CATEGORY_OPTIONS"
+                      :key="category.value"
+                      :label="category.label"
+                      :value="category.value"
+                    />
                   </el-select>
                 </el-form-item>
               </div>
@@ -222,6 +223,7 @@ import {
 } from '@/api/manager/manageActivity'
 import useUserStore from '@/store/modules/user'
 import { canManageActivityForUser } from '@/utils/accessControl'
+import { EVENT_CATEGORY_OPTIONS } from '@/constants/events'
 
 const route = useRoute()
 const router = useRouter()
@@ -235,7 +237,9 @@ const originalEvent = ref(null)
 const originalLocation = ref(null)
 const hasAccessibility = ref(false)
 
-const defaultCover = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
+function fallbackCover(id) {
+  return `https://picsum.photos/seed/manage-${encodeURIComponent(id || 'activity')}/760/430`
+}
 
 const form = reactive({
   title: '',
@@ -286,7 +290,7 @@ const activity = computed(() => {
     date: formatDate(buildDateTime(form.date, form.startTime)),
     time: formatTime(buildDateTime(form.date, form.startTime), buildDateTime(form.date, form.endTime)),
     location: [form.venueName || location.name, form.address || location.address].filter(Boolean).join(', ') || 'Location TBA',
-    cover: event.coverImageUrl || event.imageUrls?.[0] || defaultCover,
+    cover: event.coverImageUrl || event.imageUrls?.[0] || fallbackCover(event.id),
     updatedAt: event.updatedAt ? formatDateTime(event.updatedAt) : 'Not available'
   }
 })

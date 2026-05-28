@@ -40,10 +40,13 @@
                   <div class="filter-item">
                     <label>Activity Type</label>
                     <el-checkbox-group v-model="form.activityType">
-                      <el-checkbox label="all">All</el-checkbox>
-                      <el-checkbox label="outdoor">Outdoor</el-checkbox>
-                      <el-checkbox label="class">Class</el-checkbox>
-                      <el-checkbox label="workshop">Workshop</el-checkbox>
+                      <el-checkbox
+                        v-for="category in EVENT_CATEGORY_OPTIONS"
+                        :key="category.value"
+                        :label="category.value"
+                      >
+                        {{ category.label }}
+                      </el-checkbox>
                     </el-checkbox-group>
                   </div>
 
@@ -51,11 +54,13 @@
                   <div class="filter-item">
                     <label>Accessibility Options</label>
                     <el-checkbox-group v-model="form.accessibility">
-                      <el-checkbox label="wheelchairAccessible">Wheelchair Accessible</el-checkbox>
-                      <el-checkbox label="elevator">Elevator</el-checkbox>
-                      <el-checkbox label="accessibleToilet">Accessible Restroom</el-checkbox>
-                      <el-checkbox label="quietEnvironment">Low Noise Level</el-checkbox>
-                      <el-checkbox label="stepFreeAccess">Step-free Access</el-checkbox>
+                      <el-checkbox
+                        v-for="option in ACCESSIBILITY_FILTER_OPTIONS"
+                        :key="option.value"
+                        :label="option.value"
+                      >
+                        {{ option.label }}
+                      </el-checkbox>
                     </el-checkbox-group>
                   </div>
 
@@ -201,9 +206,12 @@
 
           <el-form-item label="Category">
             <el-select v-model="eventForm.category" placeholder="select category">
-              <el-option label="concert" value="concert" />
-              <el-option label="workshop" value="workshop" />
-              <el-option label="outdoor" value="outdoor" />
+              <el-option
+                v-for="category in EVENT_CATEGORY_OPTIONS"
+                :key="category.value"
+                :label="category.label"
+                :value="category.value"
+              />
             </el-select>
           </el-form-item>
 
@@ -264,9 +272,13 @@ import {
   updateEvent
 } from '@/api/events/index.js'
 import ActivityMap from '@/components/ActivityMap/index.vue'
-import { createRegistration } from '@/api/events/joinActivity.js'
 import { listLocations } from '@/api/location/index.js'
 import { listEventMapPoints, searchEventMapPoints } from '@/api/map.js'
+import {
+  ACCESSIBILITY_FILTER_OPTIONS,
+  EVENT_CATEGORY_OPTIONS,
+  normalizeQueryList
+} from '@/constants/events'
 import useUserStore from '@/store/modules/user'
 import { canCreateActivityForUser, canManageActivityForUser, isAdmin, isParent } from '@/utils/accessControl'
 import { useRoute } from 'vue-router'
@@ -540,15 +552,10 @@ async function joinActivity(item) {
     return
   }
 
-  try {
-    await createRegistration({
-      eventId: item.id,
-      status: 'CONFIRMED'
-    })
-    ElMessage.success('Activity joined')
-  } catch (error) {
-    console.error('Failed to join activity:', error)
-  }
+  router.push({
+    path: '/product/bookActivity',
+    query: { eventId: item.id }
+  })
 }
 
 function saveActivity(item) {
@@ -605,8 +612,8 @@ const searchEvents = async (params = {}) => {
     if (params.locationId)          searchParams.locationId = params.locationId
     if (params.location)            searchParams.location = params.location
     if (params.date)                searchParams.date = params.date
-    if (params.activityType)        searchParams.activityType = params.activityType
-    if (params.accessibilityOptions) searchParams.accessibilityOptions = params.accessibilityOptions
+    if (params.activityType)        searchParams.activityType = normalizeQueryList(params.activityType)
+    if (params.accessibilityOptions) searchParams.accessibilityOptions = normalizeQueryList(params.accessibilityOptions)
 
     const res = await searchEventMapPoints(searchParams)
     const events = Array.isArray(res.events) ? res.events : []

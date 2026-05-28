@@ -6,7 +6,16 @@
         <p>Review your details and confirm your booking.</p>
       </section>
 
-      <section class="booking-grid">
+      <el-alert
+        v-if="alreadyRegistered"
+        class="booking-alert"
+        title="You are already registered for this activity."
+        type="info"
+        show-icon
+        :closable="false"
+      />
+
+      <section class="booking-grid" v-loading="loading">
         <div class="left-column">
           <section class="booking-card">
             <div class="form-section">
@@ -102,9 +111,15 @@
               <el-icon><ArrowLeft /></el-icon>
               Back to Event
             </el-button>
-            <el-button size="large" type="primary" class="confirm-button" @click="confirmBooking">
+            <el-button
+              size="large"
+              type="primary"
+              class="confirm-button"
+              :loading="submitting"
+              @click="confirmBooking"
+            >
               <el-icon><Lock /></el-icon>
-              Confirm Booking
+              {{ alreadyRegistered ? 'View Confirmation' : 'Confirm Booking' }}
             </el-button>
           </div>
         </div>
@@ -150,8 +165,14 @@
             <strong>{{ formatPrice(totalPrice) }}</strong>
           </div>
 
-          <el-button size="large" type="primary" class="summary-confirm" @click="confirmBooking">
-            Confirm Booking
+          <el-button
+            size="large"
+            type="primary"
+            class="summary-confirm"
+            :loading="submitting"
+            @click="confirmBooking"
+          >
+            {{ alreadyRegistered ? 'View Confirmation' : 'Confirm Booking' }}
           </el-button>
         </aside>
       </section>
@@ -160,10 +181,17 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createEventRegistration } from '@/api/events/detail'
+import {
+  createEventRegistration,
+  getCurrentUserProfile,
+  getEventDetail,
+  getRegistrationsByUser
+} from '@/api/events/detail'
+import { isAlreadyRegisteredError } from '@/constants/events'
+import fallbackEventImage from '@/assets/images/login-background.jpg'
 import {
   ArrowLeft,
   Calendar,
@@ -180,17 +208,23 @@ import {
 const router = useRouter()
 const route = useRoute()
 
-const unitPrice = 45
 const eventId = route.query.eventId || route.query.id
 const quantity = ref(Number(route.query.quantity) || 1)
+const loading = ref(false)
+const submitting = ref(false)
+const alreadyRegistered = ref(false)
+const existingRegistration = ref(null)
+const rawEvent = ref(null)
 
-const event = {
-  title: 'Sunset Sounds: Outdoor Acoustic Concert',
-  date: 'Sat, 24 May 2025',
-  time: '6:30 PM - 9:00 PM',
-  location: 'Riverside Park, Central Promenade, Singapore',
-  image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=720&q=80'
-}
+const event = reactive({
+  id: eventId || '',
+  title: 'Loading event...',
+  date: 'Date TBA',
+  time: 'Time TBA',
+  location: 'Location TBA',
+  image: fallbackEventImage,
+  price: 0
+})
 
 const contact = ref({
   fullName: 'Sarah Pang',
@@ -198,7 +232,8 @@ const contact = ref({
   phone: '+65 8123 4567'
 })
 
-const totalPrice = computed(() => unitPrice * quantity.value)
+const unitPrice = computed(() => Number(event.price || 0))
+const totalPrice = computed(() => unitPrice.value * quantity.value)
 
 function increaseQuantity() {
   quantity.value += 1
@@ -211,7 +246,8 @@ function decreaseQuantity() {
 }
 
 function formatPrice(value) {
-  return `S$${value.toFixed(2)}`
+  const amount = Number(value || 0)
+  return amount === 0 ? 'Free' : `S$${amount.toFixed(2)}`
 }
 
 function backToEvent() {
@@ -221,25 +257,166 @@ function backToEvent() {
   })
 }
 
+function formatEventDate(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Date TBA'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
+
+function formatEventTime(startValue, endValue) {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (!startValue || Number.isNaN(start.getTime())) return 'Time TBA'
+
+  const options = { hour: 'numeric', minute: '2-digit' }
+  if (!endValue || Number.isNaN(end.getTime())) return start.toLocaleTimeString('en-US', options)
+  return `${start.toLocaleTimeString('en-US', options)} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function formatLocation(location) {
+  return [location?.name, location?.address, location?.city, location?.country]
+    .filter(Boolean)
+    .join(', ') || 'Location TBA'
+}
+
+function normalizeImageUrl(value) {
+  const url = String(value || '').trim()
+  if (!url) return ''
+  if (/^(https?:|data:|blob:)/i.test(url)) return url
+  if (url.startsWith('//')) return `${window.location.protocol}${url}`
+  if (url.startsWith('/')) return url
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (supabaseUrl) {
+    return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${url.replace(/^\/+/, '')}`
+  }
+
+  return url
+}
+
+function fallbackImage(id) {
+  return `https://picsum.photos/seed/booking-${encodeURIComponent(id || 'event')}/720/420`
+}
+
+function applyEvent(detail) {
+  rawEvent.value = detail || {}
+  event.id = detail?.id || eventId || ''
+  event.title = detail?.title || 'Untitled event'
+  event.date = formatEventDate(detail?.startTime)
+  event.time = formatEventTime(detail?.startTime, detail?.endTime)
+  event.location = formatLocation(detail?.location)
+  event.image = normalizeImageUrl(detail?.coverImageUrl)
+    || normalizeImageUrl(detail?.imageUrls?.[0])
+    || fallbackImage(detail?.id || eventId)
+  event.price = Number(detail?.price || 0)
+}
+
+function normalizeStatus(status) {
+  return String(status || '').trim().toUpperCase()
+}
+
+function isActiveRegistration(registration) {
+  return !['CANCELLED', 'CANCELED', 'REJECTED'].includes(normalizeStatus(registration?.status))
+}
+
+function registrationEventId(registration) {
+  return registration?.event?.id || registration?.eventId || ''
+}
+
+function extractList(res) {
+  if (Array.isArray(res)) return res
+  return res?.rows || res?.data || res?.list || res?.content || []
+}
+
+function persistConfirmation(registration) {
+  const payload = {
+    registration,
+    event: rawEvent.value || event,
+    quantity: quantity.value
+  }
+  sessionStorage.setItem('lastBookingConfirmation', JSON.stringify(payload))
+}
+
+async function loadExistingRegistration() {
+  const profile = await getCurrentUserProfile()
+  const userId = profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
+  if (!userId) return
+
+  const registrations = extractList(await getRegistrationsByUser(userId))
+  const match = registrations.find((registration) => {
+    return String(registrationEventId(registration)) === String(eventId) && isActiveRegistration(registration)
+  })
+
+  if (match) {
+    alreadyRegistered.value = true
+    existingRegistration.value = match
+  }
+}
+
+async function loadPage() {
+  if (!eventId) {
+    ElMessage.error('Missing event id')
+    return
+  }
+
+  loading.value = true
+  try {
+    const detail = await getEventDetail(eventId)
+    applyEvent(detail)
+    await loadExistingRegistration()
+  } catch (error) {
+    console.error('Failed to load booking page:', error)
+    ElMessage.error('Failed to load booking details')
+  } finally {
+    loading.value = false
+  }
+}
+
 function confirmBooking() {
   if (!eventId) {
     ElMessage.error('Missing event id')
     return
   }
 
+  if (alreadyRegistered.value && existingRegistration.value) {
+    persistConfirmation(existingRegistration.value)
+    ElMessage.info('You are already registered for this activity.')
+    router.push({
+      path: '/product/bookingConfirmation',
+      query: { eventId }
+    })
+    return
+  }
+
+  submitting.value = true
   createEventRegistration({
     eventId,
-    quantity: quantity.value,
-    fullName: contact.value.fullName,
-    email: contact.value.email,
-    phone: contact.value.phone
-  }).then(() => {
+    status: 'REGISTERED'
+  }).then((registration) => {
+    persistConfirmation(registration)
     ElMessage.success('Booking confirmed')
-    router.push('/product/bookingConfirmation')
+    router.push({
+      path: '/product/bookingConfirmation',
+      query: { eventId }
+    })
   }).catch(error => {
+    if (isAlreadyRegisteredError(error)) {
+      alreadyRegistered.value = true
+      ElMessage.warning('You are already registered for this activity.')
+      return
+    }
     console.error('Failed to confirm booking:', error)
+  }).finally(() => {
+    submitting.value = false
   })
 }
+
+onMounted(loadPage)
 </script>
 
 <style scoped lang="scss">
@@ -271,6 +448,10 @@ function confirmBooking() {
   margin: 12px 0 0;
   color: #1d3264;
   font-size: 18px;
+}
+
+.booking-alert {
+  margin-bottom: 18px;
 }
 
 .booking-grid {

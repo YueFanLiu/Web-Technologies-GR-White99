@@ -30,11 +30,12 @@
 
                 <el-form-item label="Category" prop="category">
                   <el-select v-model="form.category" size="large" placeholder="Select a category">
-                    <el-option label="Music" value="Music" />
-                    <el-option label="Workshop" value="Workshop" />
-                    <el-option label="Concert" value="Concert" />
-                    <el-option label="Family Activity" value="Family Activity" />
-                    <el-option label="Community Event" value="Community Event" />
+                    <el-option
+                      v-for="category in EVENT_CATEGORY_OPTIONS"
+                      :key="category.value"
+                      :label="category.label"
+                      :value="category.value"
+                    />
                   </el-select>
                 </el-form-item>
               </div>
@@ -233,6 +234,7 @@ import {
   createLocationAccessibility,
   uploadEventImage
 } from '@/api/manager/createActivity'
+import { EVENT_CATEGORY_OPTIONS } from '@/constants/events'
 import useUserStore from '@/store/modules/user'
 import { canCreateActivityForUser } from '@/utils/accessControl'
 import {

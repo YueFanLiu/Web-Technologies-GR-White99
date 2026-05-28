@@ -46,20 +46,20 @@
 
           <div class="details-list">
             <div>
-              <span>Booking ID</span>
-              <strong class="booking-id">{{ booking.id }}</strong>
+              <span>Confirmation number</span>
+              <strong class="booking-id">{{ booking.confirmationNumber }}</strong>
             </div>
             <div>
-              <span>Ticket type</span>
-              <strong>{{ booking.ticketType }}</strong>
+              <span>Status</span>
+              <strong>{{ booking.status }}</strong>
+            </div>
+            <div>
+              <span>Registered at</span>
+              <strong>{{ booking.registeredAt }}</strong>
             </div>
             <div>
               <span>Quantity</span>
               <strong>{{ booking.quantity }}</strong>
-            </div>
-            <div>
-              <span>Total paid</span>
-              <strong>{{ booking.totalPaid }}</strong>
             </div>
           </div>
         </section>
@@ -84,8 +84,10 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import fallbackEventImage from '@/assets/images/login-background.jpg'
 import {
   ArrowLeft,
   Calendar,
@@ -96,28 +98,108 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 
-const event = {
-  title: 'Sunset Sounds: Outdoor Acoustic Concert',
-  date: 'Sat, 24 May 2025',
-  time: '6:30 PM - 9:00 PM',
-  location: 'Riverside Park, Central Promenade, Singapore',
-  image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=720&q=80'
+function readStoredConfirmation() {
+  try {
+    return JSON.parse(sessionStorage.getItem('lastBookingConfirmation') || '{}')
+  } catch (error) {
+    return {}
+  }
 }
 
-const booking = {
-  id: 'AE-2025-0524-7894',
-  ticketType: 'General Admission',
-  quantity: 1,
-  totalPaid: 'S$45.00'
+const storedConfirmation = readStoredConfirmation()
+const registration = storedConfirmation.registration || {}
+const storedEvent = storedConfirmation.event || registration.event || {}
+
+function normalizeImageUrl(value) {
+  const url = String(value || '').trim()
+  if (!url) return ''
+  if (/^(https?:|data:|blob:)/i.test(url)) return url
+  if (url.startsWith('//')) return `${window.location.protocol}${url}`
+  if (url.startsWith('/')) return url
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (supabaseUrl) {
+    return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${url.replace(/^\/+/, '')}`
+  }
+
+  return url
 }
+
+function formatDate(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Date TBA'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
+
+function formatDateTime(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return 'Not available'
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
+
+function formatTime(startValue, endValue) {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (!startValue || Number.isNaN(start.getTime())) return 'Time TBA'
+
+  const options = { hour: 'numeric', minute: '2-digit' }
+  if (!endValue || Number.isNaN(end.getTime())) return start.toLocaleTimeString('en-US', options)
+  return `${start.toLocaleTimeString('en-US', options)} - ${end.toLocaleTimeString('en-US', options)}`
+}
+
+function formatLocation(location) {
+  return [location?.name, location?.address, location?.city, location?.country]
+    .filter(Boolean)
+    .join(', ') || 'Location TBA'
+}
+
+function fallbackImage(id) {
+  return id ? `https://picsum.photos/seed/confirmation-${encodeURIComponent(id)}/720/420` : fallbackEventImage
+}
+
+const eventId = computed(() => storedEvent.id || registration.event?.id || route.query.eventId || '')
+
+const event = computed(() => ({
+  title: storedEvent.title || registration.event?.title || 'Activity',
+  date: formatDate(storedEvent.startTime || registration.event?.startTime),
+  time: formatTime(storedEvent.startTime || registration.event?.startTime, storedEvent.endTime || registration.event?.endTime),
+  location: formatLocation(storedEvent.location || registration.event?.location),
+  image: normalizeImageUrl(storedEvent.coverImageUrl)
+    || normalizeImageUrl(storedEvent.imageUrls?.[0])
+    || fallbackImage(eventId.value)
+}))
+
+const booking = computed(() => {
+  return {
+    confirmationNumber: registration.id || 'Not available',
+    status: registration.status || 'REGISTERED',
+    registeredAt: formatDateTime(registration.registeredAt),
+    quantity: storedConfirmation.quantity || 1
+  }
+})
 
 function viewMyEvents() {
   router.push('/my-events/joined')
 }
 
 function backToEvent() {
-  router.push('/product/eventDetails')
+  router.push({
+    path: '/product/eventDetails',
+    query: eventId.value ? { id: eventId.value } : {}
+  })
 }
 
 function addToCalendar() {
