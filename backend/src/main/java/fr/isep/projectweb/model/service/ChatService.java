@@ -3,15 +3,19 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.ChatConversationRepository;
 import fr.isep.projectweb.model.dao.ChatMessageRepository;
 import fr.isep.projectweb.model.dao.ChatParticipantRepository;
+import fr.isep.projectweb.model.dao.EventRepository;
+import fr.isep.projectweb.model.dao.RegistrationRepository;
 import fr.isep.projectweb.model.dao.UserRepository;
 import fr.isep.projectweb.model.dto.request.ChatMessageRequest;
 import fr.isep.projectweb.model.dto.request.ChatReadRequest;
 import fr.isep.projectweb.model.dto.request.DirectChatRequest;
+import fr.isep.projectweb.model.dto.request.EventDirectChatRequest;
 import fr.isep.projectweb.model.dto.response.ChatConversationResponse;
 import fr.isep.projectweb.model.dto.response.ChatMessageResponse;
 import fr.isep.projectweb.model.entity.ChatConversation;
 import fr.isep.projectweb.model.entity.ChatMessage;
 import fr.isep.projectweb.model.entity.ChatParticipant;
+import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.User;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -30,6 +34,7 @@ import java.util.UUID;
 public class ChatService {
 
     private static final String CONVERSATION_TYPE_DIRECT = "DIRECT";
+    private static final String CONFIRMED_STATUS = "CONFIRMED";
     private static final String MESSAGE_TYPE_TEXT = "TEXT";
     private static final Set<String> ALLOWED_MESSAGE_TYPES = Set.of("TEXT", "IMAGE", "SYSTEM");
     private static final int DEFAULT_MESSAGE_LIMIT = 30;
@@ -38,6 +43,8 @@ public class ChatService {
     private final ChatConversationRepository chatConversationRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final EventRepository eventRepository;
+    private final RegistrationRepository registrationRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final FriendService friendService;
@@ -46,6 +53,8 @@ public class ChatService {
     public ChatService(ChatConversationRepository chatConversationRepository,
                        ChatParticipantRepository chatParticipantRepository,
                        ChatMessageRepository chatMessageRepository,
+                       EventRepository eventRepository,
+                       RegistrationRepository registrationRepository,
                        UserRepository userRepository,
                        CurrentUserService currentUserService,
                        FriendService friendService,
@@ -53,6 +62,8 @@ public class ChatService {
         this.chatConversationRepository = chatConversationRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.eventRepository = eventRepository;
+        this.registrationRepository = registrationRepository;
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
         this.friendService = friendService;
@@ -90,6 +101,30 @@ public class ChatService {
         return toConversationResponse(conversation, currentUser.getId());
     }
 
+    public ChatConversationResponse getOrCreateEventDirectConversation(UUID eventId, EventDirectChatRequest request, Jwt jwt) {
+        User currentUser = currentUserService.getOrCreateCurrentUser(jwt);
+        UUID otherUserId = request.getUserId();
+        if (otherUserId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User id must not be null");
+        }
+        if (Objects.equals(currentUser.getId(), otherUserId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot create a chat with yourself");
+        }
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found"));
+        User otherUser = userRepository.findById(otherUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        ensureCanCreateEventDirectConversation(event, currentUser, otherUser);
+
+        ChatConversation conversation = chatConversationRepository
+                .findEventDirectConversation(eventId, currentUser.getId(), otherUserId)
+                .orElseGet(() -> createDirectConversation(currentUser, otherUser, event));
+
+        return toConversationResponse(conversation, currentUser.getId());
+    }
+
     public List<ChatMessageResponse> getMessages(UUID conversationId, LocalDateTime before, Integer limit, Jwt jwt) {
         UUID currentUserId = currentUserService.getCurrentUserId(jwt);
         ensureParticipant(conversationId, currentUserId);
@@ -123,6 +158,13 @@ public class ChatService {
     }
 
     private void notifyMessageRecipients(ChatMessage message) {
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("conversationId", message.getConversation().getId().toString());
+        payload.put("messageId", message.getId().toString());
+        if (message.getConversation().getEvent() != null) {
+            payload.put("eventId", message.getConversation().getEvent().getId().toString());
+        }
+
         chatParticipantRepository.findByConversationIdOrderByJoinedAtAsc(message.getConversation().getId())
                 .stream()
                 .map(ChatParticipant::getUser)
@@ -138,10 +180,7 @@ public class ChatService {
                         "CHAT_MESSAGE",
                         message.getId(),
                         "chat_message:" + message.getId(),
-                        java.util.Map.of(
-                                "conversationId", message.getConversation().getId().toString(),
-                                "messageId", message.getId().toString()
-                        )
+                        payload
                 ));
     }
 
@@ -161,8 +200,13 @@ public class ChatService {
     }
 
     private ChatConversation createDirectConversation(User firstUser, User secondUser) {
+        return createDirectConversation(firstUser, secondUser, null);
+    }
+
+    private ChatConversation createDirectConversation(User firstUser, User secondUser, Event event) {
         ChatConversation conversation = new ChatConversation();
         conversation.setType(CONVERSATION_TYPE_DIRECT);
+        conversation.setEvent(event);
         if (firstUser.getId().compareTo(secondUser.getId()) <= 0) {
             conversation.setDirectUserOne(firstUser);
             conversation.setDirectUserTwo(secondUser);
@@ -212,6 +256,7 @@ public class ChatService {
         ChatConversationResponse response = new ChatConversationResponse();
         response.setId(conversation.getId());
         response.setType(conversation.getType());
+        response.setEvent(ResponseMapper.toEventSummary(conversation.getEvent()));
         response.setParticipants(chatParticipantRepository.findByConversationIdOrderByJoinedAtAsc(conversation.getId())
                 .stream()
                 .map(ChatParticipant::getUser)
@@ -224,6 +269,31 @@ public class ChatService {
         response.setCreatedAt(conversation.getCreatedAt());
         response.setUpdatedAt(conversation.getUpdatedAt());
         return response;
+    }
+
+    private void ensureCanCreateEventDirectConversation(Event event, User currentUser, User otherUser) {
+        if (isEventOrganizer(event, currentUser)) {
+            if (!isConfirmedAttendee(event.getId(), otherUser.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Organizers can only chat with attendees of this event");
+            }
+            return;
+        }
+
+        if (isConfirmedAttendee(event.getId(), currentUser.getId()) && isEventOrganizer(event, otherUser)) {
+            return;
+        }
+
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Event chats are only allowed between the event organizer and confirmed attendees");
+    }
+
+    private boolean isEventOrganizer(Event event, User user) {
+        return event.getOrganizer() != null
+                && user != null
+                && Objects.equals(event.getOrganizer().getId(), user.getId());
+    }
+
+    private boolean isConfirmedAttendee(UUID eventId, UUID userId) {
+        return registrationRepository.existsByEventIdAndUserIdAndStatusIgnoreCase(eventId, userId, CONFIRMED_STATUS);
     }
 
     private long resolveUnreadCount(UUID conversationId, UUID currentUserId) {

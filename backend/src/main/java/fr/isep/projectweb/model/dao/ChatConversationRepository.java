@@ -15,11 +15,24 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
             SELECT c
             FROM ChatConversation c
             WHERE c.type = 'DIRECT'
+              AND c.event IS NULL
               AND ((c.directUserOne.id = :firstUserId AND c.directUserTwo.id = :secondUserId)
                    OR (c.directUserOne.id = :secondUserId AND c.directUserTwo.id = :firstUserId))
             """)
     Optional<ChatConversation> findDirectConversation(@Param("firstUserId") UUID firstUserId,
                                                       @Param("secondUserId") UUID secondUserId);
+
+    @Query("""
+            SELECT c
+            FROM ChatConversation c
+            WHERE c.type = 'DIRECT'
+              AND c.event.id = :eventId
+              AND ((c.directUserOne.id = :firstUserId AND c.directUserTwo.id = :secondUserId)
+                   OR (c.directUserOne.id = :secondUserId AND c.directUserTwo.id = :firstUserId))
+            """)
+    Optional<ChatConversation> findEventDirectConversation(@Param("eventId") UUID eventId,
+                                                           @Param("firstUserId") UUID firstUserId,
+                                                           @Param("secondUserId") UUID secondUserId);
 
     @Query("""
             SELECT DISTINCT c
