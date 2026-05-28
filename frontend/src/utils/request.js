@@ -144,12 +144,15 @@ service.interceptors.response.use(res => {
   error => {
     console.log('err' + error)
     const shouldShowError = error?.config?.headers?.showErrorMessage !== false
+    const permissionMessage = error?.config?.headers?.permissionMessage
     if (error?.response?.status === 401) {
       // 处理后端直接返回 HTTP 401 的情况，避免只显示“系统接口401异常”
       handleUnauthorized()
       return Promise.reject(error)
     }
-    let message = error?.response?.data?.message || error?.response?.data?.msg || error?.message
+    let message = error?.response?.status === 403
+      ? (permissionMessage || 'You do not have permission to perform this action.')
+      : (error?.response?.data?.message || error?.response?.data?.msg || error?.message)
     if (message == "Network Error") {
       message = "后端接口连接异常"
     } else if (message && message.includes("timeout")) {

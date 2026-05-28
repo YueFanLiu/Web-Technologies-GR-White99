@@ -86,7 +86,7 @@
                 Cancel Booking
               </el-button>
               <el-button
-                v-if="activity.tab === 'Past'"
+                v-if="canLeaveReview(activity)"
                 type="primary"
                 @click="leaveReview(activity)"
               >
@@ -119,8 +119,11 @@ import {
   getEventDetail,
   getRegistrationsByUser
 } from '@/api/events/joinActivity'
+import useUserStore from '@/store/modules/user'
+import { canWriteReview } from '@/utils/accessControl'
 
 const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(false)
 const cancellingId = ref('')
 const activeTab = ref('Upcoming')
@@ -247,6 +250,7 @@ function normalizeActivity(registration) {
     status,
     statusLabel: getStatusLabel(status),
     tab: getActivityTab(status, startTime, endTime),
+    event,
     raw: registration
   }
 }
@@ -331,6 +335,10 @@ function leaveReview(activity) {
     path: '/product/writeReview',
     query: activity.eventId ? { eventId: activity.eventId } : {}
   })
+}
+
+function canLeaveReview(activity) {
+  return canWriteReview(activity.event, activity.raw, userStore.userInfo)
 }
 
 function browseActivities() {

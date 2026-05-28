@@ -143,7 +143,7 @@
               <span class="rating">{{ eventDetail.averageRating || 0 }}</span>
               <span class="review-count">{{ reviewCount }} reviews</span>
             </div>
-            <el-button type="primary" size="small" @click="goWriteReview">
+            <el-button v-if="canReviewEvent" type="primary" size="small" @click="goWriteReview">
               Write Review
             </el-button>
           </div>
@@ -165,6 +165,10 @@
             </div>
           </div>
           <p class="review-text">{{ review.comment || review.content }}</p>
+          <div v-if="canManageReview(review)" class="review-actions">
+            <el-button size="small" text type="primary" @click="editReview(review)">Edit</el-button>
+            <el-button size="small" text type="danger" @click="removeReview(review)">Delete</el-button>
+          </div>
         </div>
         <p v-if="eventReviews.length === 0" class="review-text">No reviews yet.</p>
       </div>
@@ -175,13 +179,17 @@
 <script setup>
 import {ref, computed, onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {ElMessage} from 'element-plus'
+import {ElMessage, ElMessageBox} from 'element-plus'
 import {
+  deleteEventReview,
   getEventDetail,
   getEventImages,
   getEventReviews,
   getEventRegistrations,
+  getCurrentUserProfile,
+  getRegistrationsByUser,
   getLocationAccessibility,
+  updateEventReview,
 } from '@/api/events/detail'
 import {
   Calendar,
@@ -193,9 +201,16 @@ import {
 } from '@element-plus/icons-vue'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
 import fallbackAvatarImage from '@/assets/images/profile.jpg'
+import useUserStore from '@/store/modules/user'
+import {
+  canManageActivityForUser,
+  canManageEventReview,
+  canWriteReview
+} from '@/utils/accessControl'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const eventId = route.query.id
 const loading = ref(false)
 const eventDetail = ref({})
@@ -203,6 +218,7 @@ const eventDetail = ref({})
 const eventImages = ref([])
 const eventReviews = ref([])
 const eventRegistrations = ref([])
+const currentRegistration = ref(null)
 const accessibilityInfo = ref({})
 const accessibilityTags = ref([])
 
@@ -252,6 +268,10 @@ const reviewCount = computed(() => {
   return eventDetail.value.reviewCount ?? eventReviews.value.length
 })
 
+const canReviewEvent = computed(() => {
+  return canWriteReview(eventDetail.value, currentRegistration.value, userStore.userInfo)
+})
+
 // 儿童数量
 const childCount = ref(1)
 
@@ -268,7 +288,13 @@ const fetchEventDetail = () => {
     eventDetail.value = res
 
     fetchLocationAccessibility(res.location?.id)
-    fetchEventRegistrations()
+    fetchCurrentUserRegistration(res)
+
+    if (canManageActivityForUser(userStore.userInfo, res)) {
+      fetchEventRegistrations()
+    } else {
+      eventRegistrations.value = []
+    }
   }).catch(error => {
     console.error('Failed to load event detail:', error)
   }).finally(() => {
@@ -299,6 +325,11 @@ const goBookActivity = () => {
 const goWriteReview = () => {
   if (!eventId) {
     ElMessage.error('Missing event id')
+    return
+  }
+
+  if (!canReviewEvent.value) {
+    ElMessage.warning('You can review only confirmed events you attended after they have ended.')
     return
   }
 
@@ -414,6 +445,88 @@ const fetchLocationAccessibility = (locationId) => {
   }).catch(error => {
     console.error('Failed to load location accessibility:', error)
   })
+}
+
+const fetchCurrentUserRegistration = async (event) => {
+  currentRegistration.value = null
+
+  try {
+    if (!userStore.userInfo) {
+      await userStore.getInfo()
+    }
+
+    const profile = userStore.userInfo || await getCurrentUserProfile()
+    const userId = profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
+    if (!userId) {
+      return
+    }
+
+    const registrations = await getRegistrationsByUser(userId)
+    const list = Array.isArray(registrations)
+      ? registrations
+      : registrations?.rows || registrations?.data || registrations?.list || registrations?.content || []
+    currentRegistration.value = list.find((registration) => {
+      const registrationEventId = registration.event?.id || registration.eventId
+      return String(registrationEventId || '') === String(event?.id || eventId || '')
+    }) || null
+  } catch (error) {
+    console.error('Failed to load current user registration:', error)
+  }
+}
+
+const canManageReview = (review) => {
+  return canManageEventReview(review, eventDetail.value, userStore.userInfo)
+}
+
+const editReview = async (review) => {
+  if (!canManageReview(review)) {
+    ElMessage.warning('You do not have permission to perform this action.')
+    return
+  }
+
+  try {
+    const { value } = await ElMessageBox.prompt('Update your review text', 'Edit Review', {
+      confirmButtonText: 'Save',
+      cancelButtonText: 'Cancel',
+      inputType: 'textarea',
+      inputValue: review.comment || review.content || '',
+      inputValidator: (value) => Boolean(String(value || '').trim()),
+      inputErrorMessage: 'Please enter a review'
+    })
+
+    const updated = await updateEventReview(eventId, review.id, {
+      rating: review.rating || 1,
+      comment: value.trim()
+    })
+    eventReviews.value = eventReviews.value.map((item) => item.id === review.id ? updated : item)
+    ElMessage.success('Review updated')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to update review:', error)
+    }
+  }
+}
+
+const removeReview = async (review) => {
+  if (!canManageReview(review)) {
+    ElMessage.warning('You do not have permission to perform this action.')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('Delete this review?', 'Delete Review', {
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+      type: 'warning'
+    })
+    await deleteEventReview(eventId, review.id)
+    eventReviews.value = eventReviews.value.filter((item) => item.id !== review.id)
+    ElMessage.success('Review deleted')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to delete review:', error)
+    }
+  }
 }
 
 const formatEventDate = (value) => {
@@ -714,5 +827,12 @@ const getReviewStars = (rating) => {
 .review-text {
   color: #555;
   font-size: 14px;
+}
+
+.review-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 </style>

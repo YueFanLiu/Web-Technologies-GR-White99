@@ -114,6 +114,7 @@ import {
   updatePost,
   uploadPostImage
 } from '@/api/post'
+import { getEventDetail } from '@/api/events/detail'
 import useUserStore from '@/store/modules/user'
 import { canManagePostForUser } from '@/utils/accessControl'
 import {
@@ -237,7 +238,7 @@ async function loadPostForEdit() {
     return
   }
 
-  const post = await getPost(postId.value)
+  const post = await hydrateRelatedEvent(await getPost(postId.value))
   loadedPost.value = post
 
   if (!isViewMode.value && !canManageLoadedPost.value) {
@@ -248,6 +249,23 @@ async function loadPostForEdit() {
 
   fillPostForm(post)
   imageList.value = normalizeImages(extractList(await getPostImages(postId.value)))
+}
+
+async function hydrateRelatedEvent(post) {
+  const relatedEventId = post?.event?.id || post?.eventId || post?.relatedEventId
+  if (!relatedEventId || post?.event?.organizer) {
+    return post
+  }
+
+  try {
+    return {
+      ...post,
+      event: await getEventDetail(relatedEventId)
+    }
+  } catch (error) {
+    console.error('Failed to load related event for post:', relatedEventId, error)
+    return post
+  }
 }
 
 // 保存帖子主流程：校验表单 -> 创建/更新 post -> 上传新增图片 -> 返回列表页

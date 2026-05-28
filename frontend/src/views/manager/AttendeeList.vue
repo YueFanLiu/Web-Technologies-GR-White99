@@ -150,7 +150,11 @@
             <template #default="{ row }">
               <div class="row-actions">
                 <el-button :icon="View" aria-label="View attendee" @click="viewAttendee(row)" />
-                <el-dropdown trigger="click" @command="(status) => changeStatus(row, status)">
+                <el-dropdown
+                  v-if="canManageAttendeeRegistration(row)"
+                  trigger="click"
+                  @command="(status) => changeStatus(row, status)"
+                >
                   <el-button :icon="Edit" :loading="updatingId === row.id" aria-label="Change status" />
                   <template #dropdown>
                     <el-dropdown-menu>
@@ -163,6 +167,7 @@
                   </template>
                 </el-dropdown>
                 <el-button
+                  v-if="canCancelAttendeeRegistration(row)"
                   :icon="Delete"
                   class="remove-button"
                   :loading="removingId === row.id"
@@ -248,7 +253,11 @@ import {
   updateRegistration
 } from '@/api/manager/AttendeeList'
 import useUserStore from '@/store/modules/user'
-import { canManageActivityForUser } from '@/utils/accessControl'
+import {
+  canCancelRegistration,
+  canManageActivityForUser,
+  canManageRegistration
+} from '@/utils/accessControl'
 
 const route = useRoute()
 const router = useRouter()
@@ -481,7 +490,7 @@ async function viewAttendee(attendee) {
 }
 
 async function changeStatus(attendee, status) {
-  if (!canManageActivityForUser(userStore.userInfo, originalEvent.value)) {
+  if (!canManageAttendeeRegistration(attendee)) {
     ElMessage.warning('You do not have permission to update attendees')
     return
   }
@@ -493,7 +502,6 @@ async function changeStatus(attendee, status) {
   updatingId.value = attendee.id
   try {
     const updated = unwrapResponse(await updateRegistration(attendee.id, {
-      eventId: attendee.eventId,
       status
     }))
     const nextAttendee = updated?.id ? await hydrateRegistration(updated) : { ...attendee, status }
@@ -511,7 +519,7 @@ async function changeStatus(attendee, status) {
 }
 
 async function removeAttendee(attendee) {
-  if (!canManageActivityForUser(userStore.userInfo, originalEvent.value)) {
+  if (!canCancelAttendeeRegistration(attendee)) {
     ElMessage.warning('You do not have permission to remove attendees')
     return
   }
@@ -538,6 +546,14 @@ async function removeAttendee(attendee) {
   } finally {
     removingId.value = ''
   }
+}
+
+function canManageAttendeeRegistration(attendee) {
+  return canManageRegistration(attendee?.raw || attendee, originalEvent.value, userStore.userInfo)
+}
+
+function canCancelAttendeeRegistration(attendee) {
+  return canCancelRegistration(attendee?.raw || attendee, originalEvent.value, userStore.userInfo)
 }
 
 function handleAvatarError(error) {

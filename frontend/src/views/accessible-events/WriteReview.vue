@@ -85,18 +85,29 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createEventReview, getEventDetail, getEventImages } from '@/api/events/WriteReview'
+import {
+  createEventReview,
+  getCurrentUserProfile,
+  getEventDetail,
+  getEventImages,
+  getRegistrationsByUser
+} from '@/api/events/WriteReview'
 import { ArrowLeft, ArrowRight, Calendar, Clock, Location } from '@element-plus/icons-vue'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
+import useUserStore from '@/store/modules/user'
+import { canWriteReview } from '@/utils/accessControl'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const eventId = computed(() => route.query.eventId || route.query.id)
 
 const rating = ref(0)
 const reviewText = ref('')
 const loading = ref(false)
 const submitting = ref(false)
+const rawEvent = ref(null)
+const currentRegistration = ref(null)
 const event = ref({
   title: 'Loading event...',
   date: 'Date TBA',
@@ -113,6 +124,11 @@ function cancelReview() {
 }
 
 async function submitReview() {
+  if (!canWriteReview(rawEvent.value, currentRegistration.value, userStore.userInfo)) {
+    ElMessage.warning('You can review only confirmed events you attended after they have ended.')
+    return
+  }
+
   if (!rating.value) {
     ElMessage.error('Please select a rating')
     return
@@ -150,6 +166,7 @@ async function loadPage() {
 
   try {
     await loadEvent()
+    await loadCurrentRegistration()
   } catch (error) {
     console.error('Failed to load review page:', error)
   } finally {
@@ -159,6 +176,7 @@ async function loadPage() {
 
 async function loadEvent() {
   const detail = await getEventDetail(eventId.value)
+  rawEvent.value = detail
   const images = await getEventImages(eventId.value).catch(() => [])
   const imageUrl = detail.coverImageUrl || images?.[0]?.imageUrl || detail.imageUrls?.[0]
 
@@ -168,6 +186,33 @@ async function loadEvent() {
     time: formatEventTimeRange(detail.startTime, detail.endTime),
     location: formatLocation(detail.location),
     image: normalizeImageUrl(imageUrl) || fallbackEventImage
+  }
+}
+
+async function loadCurrentRegistration() {
+  currentRegistration.value = null
+
+  try {
+    if (!userStore.userInfo) {
+      await userStore.getInfo()
+    }
+
+    const profile = userStore.userInfo || await getCurrentUserProfile()
+    const userId = profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
+    if (!userId) {
+      return
+    }
+
+    const registrations = await getRegistrationsByUser(userId)
+    const list = Array.isArray(registrations)
+      ? registrations
+      : registrations?.rows || registrations?.data || registrations?.list || registrations?.content || []
+    currentRegistration.value = list.find((registration) => {
+      const registrationEventId = registration.event?.id || registration.eventId
+      return String(registrationEventId || '') === String(eventId.value || '')
+    }) || null
+  } catch (error) {
+    console.error('Failed to load review eligibility:', error)
   }
 }
 

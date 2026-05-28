@@ -135,8 +135,9 @@ import {
   getPostsByUser,
   listPosts
 } from '@/api/post'
+import { getEventDetail } from '@/api/events/detail'
 import useUserStore from '@/store/modules/user'
-import { canManagePostForUser, getUserId, isAdminRole } from '@/utils/accessControl'
+import { canManagePostForUser, getUserId, isAdminRole, isOrganizerRole } from '@/utils/accessControl'
 import {
   Calendar,
   Delete,
@@ -176,6 +177,7 @@ const tabs = [
 
 // 褰撳墠鐢ㄦ埛鐨勫笘瀛愬垪琛紝椤甸潰鍔犺浇鍚庣敱鍚庣鎺ュ彛濉厖
 const posts = ref([])
+const eventDetailCache = new Map()
 
 // 鏍规嵁鐘舵€併€佸叧閿瘝鍜屾帓搴忔柟寮忕敓鎴愭渶缁堝睍绀虹殑甯栧瓙鍒楄〃
 const filteredPosts = computed(() => {
@@ -323,21 +325,45 @@ function normalizePost(post, images = []) {
     date: formatDate(status === 'Draft' ? updatedAt : publishedAt),
     summary: getSummary(post),
     status,
+    raw: post,
     user: post.user || null,
     userId: post.userId || post.user?.id || post.authorId || post.createdBy,
+    event: post.event || null,
+    eventId: post.event?.id || post.eventId || post.relatedEventId,
     sortTime: new Date(updatedAt || publishedAt || createdAt || 0).getTime(),
     cover: getFirstImageUrl(images) || post.coverImageUrl || post.imageUrl || 'https://picsum.photos/id/1083/420/260'
   }
 }
 
+async function hydrateManageEvent(post) {
+  const relatedEventId = post.event?.id || post.eventId || post.relatedEventId
+  if (!props.managerMode || !relatedEventId || post.event?.organizer) {
+    return post
+  }
+
+  try {
+    if (!eventDetailCache.has(relatedEventId)) {
+      eventDetailCache.set(relatedEventId, await getEventDetail(relatedEventId))
+    }
+    return {
+      ...post,
+      event: eventDetailCache.get(relatedEventId)
+    }
+  } catch (error) {
+    console.error('Failed to load related event for post:', relatedEventId, error)
+    return post
+  }
+}
+
 async function normalizePostList(list) {
   return Promise.all(list.map(async (post) => {
+    const hydratedPost = await hydrateManageEvent(post)
     try {
-      const images = extractList(await getPostImages(post.id))
-      return normalizePost(post, images)
+      const images = extractList(await getPostImages(hydratedPost.id))
+      return normalizePost(hydratedPost, images)
     } catch (error) {
       console.error('Failed to load post images:', error)
-      return normalizePost(post)
+      return normalizePost(hydratedPost)
     }
   }))
 }
@@ -363,11 +389,14 @@ async function loadPosts() {
       return
     }
 
-    const res = isAdminRole(userStore.userInfo?.role)
+    const res = isAdminRole(userStore.userInfo?.role) || isOrganizerRole(userStore.userInfo?.role)
       ? await listPosts({ limit: 1000 })
       : await getPostsByUser(userId)
     const list = extractList(res)
-    posts.value = await normalizePostList(list)
+    const normalizedPosts = await normalizePostList(list)
+    posts.value = isAdminRole(userStore.userInfo?.role)
+      ? normalizedPosts
+      : normalizedPosts.filter((post) => canManagePostForUser(userStore.userInfo, post))
   } catch (error) {
     console.error('Failed to load posts:', error)
   } finally {

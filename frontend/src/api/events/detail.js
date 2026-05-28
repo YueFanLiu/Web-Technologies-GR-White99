@@ -28,7 +28,31 @@ export function createEventReview(eventId, data) {
     return request({
         url: `/api/events/${eventId}/reviews`,
         method: 'post',
-        data
+        data,
+        headers: {
+            permissionMessage: 'You can review only confirmed events you attended after they have ended.'
+        }
+    })
+}
+
+export function updateEventReview(eventId, reviewId, data) {
+    return request({
+        url: `/api/events/${eventId}/reviews/${reviewId}`,
+        method: 'put',
+        data,
+        headers: {
+            permissionMessage: 'You do not have permission to perform this action.'
+        }
+    })
+}
+
+export function deleteEventReview(eventId, reviewId) {
+    return request({
+        url: `/api/events/${eventId}/reviews/${reviewId}`,
+        method: 'delete',
+        headers: {
+            permissionMessage: 'You do not have permission to perform this action.'
+        }
     })
 }
 
@@ -36,7 +60,10 @@ export function createEventReview(eventId, data) {
 export function getEventRegistrations(eventId) {
     return request({
         url: `/api/registrations/event/${eventId}`,
-        method: 'get'
+        method: 'get',
+        headers: {
+            permissionMessage: 'You do not have permission to perform this action.'
+        }
     })
 }
 

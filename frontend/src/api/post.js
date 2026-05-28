@@ -70,14 +70,20 @@ export function updatePost(id, data) {
   return request({
     url: `/api/posts/${id}`,
     method: 'put',
-    data
+    data,
+    headers: {
+      permissionMessage: 'You do not have permission to perform this action.'
+    }
   })
 }
 
 export function deletePost(id) {
   return request({
     url: `/api/posts/${id}`,
-    method: 'delete'
+    method: 'delete',
+    headers: {
+      permissionMessage: 'You do not have permission to perform this action.'
+    }
   })
 }
 
@@ -125,13 +131,19 @@ export function updatePostReview(postId, reviewId, data) {
   return request({
     url: `/api/posts/${postId}/reviews/${reviewId}`,
     method: 'put',
-    data
+    data,
+    headers: {
+      permissionMessage: 'You do not have permission to perform this action.'
+    }
   })
 }
 
 export function deletePostReview(postId, reviewId) {
   return request({
     url: `/api/posts/${postId}/reviews/${reviewId}`,
-    method: 'delete'
+    method: 'delete',
+    headers: {
+      permissionMessage: 'You do not have permission to perform this action.'
+    }
   })
 }
