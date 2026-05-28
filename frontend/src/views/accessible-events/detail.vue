@@ -99,6 +99,15 @@
           <el-button type="primary" class="book-btn" @click="goBookActivity">Book Now</el-button>
         </div>
 
+        <el-button
+          v-if="canContactOrganizer"
+          class="contact-organizer-btn"
+          :loading="contactingOrganizer"
+          @click="contactOrganizer"
+        >
+          Contact Organizer
+        </el-button>
+
         <div class="spots-left">
           <el-icon>
             <Warning/>
@@ -202,10 +211,13 @@ import {
 import fallbackEventImage from '@/assets/images/login-background.jpg'
 import fallbackAvatarImage from '@/assets/images/profile.jpg'
 import useUserStore from '@/store/modules/user'
+import { createEventDirectChat } from '@/api/chat'
 import {
   canManageActivityForUser,
   canManageEventReview,
-  canWriteReview
+  canWriteReview,
+  getActivityOrganizerId,
+  getUserId
 } from '@/utils/accessControl'
 
 const route = useRoute()
@@ -219,6 +231,7 @@ const eventImages = ref([])
 const eventReviews = ref([])
 const eventRegistrations = ref([])
 const currentRegistration = ref(null)
+const contactingOrganizer = ref(false)
 const accessibilityInfo = ref({})
 const accessibilityTags = ref([])
 
@@ -270,6 +283,15 @@ const reviewCount = computed(() => {
 
 const canReviewEvent = computed(() => {
   return canWriteReview(eventDetail.value, currentRegistration.value, userStore.userInfo)
+})
+
+const canContactOrganizer = computed(() => {
+  const organizerUserId = getOrganizerUserId()
+  if (!organizerUserId || String(organizerUserId) === String(getUserId(userStore.userInfo) || '')) {
+    return false
+  }
+
+  return String(currentRegistration.value?.status || '').toUpperCase() === 'CONFIRMED'
 })
 
 // 儿童数量
@@ -337,6 +359,39 @@ const goWriteReview = () => {
     path: '/product/writeReview',
     query: { eventId }
   })
+}
+
+const getOrganizerUserId = () => {
+  return getActivityOrganizerId(eventDetail.value)
+}
+
+const contactOrganizer = async () => {
+  const organizerUserId = getOrganizerUserId()
+  if (!organizerUserId) {
+    ElMessage.warning('Cannot start chat: organizer information is missing.')
+    return
+  }
+
+  if (!eventId) {
+    ElMessage.warning('Missing event id')
+    return
+  }
+
+  contactingOrganizer.value = true
+  try {
+    const chat = await createEventDirectChat(
+      eventId,
+      organizerUserId,
+      'You can only contact the organizer after confirmed registration.'
+    )
+    if (chat?.id) {
+      router.push(`/messages/${chat.id}`)
+    }
+  } catch (error) {
+    console.error('Failed to contact organizer:', error)
+  } finally {
+    contactingOrganizer.value = false
+  }
 }
 
 onMounted(() => {
@@ -719,6 +774,11 @@ const getReviewStars = (rating) => {
   margin-left: auto;
   padding: 12px 32px;
   font-size: 16px;
+}
+
+.contact-organizer-btn {
+  width: 100%;
+  margin: 14px 0;
 }
 
 .spots-left {

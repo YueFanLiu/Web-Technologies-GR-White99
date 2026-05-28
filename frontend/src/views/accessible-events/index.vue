@@ -151,10 +151,11 @@
           <el-aside width="320px" class="aside-right">
             <!-- 地图区域 -->
             <div class="map-container">
-              <img src="https://picsum.photos/id/101/320/200" alt="map" class="map-image" />
-              <div class="map-controls">
-                <el-button icon="el-icon-plus" circle size="small"></el-button>
-              </div>
+              <ActivityMap
+                :markers="mapMarkers"
+                :unavailable="mapUnavailable"
+                @view-details="goToMapDetails"
+              />
             </div>
 
             <!-- 热门活动 -->
@@ -260,12 +261,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createEvent,
   delEvent,
-  listEvent,
-  searchEvent,
   updateEvent
 } from '@/api/events/index.js'
+import ActivityMap from '@/components/ActivityMap/index.vue'
 import { createRegistration } from '@/api/events/joinActivity.js'
 import { listLocations } from '@/api/location/index.js'
+import { listEventMapPoints, searchEventMapPoints } from '@/api/map.js'
 import useUserStore from '@/store/modules/user'
 import { canCreateActivityForUser, canManageActivityForUser, isAdmin, isParent } from '@/utils/accessControl'
 import { useRoute } from 'vue-router'
@@ -286,6 +287,13 @@ const goToDetails = (item) => {
     query: { id: item.id }
   })
 }
+
+const goToMapDetails = (marker) => {
+  router.push({
+    path: '/product/eventDetails',
+    query: { id: marker.eventId || marker.activityId }
+  })
+}
 const searchKeyword = ref('')
 const locationOptions = ref([])
 // 筛选表单
@@ -299,6 +307,8 @@ const form = reactive({
 const loading = ref(false)
 const activityList = ref([])
 const popularEvents = ref([])
+const mapMarkers = ref([])
+const mapUnavailable = ref(false)
 const isEdit = ref(false)
 const currentEventId = ref(null)
 
@@ -397,13 +407,17 @@ const fetchEvents = async () => {
     if (form.category) params.category = form.category
     if (form.status) params.status = form.status
 
-    const res = await listEvent(params)
-    const events = Array.isArray(res) ? res : []
+    const res = await listEventMapPoints(params)
+    const events = Array.isArray(res.events) ? res.events : []
     const mappedEvents = events.map(mapEvent)
     activityList.value = mappedEvents
     popularEvents.value = mappedEvents.slice(0, 3)
+    mapMarkers.value = res.markers || []
+    mapUnavailable.value = false
   } catch (error) {
     console.error('error:', error)
+    mapMarkers.value = []
+    mapUnavailable.value = true
     ElMessage.error('Failed to load events')
   } finally {
     loading.value = false
@@ -594,12 +608,16 @@ const searchEvents = async (params = {}) => {
     if (params.activityType)        searchParams.activityType = params.activityType
     if (params.accessibilityOptions) searchParams.accessibilityOptions = params.accessibilityOptions
 
-    const res = await searchEvent(searchParams)
-    const events = Array.isArray(res) ? res : []
+    const res = await searchEventMapPoints(searchParams)
+    const events = Array.isArray(res.events) ? res.events : []
     const mappedEvents = events.map(mapEvent)
     activityList.value = mappedEvents
     popularEvents.value = mappedEvents.slice(0, 3)
+    mapMarkers.value = res.markers || []
+    mapUnavailable.value = false
   } catch (error) {
+    mapMarkers.value = []
+    mapUnavailable.value = true
     ElMessage.error('Search failed')
     console.error(error)
   } finally {
@@ -762,20 +780,6 @@ onMounted(async () => {
   gap: 15px;
   .map-container {
     position: relative;
-    .map-image {
-      width: 100%;
-      height: 220px;
-      border-radius: 8px;
-      object-fit: cover;
-    }
-    .map-controls {
-      position: absolute;
-      right: 10px;
-      top: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
   }
   .popular-events {
     flex: 1;

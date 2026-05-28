@@ -22,14 +22,14 @@
     <!-- 右侧菜单 -->
     <div class="right-menu">
       <!-- 通知图标 -->
-      <div class="right-menu-item">
+      <div class="right-menu-item" @click="goNotifications">
         <el-badge :value="unreadNotifications" class="notification-badge">
           <svg-icon icon-class="bell" class="icon-item" />
         </el-badge>
       </div>
 
       <!-- 消息/邮件图标（带小红点） -->
-      <div class="right-menu-item">
+      <div class="right-menu-item" @click="goMessages">
         <el-badge :value="unreadMessages" class="message-badge">
           <svg-icon icon-class="message" class="icon-item" />
         </el-badge>
@@ -73,6 +73,10 @@
           <span>Notifications</span>
           <el-badge :value="unreadNotifications" class="nav-badge" />
         </el-menu-item>
+        <el-menu-item index="/messages">
+          <span>Messages</span>
+          <el-badge :value="unreadMessages" class="nav-badge" />
+        </el-menu-item>
         <el-menu-item index="/user/profile">Profile</el-menu-item>
         <el-sub-menu index="/post">
           <template #title>Posts</template>
@@ -102,6 +106,7 @@ import { useRouter } from 'vue-router'
 import { computed, onMounted, ref } from 'vue'
 import { canCreateActivityForUser } from '@/utils/accessControl'
 import { getUnreadNotificationCount } from '@/api/notifications'
+import { getChats } from '@/api/chat'
 
 
 const router = useRouter()
@@ -134,6 +139,25 @@ function loadUnreadNotifications() {
     .catch(() => {
       unreadNotifications.value = 0
     })
+}
+
+function loadUnreadMessages() {
+  getChats()
+    .then((res) => {
+      const chats = Array.isArray(res) ? res : res?.data || res?.rows || res?.list || res?.content || []
+      unreadMessages.value = chats.reduce((total, chat) => total + Number(chat.unreadCount || 0), 0)
+    })
+    .catch(() => {
+      unreadMessages.value = 0
+    })
+}
+
+function goNotifications() {
+  router.push('/notifications')
+}
+
+function goMessages() {
+  router.push('/messages')
 }
 
 function toggleSideBar() {
@@ -210,7 +234,10 @@ async function toggleTheme(event) {
   }
 }
 
-onMounted(loadUnreadNotifications)
+onMounted(() => {
+  loadUnreadNotifications()
+  loadUnreadMessages()
+})
 </script>
 
 <style lang='scss' scoped>

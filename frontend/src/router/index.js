@@ -230,6 +230,25 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/messages',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/messages/index.vue'),
+        name: 'Messages',
+        meta: { title: 'Messages', icon: 'message', requiresAuth: true }
+      },
+      {
+        path: ':conversationId',
+        component: () => import('@/views/messages/detail.vue'),
+        name: 'MessageDetail',
+        meta: { title: 'Conversation', icon: 'message', requiresAuth: true }
+      }
+    ]
+  },
+  {
     path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),
     hidden: true

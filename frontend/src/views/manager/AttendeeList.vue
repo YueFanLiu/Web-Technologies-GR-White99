@@ -146,10 +146,17 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="Actions" width="150" align="center">
+          <el-table-column label="Actions" width="210" align="center">
             <template #default="{ row }">
               <div class="row-actions">
                 <el-button :icon="View" aria-label="View attendee" @click="viewAttendee(row)" />
+                <el-button
+                  v-if="canMessageAttendee(row)"
+                  :icon="Message"
+                  :loading="messagingId === row.id"
+                  aria-label="Message attendee"
+                  @click="messageAttendee(row)"
+                />
                 <el-dropdown
                   v-if="canManageAttendeeRegistration(row)"
                   trigger="click"
@@ -236,6 +243,7 @@ import {
   Delete,
   Edit,
   Location,
+  Message,
   Plus,
   Refresh,
   Search,
@@ -247,11 +255,11 @@ import {
 import {
   deleteRegistration,
   getEvent,
-  getPublicUser,
   getRegistration,
-  getEventRegistrations,
+  getRegistrationsByEvent,
   updateRegistration
 } from '@/api/manager/AttendeeList'
+import { createEventDirectChat } from '@/api/chat'
 import useUserStore from '@/store/modules/user'
 import {
   canCancelRegistration,
@@ -268,6 +276,7 @@ const originalEvent = ref(null)
 const loading = ref(false)
 const updatingId = ref('')
 const removingId = ref('')
+const messagingId = ref('')
 const detailVisible = ref(false)
 const selectedAttendee = ref(null)
 const searchText = ref('')
@@ -421,18 +430,7 @@ function applyEvent(data) {
 }
 
 async function hydrateRegistration(registration) {
-  const userId = registration.user?.id || registration.userId
-  if (!userId) {
-    return mapRegistration(registration)
-  }
-
-  try {
-    const user = unwrapResponse(await getPublicUser(userId))
-    return mapRegistration(registration, user)
-  } catch (error) {
-    console.error('Failed to load attendee profile:', userId, error)
-    return mapRegistration(registration)
-  }
+  return mapRegistration(registration)
 }
 
 async function mapRegistrations(registrations) {
@@ -461,7 +459,7 @@ async function loadAttendees() {
     }
 
     applyEvent(eventData)
-    const registrations = await getEventRegistrations(eventId.value)
+    const registrations = await getRegistrationsByEvent(eventId.value)
     attendees.value = await mapRegistrations(extractList(registrations))
   } catch (error) {
     console.error(error)
@@ -545,6 +543,35 @@ async function removeAttendee(attendee) {
     }
   } finally {
     removingId.value = ''
+  }
+}
+
+function canMessageAttendee(attendee) {
+  return attendee?.status === 'CONFIRMED' && canManageActivityForUser(userStore.userInfo, originalEvent.value)
+}
+
+async function messageAttendee(attendee) {
+  const attendeeUserId = attendee?.raw?.user?.id
+  if (!attendeeUserId) {
+    ElMessage.warning('Cannot start chat: attendee user information is missing.')
+    return
+  }
+
+  if (!eventId.value) {
+    ElMessage.warning('Missing event id')
+    return
+  }
+
+  messagingId.value = attendee.id
+  try {
+    const chat = unwrapResponse(await createEventDirectChat(eventId.value, attendeeUserId))
+    if (chat?.id) {
+      router.push(`/messages/${chat.id}`)
+    }
+  } catch (error) {
+    console.error('Failed to start attendee chat:', error)
+  } finally {
+    messagingId.value = ''
   }
 }
 
