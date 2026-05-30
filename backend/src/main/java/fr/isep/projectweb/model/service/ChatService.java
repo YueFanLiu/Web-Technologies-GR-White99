@@ -135,9 +135,11 @@ public class ChatService {
 
         ensureCanCreateEventDirectConversation(event, currentUser, otherUser);
 
-        ChatConversation conversation = chatConversationRepository
-                .findEventDirectConversation(eventId, currentUser.getId(), otherUserId)
+        ChatConversation conversation = findDirectConversation(currentUser.getId(), otherUserId)
+                .or(() -> chatConversationRepository.findEventDirectConversation(eventId, currentUser.getId(), otherUserId))
                 .orElseGet(() -> createDirectConversation(currentUser, otherUser, event));
+        ensureConversationParticipant(conversation, currentUser);
+        ensureConversationParticipant(conversation, otherUser);
 
         return toConversationResponse(conversation, currentUser.getId());
     }

@@ -21,20 +21,25 @@ public class RegistrationService {
 
     private static final String ADMIN_ROLE = "ADMIN";
     private static final String ORGANIZER_ROLE = "ORGANIZER";
+    private static final String CONFIRMED_STATUS = "CONFIRMED";
+    private static final String EMAIL_PATTERN = "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$";
 
     private final RegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final BookingCredentialEmailService bookingCredentialEmailService;
 
     public RegistrationService(RegistrationRepository registrationRepository,
                                EventRepository eventRepository,
                                CurrentUserService currentUserService,
-                               NotificationService notificationService) {
+                               NotificationService notificationService,
+                               BookingCredentialEmailService bookingCredentialEmailService) {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.currentUserService = currentUserService;
         this.notificationService = notificationService;
+        this.bookingCredentialEmailService = bookingCredentialEmailService;
     }
 
     public RegistrationResponse createRegistration(RegistrationRequest request, Jwt jwt) {
@@ -59,6 +64,9 @@ public class RegistrationService {
                         "eventId", event.getId().toString()
                 )
         );
+        if (isConfirmedStatus(savedRegistration.getStatus())) {
+            bookingCredentialEmailService.sendBookingCredential(savedRegistration);
+        }
         return ResponseMapper.toRegistrationResponse(savedRegistration);
     }
 
@@ -122,6 +130,9 @@ public class RegistrationService {
                             "status", savedRegistration.getStatus() != null ? savedRegistration.getStatus() : ""
                     )
             );
+            if (!isConfirmedStatus(previousStatus) && isConfirmedStatus(savedRegistration.getStatus())) {
+                bookingCredentialEmailService.sendBookingCredential(savedRegistration);
+            }
         }
         return ResponseMapper.toRegistrationResponse(savedRegistration);
     }
@@ -129,12 +140,52 @@ public class RegistrationService {
     public void deleteRegistration(UUID id, Jwt jwt) {
         Registration registration = findRegistrationById(id);
         ensureCanManageRegistration(registration, currentUserService.getCurrentUser(jwt));
+        bookingCredentialEmailService.sendBookingCancellation(registration);
         registrationRepository.delete(registration);
     }
 
     private void applyRequest(Registration registration, RegistrationRequest request) {
         registration.setEvent(findEventById(request.getEventId()));
         registration.setStatus(request.getStatus());
+        applyContactRequest(registration, request);
+    }
+
+    private void applyContactRequest(Registration registration, RegistrationRequest request) {
+        boolean hasContactPayload = request.getContactFullName() != null
+                || request.getContactEmail() != null
+                || request.getContactPhone() != null;
+
+        if (!hasContactPayload) {
+            applyDefaultContactFromUser(registration);
+            return;
+        }
+
+        if (request.getContactFullName() != null) {
+            registration.setContactFullName(normalizeOptional(request.getContactFullName()));
+        }
+        if (request.getContactEmail() != null) {
+            registration.setContactEmail(normalizeEmail(request.getContactEmail()));
+        }
+        if (request.getContactPhone() != null) {
+            registration.setContactPhone(normalizeOptional(request.getContactPhone()));
+        }
+        applyDefaultContactFromUser(registration);
+    }
+
+    private void applyDefaultContactFromUser(Registration registration) {
+        User user = registration.getUser();
+        if (user == null) {
+            return;
+        }
+        if (isBlank(registration.getContactFullName())) {
+            registration.setContactFullName(normalizeOptional(user.getFullName()));
+        }
+        if (isBlank(registration.getContactEmail())) {
+            registration.setContactEmail(normalizeEmail(user.getEmail()));
+        }
+        if (isBlank(registration.getContactPhone())) {
+            registration.setContactPhone(normalizeOptional(user.getPhone()));
+        }
     }
 
     private Registration findRegistrationById(UUID id) {
@@ -209,5 +260,32 @@ public class RegistrationService {
 
     private boolean isAdmin(User user) {
         return user != null && ADMIN_ROLE.equalsIgnoreCase(user.getRole());
+    }
+
+    private boolean isConfirmedStatus(String status) {
+        return status != null && CONFIRMED_STATUS.equalsIgnoreCase(status.trim());
+    }
+
+    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String normalizeEmail(String email) {
+        String normalized = normalizeOptional(email);
+        if (normalized == null) {
+            return null;
+        }
+        if (!normalized.toUpperCase(java.util.Locale.ROOT).matches(EMAIL_PATTERN)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contact email is invalid");
+        }
+        return normalized;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

@@ -25,7 +25,7 @@
           :closable="false"
         />
 
-        <div class="message-list">
+        <div ref="messageListRef" class="message-list">
           <article
             v-for="message in orderedMessages"
             :key="message.id"
@@ -65,7 +65,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
@@ -84,6 +84,7 @@ const loadErrorMessage = ref('')
 const messages = ref([])
 const chat = ref(null)
 const draft = ref('')
+const messageListRef = ref(null)
 
 const orderedMessages = computed(() => {
   return [...messages.value].sort((left, right) => {
@@ -185,6 +186,8 @@ async function loadMessages() {
     messages.value = extractList(await getChatMessages(chatId.value, { before: currentLocalDateTime() }))
       .map(normalizeMessage)
     await markChatRead(chatId.value)
+    window.dispatchEvent(new CustomEvent('app:unread-refresh'))
+    await scrollToBottom()
   } catch (error) {
     messages.value = []
     loadFailed.value = true
@@ -193,6 +196,13 @@ async function loadMessages() {
     ElMessage.error(loadErrorMessage.value)
   } finally {
     loading.value = false
+  }
+}
+
+async function scrollToBottom() {
+  await nextTick()
+  if (messageListRef.value) {
+    messageListRef.value.scrollTop = messageListRef.value.scrollHeight
   }
 }
 
@@ -205,10 +215,9 @@ async function submitMessage() {
   sending.value = true
 
   try {
-    const message = await sendChatMessage(chatId.value, content)
-    messages.value = [...messages.value, message]
     draft.value = ''
-    await markChatRead(chatId.value)
+    await sendChatMessage(chatId.value, content)
+    await loadMessages()
   } catch (error) {
     console.error('Failed to send message:', error)
   } finally {

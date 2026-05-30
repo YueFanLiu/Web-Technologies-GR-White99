@@ -1,14 +1,25 @@
 import request from '@/utils/request'
 
-export function createEventDirectChat(eventId, userId, permissionMessage = 'You can only message confirmed attendees of your own event.') {
-  return request({
-    url: `/api/chats/events/${eventId}/direct`,
-    method: 'post',
-    data: { userId },
-    headers: {
-      permissionMessage
+export async function createEventDirectChat(eventId, userId, permissionMessage = 'You can only message confirmed attendees of your own event.') {
+  const existingChat = await getExistingDirectChat(userId)
+  if (existingChat) return existingChat
+
+  try {
+    return await request({
+      url: `/api/chats/events/${eventId}/direct`,
+      method: 'post',
+      data: { userId },
+      headers: {
+        permissionMessage
+      }
+    })
+  } catch (error) {
+    if (isDuplicateDirectChatError(error)) {
+      const recoveredChat = await getExistingDirectChat(userId)
+      if (recoveredChat) return recoveredChat
     }
-  })
+    throw error
+  }
 }
 
 export function createDirectChat(userId) {

@@ -134,6 +134,9 @@ final class ResponseMapper {
         response.setUser(toUserSummary(registration.getUser()));
         response.setStatus(registration.getStatus());
         response.setRegisteredAt(registration.getRegisteredAt());
+        response.setContactFullName(registration.getContactFullName());
+        response.setContactEmail(registration.getContactEmail());
+        response.setContactPhone(registration.getContactPhone());
         return response;
     }
 

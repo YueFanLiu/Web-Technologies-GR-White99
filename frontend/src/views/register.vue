@@ -47,7 +47,7 @@
             placeholder="Select Role"
             style="width:100%"
           >
-            <el-option label="PARENT" value="PARENT" />
+            <el-option label="ATTENDEE" value="PARENT" />
             <el-option label="ORGANIZER" value="ORGANIZER" />
           </el-select>
         </el-form-item>
@@ -150,7 +150,7 @@ function handleRegister() {
   proxy.$refs.registerRef.validate(valid => {
     if (valid) {
       if (!allowedRegisterRoles.includes(registerForm.value.role)) {
-        ElMessageBox.alert("Registration only supports PARENT or ORGANIZER.", "Registration Failed", {
+        ElMessageBox.alert("Registration only supports ATTENDEE or ORGANIZER.", "Registration Failed", {
           type: "error"
         })
         return

@@ -76,8 +76,12 @@
             </div>
 
             <el-form class="activity-form schedule-form" label-position="top" :model="form" :rules="rules">
-              <el-form-item label="Date" prop="date">
-                <el-date-picker v-model="form.date" type="date" size="large" placeholder="Select date" />
+              <el-form-item label="Start Date" prop="startDate">
+                <el-date-picker v-model="form.startDate" type="date" size="large" placeholder="Select start date" />
+              </el-form-item>
+
+              <el-form-item label="End Date" prop="endDate">
+                <el-date-picker v-model="form.endDate" type="date" size="large" placeholder="Select end date" />
               </el-form-item>
 
               <el-form-item label="Start Time" prop="startTime">
@@ -245,7 +249,8 @@ const form = reactive({
   title: '',
   category: '',
   description: '',
-  date: '',
+  startDate: '',
+  endDate: '',
   startTime: '',
   endTime: '',
   venueName: '',
@@ -265,7 +270,8 @@ const rules = {
   title: [{ required: true, message: 'Please enter activity title', trigger: 'blur' }],
   category: [{ required: true, message: 'Please select a category', trigger: 'change' }],
   description: [{ required: true, message: 'Please enter description', trigger: 'blur' }],
-  date: [{ required: true, message: 'Please select a date', trigger: 'change' }],
+  startDate: [{ required: true, message: 'Please select a start date', trigger: 'change' }],
+  endDate: [{ required: true, message: 'Please select an end date', trigger: 'change' }],
   startTime: [{ required: true, message: 'Please select start time', trigger: 'change' }],
   endTime: [{ required: true, message: 'Please select end time', trigger: 'change' }],
   venueName: [{ required: true, message: 'Please enter venue name', trigger: 'blur' }],
@@ -287,8 +293,8 @@ const activity = computed(() => {
   const location = originalLocation.value || event.location || {}
   return {
     title: form.title || 'Untitled activity',
-    date: formatDate(buildDateTime(form.date, form.startTime)),
-    time: formatTime(buildDateTime(form.date, form.startTime), buildDateTime(form.date, form.endTime)),
+    date: formatDate(buildDateTime(form.startDate, form.startTime)),
+    time: formatTime(buildDateTime(form.startDate, form.startTime), buildDateTime(form.endDate, form.endTime)),
     location: [form.venueName || location.name, form.address || location.address].filter(Boolean).join(', ') || 'Location TBA',
     cover: event.coverImageUrl || event.imageUrls?.[0] || fallbackCover(event.id),
     updatedAt: event.updatedAt ? formatDateTime(event.updatedAt) : 'Not available'
@@ -415,7 +421,8 @@ async function loadActivity() {
     form.title = event.title || ''
     form.category = event.category || ''
     form.description = event.description || ''
-    form.date = toDate(event.startTime)
+    form.startDate = toDate(event.startTime)
+    form.endDate = toDate(event.endTime)
     form.startTime = toDate(event.startTime)
     form.endTime = toDate(event.endTime)
     form.venueName = location.name || ''
@@ -462,7 +469,8 @@ function validateBusinessFields(startTime, endTime) {
     form.title,
     form.category,
     form.description,
-    form.date,
+    form.startDate,
+    form.endDate,
     form.startTime,
     form.endTime,
     form.venueName,
@@ -505,8 +513,8 @@ async function saveChanges() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  const startTime = buildDateTime(form.date, form.startTime)
-  const endTime = buildDateTime(form.date, form.endTime)
+  const startTime = buildDateTime(form.startDate, form.startTime)
+  const endTime = buildDateTime(form.endDate, form.endTime)
 
   if (!validateBusinessFields(startTime, endTime)) {
     return
@@ -798,7 +806,7 @@ onMounted(loadActivity)
 
 .schedule-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 

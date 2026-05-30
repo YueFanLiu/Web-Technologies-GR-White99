@@ -20,11 +20,17 @@
           </div>
 
           <el-form-item label="Related Event">
-            <el-input
-              v-model="postForm.eventId"
+            <el-autocomplete
+              v-model="relatedEventKeyword"
               size="large"
-              placeholder="Optional event ID to associate with this post"
+              value-key="title"
+              placeholder="Search an event to associate with this post"
               :disabled="isViewMode"
+              :fetch-suggestions="searchRelatedEvents"
+              clearable
+              @input="handleRelatedEventInput"
+              @select="selectRelatedEvent"
+              @clear="clearRelatedEvent"
             />
           </el-form-item>
 
@@ -144,6 +150,7 @@ import {
   uploadPostImage
 } from '@/api/post'
 import { getEventDetail } from '@/api/events/detail'
+import { searchEvent } from '@/api/events'
 import useUserStore from '@/store/modules/user'
 import { canManagePostForUser } from '@/utils/accessControl'
 import {
@@ -163,6 +170,7 @@ const submitting = ref(false)
 const loadedPost = ref(null)
 const comments = ref([])
 const commentsLoading = ref(false)
+const relatedEventKeyword = ref('')
 const canManageLoadedPost = computed(() => {
   if (!loadedPost.value) {
     return !isEditMode.value
@@ -220,6 +228,41 @@ function fillPostForm(post) {
     title: post.title || '',
     content: post.content || post.body || post.description || ''
   }
+  relatedEventKeyword.value = post.event?.title || post.eventTitle || post.eventName || ''
+}
+
+async function searchRelatedEvents(query, callback) {
+  const keyword = String(query || '').trim()
+  if (!keyword) {
+    callback([])
+    return
+  }
+
+  try {
+    const events = extractList(await searchEvent({ keyword, limit: 8 }))
+    callback(events.map((event) => ({
+      ...event,
+      title: event.title || event.name || 'Untitled event',
+      value: event.title || event.name || 'Untitled event'
+    })))
+  } catch (error) {
+    console.error('Failed to search related events:', error)
+    callback([])
+  }
+}
+
+function selectRelatedEvent(event) {
+  postForm.value.eventId = event.id || ''
+  relatedEventKeyword.value = event.title || event.name || ''
+}
+
+function handleRelatedEventInput() {
+  postForm.value.eventId = ''
+}
+
+function clearRelatedEvent() {
+  postForm.value.eventId = ''
+  relatedEventKeyword.value = ''
 }
 
 // 提交前校验必填项

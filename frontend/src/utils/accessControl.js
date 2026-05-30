@@ -8,6 +8,11 @@ export function normalizeRole(role) {
   return String(role || '').replace(/^role_/i, '').toUpperCase()
 }
 
+export function roleDisplayLabel(role) {
+  const normalized = normalizeRole(role)
+  return normalized === ROLES.PARENT ? 'ATTENDEE' : normalized
+}
+
 export function getUserId(userInfo) {
   return userInfo?.id || userInfo?.userId || userInfo?.user?.id || userInfo?.profile?.id || ''
 }

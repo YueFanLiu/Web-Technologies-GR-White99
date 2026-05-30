@@ -112,7 +112,7 @@ import {
 } from '@/api/friend'
 import { getChatId, getOrCreateDirectChat } from '@/api/chat'
 import useUserStore from '@/store/modules/user'
-import { getUserId } from '@/utils/accessControl'
+import { getUserId, roleDisplayLabel } from '@/utils/accessControl'
 
 const UserMiniCard = defineComponent({
   props: {
@@ -131,7 +131,7 @@ const UserMiniCard = defineComponent({
       }),
       h('div', [
         h('strong', props.user?.fullName || 'Unknown user'),
-        props.user?.role ? h('span', props.user.role) : null
+        props.user?.role ? h('span', roleDisplayLabel(props.user.role)) : null
       ])
     ])
   }
@@ -216,6 +216,12 @@ async function loadAll() {
 }
 
 async function searchPeople() {
+  if (!keyword.value.trim()) {
+    searchResults.value = []
+    ElMessage.warning('Please enter a keyword')
+    return
+  }
+
   searching.value = true
   try {
     searchResults.value = extractList(await searchUsers(keyword.value.trim(), 20))

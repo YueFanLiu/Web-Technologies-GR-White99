@@ -154,10 +154,23 @@
               <span class="rating">{{ eventDetail.averageRating || 0 }}</span>
               <span class="review-count">{{ reviewCount }} reviews</span>
             </div>
-            <el-button v-if="canReviewEvent" type="primary" size="small" @click="goWriteReview">
-              Write Review
-            </el-button>
           </div>
+        </div>
+
+        <div v-if="canReviewEvent" class="review-composer">
+          <el-rate v-model="reviewForm.rating" />
+          <el-input
+            v-model="reviewForm.comment"
+            type="textarea"
+            :rows="3"
+            maxlength="1000"
+            show-word-limit
+            resize="none"
+            placeholder="Write a review"
+          />
+          <el-button type="primary" :loading="submittingReview" @click="submitReview">
+            Submit Review
+          </el-button>
         </div>
 
         <div class="review-item" v-for="review in eventReviews" :key="review.id">
@@ -208,6 +221,7 @@ import {useRoute, useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {
   deleteEventReview,
+  createEventReview,
   getEventDetail,
   getEventImages,
   getEventReviews,
@@ -251,6 +265,11 @@ const currentRegistration = ref(null)
 const contactingOrganizer = ref(false)
 const accessibilityInfo = ref({})
 const accessibilityTags = ref([])
+const submittingReview = ref(false)
+const reviewForm = ref({
+  rating: 5,
+  comment: ''
+})
 
 // Swagger 中活动图片有两个来源：
 // 1. GET /api/events/{id} 返回的 coverImageUrl / imageUrls
@@ -379,7 +398,7 @@ const goBookActivity = () => {
   })
 }
 
-const goWriteReview = () => {
+const submitReview = async () => {
   if (!eventId) {
     ElMessage.error('Missing event id')
     return
@@ -390,10 +409,26 @@ const goWriteReview = () => {
     return
   }
 
-  router.push({
-    path: '/product/writeReview',
-    query: { eventId }
-  })
+  if (!reviewForm.value.comment.trim()) {
+    ElMessage.warning('Please enter your review')
+    return
+  }
+
+  submittingReview.value = true
+  try {
+    await createEventReview(eventId, {
+      rating: reviewForm.value.rating,
+      comment: reviewForm.value.comment.trim()
+    })
+    reviewForm.value.rating = 5
+    reviewForm.value.comment = ''
+    await fetchEventReviews()
+    ElMessage.success('Review submitted')
+  } catch (error) {
+    console.error('Failed to submit review:', error)
+  } finally {
+    submittingReview.value = false
+  }
 }
 
 const openUserProfile = (profileUserId) => {
@@ -506,9 +541,9 @@ const fetchEventReviews = () => {
     return
   }
 
-  getEventReviews(eventId).then(res => {
+  return getEventReviews(eventId).then(res => {
     console.log('event reviews:', res)
-    eventReviews.value = Array.isArray(res) ? res : []
+    eventReviews.value = Array.isArray(res) ? res : (res?.rows || res?.list || res?.content || res?.data || [])
   }).catch(error => {
     console.error('Failed to load event reviews:', error)
   })
@@ -901,6 +936,20 @@ const getReviewStars = (rating) => {
 .review-count {
   color: #666;
   font-size: 14px;
+}
+
+.review-composer {
+  margin-bottom: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid #e0e8f6;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.review-composer .el-button {
+  justify-self: end;
 }
 
 .review-item {

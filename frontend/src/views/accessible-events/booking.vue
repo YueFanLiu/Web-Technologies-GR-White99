@@ -227,9 +227,9 @@ const event = reactive({
 })
 
 const contact = ref({
-  fullName: 'Sarah Pang',
-  email: 'sarah.pang@example.com',
-  phone: '+65 8123 4567'
+  fullName: '',
+  email: '',
+  phone: ''
 })
 
 const unitPrice = computed(() => Number(event.price || 0))
@@ -344,6 +344,10 @@ function persistConfirmation(registration) {
 
 async function loadExistingRegistration() {
   const profile = await getCurrentUserProfile()
+  contact.value.fullName = contact.value.fullName || profile?.fullName || profile?.name || ''
+  contact.value.email = contact.value.email || profile?.email || ''
+  contact.value.phone = contact.value.phone || profile?.phone || ''
+
   const userId = profile?.id || profile?.userId || profile?.user?.id || profile?.profile?.id
   if (!userId) return
 
@@ -383,6 +387,12 @@ function confirmBooking() {
     return
   }
 
+  const contactEmail = contact.value.email.trim()
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    ElMessage.warning('Please enter a valid contact email')
+    return
+  }
+
   if (alreadyRegistered.value && existingRegistration.value) {
     persistConfirmation(existingRegistration.value)
     ElMessage.info('You are already registered for this activity.')
@@ -396,7 +406,10 @@ function confirmBooking() {
   submitting.value = true
   createEventRegistration({
     eventId,
-    status: 'REGISTERED'
+    status: 'REGISTERED',
+    contactFullName: contact.value.fullName.trim(),
+    contactEmail,
+    contactPhone: contact.value.phone.trim()
   }).then((registration) => {
     persistConfirmation(registration)
     ElMessage.success('Booking confirmed')

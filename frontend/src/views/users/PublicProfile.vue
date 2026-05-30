@@ -16,7 +16,7 @@
           <div class="title-row">
             <div>
               <h1>{{ profile.fullName || 'Unknown user' }}</h1>
-              <el-tag v-if="profile.role" effect="plain">{{ profile.role }}</el-tag>
+              <el-tag v-if="profile.role" effect="plain">{{ roleDisplayLabel(profile.role) }}</el-tag>
             </div>
             <div class="action-row">
               <el-button v-if="isSelf" type="primary" @click="goMyProfile">Edit Profile</el-button>
@@ -105,7 +105,7 @@ import {
 import { getChatId, getOrCreateDirectChat } from '@/api/chat'
 import { getPostsByUser } from '@/api/post'
 import useUserStore from '@/store/modules/user'
-import { getUserId } from '@/utils/accessControl'
+import { getUserId, roleDisplayLabel } from '@/utils/accessControl'
 import { getToken } from '@/utils/auth'
 
 const route = useRoute()

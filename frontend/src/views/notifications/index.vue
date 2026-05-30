@@ -246,6 +246,7 @@ async function openNotification(notification) {
         notifications.value = notifications.value.map((item) => {
           return item.id === notification.id ? { ...item, isRead: true, readAt: item.readAt || new Date().toISOString() } : item
         })
+        window.dispatchEvent(new CustomEvent('app:unread-refresh'))
       })
       .catch((error) => {
         console.error('Failed to mark notification as read:', getErrorMessage(error, 'Failed to mark notification as read'), error)

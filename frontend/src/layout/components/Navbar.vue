@@ -23,14 +23,14 @@
     <div class="right-menu">
       <!-- 通知图标 -->
       <div class="right-menu-item" @click="goNotifications">
-        <el-badge :value="unreadNotifications" class="notification-badge">
+        <el-badge :value="unreadNotifications" :hidden="unreadNotifications <= 0" class="notification-badge">
           <svg-icon icon-class="bell" class="icon-item" />
         </el-badge>
       </div>
 
       <!-- 消息/邮件图标（带小红点） -->
       <div class="right-menu-item" @click="goMessages">
-        <el-badge :value="unreadMessages" class="message-badge">
+        <el-badge :value="unreadMessages" :hidden="unreadMessages <= 0" class="message-badge">
           <svg-icon icon-class="message" class="icon-item" />
         </el-badge>
       </div>
@@ -71,11 +71,11 @@
         </el-sub-menu>
         <el-menu-item index="/notifications">
           <span>Notifications</span>
-          <el-badge :value="unreadNotifications" class="nav-badge" />
+          <el-badge :value="unreadNotifications" :hidden="unreadNotifications <= 0" class="nav-badge" />
         </el-menu-item>
         <el-menu-item index="/messages">
           <span>Messages</span>
-          <el-badge :value="unreadMessages" class="nav-badge" />
+          <el-badge :value="unreadMessages" :hidden="unreadMessages <= 0" class="nav-badge" />
         </el-menu-item>
         <el-menu-item index="/friends">Friends</el-menu-item>
         <el-menu-item index="/user/profile">Profile</el-menu-item>
@@ -104,7 +104,7 @@ import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import { useRouter } from 'vue-router'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { canCreateActivityForUser } from '@/utils/accessControl'
 import { getUnreadNotificationCount } from '@/api/notifications'
 import { getChats } from '@/api/chat'
@@ -127,6 +127,7 @@ const settingsStore = useSettingsStore()
 const canCreateActivity = computed(() => canCreateActivityForUser(userStore.userInfo))
 const unreadNotifications = ref(0)
 const unreadMessages = ref(0)
+let unreadRefreshTimer = null
 
 function normalizeCount(res) {
   return Number(res?.unreadCount ?? res?.count ?? res?.data?.unreadCount ?? res?.data?.count ?? 0)
@@ -151,6 +152,11 @@ function loadUnreadMessages() {
     .catch(() => {
       unreadMessages.value = 0
     })
+}
+
+function refreshUnreadCounters() {
+  loadUnreadNotifications()
+  loadUnreadMessages()
 }
 
 function goNotifications() {
@@ -236,8 +242,17 @@ async function toggleTheme(event) {
 }
 
 onMounted(() => {
-  loadUnreadNotifications()
-  loadUnreadMessages()
+  refreshUnreadCounters()
+  unreadRefreshTimer = window.setInterval(refreshUnreadCounters, 30000)
+  window.addEventListener('app:unread-refresh', refreshUnreadCounters)
+})
+
+onBeforeUnmount(() => {
+  if (unreadRefreshTimer) {
+    window.clearInterval(unreadRefreshTimer)
+    unreadRefreshTimer = null
+  }
+  window.removeEventListener('app:unread-refresh', refreshUnreadCounters)
 })
 </script>
 

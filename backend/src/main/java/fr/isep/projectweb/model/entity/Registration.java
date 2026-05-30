@@ -33,6 +33,15 @@ public class Registration {
     @Column(name = "registered_at", insertable = false, updatable = false)
     private LocalDateTime registeredAt;
 
+    @Column(name = "contact_full_name")
+    private String contactFullName;
+
+    @Column(name = "contact_email")
+    private String contactEmail;
+
+    @Column(name = "contact_phone")
+    private String contactPhone;
+
     public Registration() {
     }
 
@@ -70,5 +79,29 @@ public class Registration {
 
     public LocalDateTime getRegisteredAt() {
         return registeredAt;
+    }
+
+    public String getContactFullName() {
+        return contactFullName;
+    }
+
+    public void setContactFullName(String contactFullName) {
+        this.contactFullName = contactFullName;
+    }
+
+    public String getContactEmail() {
+        return contactEmail;
+    }
+
+    public void setContactEmail(String contactEmail) {
+        this.contactEmail = contactEmail;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
     }
 }

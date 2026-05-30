@@ -267,7 +267,8 @@ import useUserStore from '@/store/modules/user'
 import {
   canCancelRegistration,
   canManageActivityForUser,
-  canManageRegistration
+  canManageRegistration,
+  roleDisplayLabel
 } from '@/utils/accessControl'
 
 const route = useRoute()
@@ -424,7 +425,7 @@ function mapRegistration(registration, userDetails = null) {
     eventId: eventData.id || registration.eventId || eventId.value,
     userId: user.id || registration.userId || '',
     name,
-    role: user.role || 'USER',
+    role: roleDisplayLabel(user.role || 'USER'),
     status: normalizeStatus(registration.status),
     registeredDate: registeredAt.date,
     registeredTime: registeredAt.time,

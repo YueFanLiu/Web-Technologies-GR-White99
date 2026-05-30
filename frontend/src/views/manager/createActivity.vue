@@ -67,12 +67,21 @@
               :model="form"
               :rules="rules"
             >
-              <el-form-item label="Date" prop="date">
+              <el-form-item label="Start Date" prop="startDate">
                 <el-date-picker
-                  v-model="form.date"
+                  v-model="form.startDate"
                   type="date"
                   size="large"
-                  placeholder="Select date"
+                  placeholder="Select start date"
+                />
+              </el-form-item>
+
+              <el-form-item label="End Date" prop="endDate">
+                <el-date-picker
+                  v-model="form.endDate"
+                  type="date"
+                  size="large"
+                  placeholder="Select end date"
                 />
               </el-form-item>
 
@@ -265,7 +274,8 @@ const form = ref({
   title: '',
   category: '',
   description: '',
-  date: '',
+  startDate: '',
+  endDate: '',
   startTime: '',
   endTime: '',
   venueName: '',
@@ -284,7 +294,8 @@ const rules = {
   title: [{ required: true, message: 'Please enter activity title', trigger: 'blur' }],
   category: [{ required: true, message: 'Please select a category', trigger: 'change' }],
   description: [{ required: true, message: 'Please enter description', trigger: 'blur' }],
-  date: [{ required: true, message: 'Please select a date', trigger: 'change' }],
+  startDate: [{ required: true, message: 'Please select a start date', trigger: 'change' }],
+  endDate: [{ required: true, message: 'Please select an end date', trigger: 'change' }],
   startTime: [{ required: true, message: 'Please select start time', trigger: 'change' }],
   endTime: [{ required: true, message: 'Please select end time', trigger: 'change' }],
   venueName: [{ required: true, message: 'Please enter venue name', trigger: 'blur' }],
@@ -403,8 +414,8 @@ async function publishActivity() {
     return
   }
 
-  const startTime = buildDateTime(form.value.date, form.value.startTime)
-  const endTime = buildDateTime(form.value.date, form.value.endTime)
+  const startTime = buildDateTime(form.value.startDate, form.value.startTime)
+  const endTime = buildDateTime(form.value.endDate, form.value.endTime)
 
   if (!validateBusinessFields(startTime, endTime)) {
     return
@@ -630,7 +641,7 @@ onBeforeUnmount(() => {
 
 .schedule-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 

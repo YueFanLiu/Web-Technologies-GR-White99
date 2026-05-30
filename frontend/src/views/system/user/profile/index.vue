@@ -126,7 +126,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, Check, EditPen, Message, Phone, SwitchButton, Upload, User } from '@element-plus/icons-vue'
 import { getCurrentUserProfile, updateCurrentUserProfile, uploadCurrentUserAvatar } from '@/api/profile'
 import useUserStore from '@/store/modules/user'
-import { normalizeRole } from '@/utils/accessControl'
+import { roleDisplayLabel } from '@/utils/accessControl'
 import defaultAvatar from '@/assets/images/profile.jpg'
 
 const userStore = useUserStore()
@@ -198,7 +198,7 @@ function formatMemberSince(value) {
 }
 
 function roleLabel(value) {
-  return normalizeRole(value)
+  return roleDisplayLabel(value)
 }
 
 function normalizePhotoUrl(photo) {

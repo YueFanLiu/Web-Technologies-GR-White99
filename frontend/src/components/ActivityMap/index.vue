@@ -12,9 +12,6 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 
 const props = defineProps({
   markers: {
@@ -33,14 +30,19 @@ const mapEl = ref(null)
 let map = null
 let markerLayer = null
 
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow
-})
-
 function getDefaultCenter() {
   return [48.8566, 2.3522]
+}
+
+function createMarkerIcon(marker, index) {
+  const label = String(marker.category || index + 1).trim().slice(0, 2).toUpperCase()
+  return L.divIcon({
+    className: 'activity-map-marker',
+    html: `<span>${label}</span>`,
+    iconSize: [34, 42],
+    iconAnchor: [17, 38],
+    popupAnchor: [0, -34]
+  })
 }
 
 function createPopup(marker) {
@@ -72,10 +74,10 @@ function renderMarkers() {
   markerLayer.clearLayers()
 
   const bounds = []
-  props.markers.forEach((marker) => {
+  props.markers.forEach((marker, index) => {
     const latLng = [marker.latitude, marker.longitude]
     bounds.push(latLng)
-    L.marker(latLng)
+    L.marker(latLng, { icon: createMarkerIcon(marker, index) })
       .bindPopup(createPopup(marker))
       .addTo(markerLayer)
   })
@@ -196,5 +198,34 @@ onBeforeUnmount(() => {
   color: #fff;
   background: #409eff;
   cursor: pointer;
+}
+
+:global(.activity-map-marker) {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+:global(.activity-map-marker::before) {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  background: #0f66e9;
+  box-shadow: 0 8px 18px rgba(15, 102, 233, 0.32);
+  transform: rotate(-45deg);
+}
+
+:global(.activity-map-marker span) {
+  position: relative;
+  z-index: 1;
+  margin-top: -5px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 </style>

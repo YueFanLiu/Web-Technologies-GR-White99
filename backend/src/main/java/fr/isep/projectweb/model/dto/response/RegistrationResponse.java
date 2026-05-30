@@ -10,6 +10,9 @@ public class RegistrationResponse {
     private UserSummaryResponse user;
     private String status;
     private LocalDateTime registeredAt;
+    private String contactFullName;
+    private String contactEmail;
+    private String contactPhone;
 
     public UUID getId() {
         return id;
@@ -49,5 +52,29 @@ public class RegistrationResponse {
 
     public void setRegisteredAt(LocalDateTime registeredAt) {
         this.registeredAt = registeredAt;
+    }
+
+    public String getContactFullName() {
+        return contactFullName;
+    }
+
+    public void setContactFullName(String contactFullName) {
+        this.contactFullName = contactFullName;
+    }
+
+    public String getContactEmail() {
+        return contactEmail;
+    }
+
+    public void setContactEmail(String contactEmail) {
+        this.contactEmail = contactEmail;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
     }
 }
