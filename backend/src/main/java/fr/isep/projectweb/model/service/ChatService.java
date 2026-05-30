@@ -25,6 +25,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -38,6 +40,7 @@ import java.util.UUID;
 @Service
 public class ChatService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String CONVERSATION_TYPE_DIRECT = "DIRECT";
     private static final String CONFIRMED_STATUS = "CONFIRMED";
     private static final String MESSAGE_TYPE_TEXT = "TEXT";
@@ -99,8 +102,16 @@ public class ChatService {
         User otherUser = userRepository.findById(otherUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        ChatConversation conversation = findDirectConversation(currentUser.getId(), otherUserId)
-                .orElseGet(() -> createDirectConversationSafely(currentUser, otherUser));
+        log.info("[chat] getOrCreateDirectConversation currentUserId={}", currentUser.getId());
+        log.info("[chat] targetUserId={}", otherUserId);
+        java.util.Optional<ChatConversation> existingConversation = findDirectConversation(currentUser.getId(), otherUserId);
+        log.info("[chat] existing conversation found={}", existingConversation.map(ChatConversation::getId).orElse(null));
+
+        ChatConversation conversation = existingConversation
+                .orElseGet(() -> {
+                    log.info("[chat] creating new direct conversation...");
+                    return createDirectConversationSafely(currentUser, otherUser);
+                });
         ensureConversationParticipant(conversation, currentUser);
         ensureConversationParticipant(conversation, otherUser);
 
@@ -230,6 +241,7 @@ public class ChatService {
         try {
             return createDirectConversation(firstUser, secondUser);
         } catch (DataIntegrityViolationException exception) {
+            log.warn("[chat] duplicate key caught, querying existing conversation again...", exception);
             return findDirectConversation(firstUser.getId(), secondUser.getId())
                     .orElseThrow(() -> exception);
         }

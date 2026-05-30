@@ -14,8 +14,7 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
     @Query("""
             SELECT c
             FROM ChatConversation c
-            WHERE c.type = 'DIRECT'
-              AND c.event IS NULL
+            WHERE UPPER(c.type) = 'DIRECT'
               AND ((c.directUserOne.id = :firstUserId AND c.directUserTwo.id = :secondUserId)
                    OR (c.directUserOne.id = :secondUserId AND c.directUserTwo.id = :firstUserId))
             """)
@@ -25,8 +24,7 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
     @Query(value = """
             SELECT *
             FROM chat_conversations c
-            WHERE c.type = 'DIRECT'
-              AND c.event_id IS NULL
+            WHERE UPPER(c.type) = 'DIRECT'
               AND LEAST(c.direct_user_one_id, c.direct_user_two_id) = LEAST(CAST(:firstUserId AS uuid), CAST(:secondUserId AS uuid))
               AND GREATEST(c.direct_user_one_id, c.direct_user_two_id) = GREATEST(CAST(:firstUserId AS uuid), CAST(:secondUserId AS uuid))
             LIMIT 1

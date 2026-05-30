@@ -102,7 +102,7 @@ import {
   getOutgoingFriendRequests,
   sendFriendRequest
 } from '@/api/friend'
-import { getOrCreateDirectChat } from '@/api/chat'
+import { getChatId, getOrCreateDirectChat } from '@/api/chat'
 import { getPostsByUser } from '@/api/post'
 import useUserStore from '@/store/modules/user'
 import { getUserId } from '@/utils/accessControl'
@@ -280,8 +280,9 @@ async function openMessage() {
   messageLoading.value = true
   try {
     const chat = await getOrCreateDirectChat(userId.value)
-    if (chat?.id) {
-      router.push(`/messages/${chat.id}`)
+    const chatId = getChatId(chat)
+    if (chatId) {
+      router.push(`/messages/${chatId}`)
     }
   } catch (error) {
     console.error('Failed to open direct chat:', error)
