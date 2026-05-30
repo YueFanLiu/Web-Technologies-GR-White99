@@ -13,6 +13,10 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
 
     List<Post> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
+    List<Post> findByStatusIgnoreCaseOrderByCreatedAtDesc(String status);
+
+    List<Post> findByStatusIgnoreCaseOrderByCreatedAtDesc(String status, Pageable pageable);
+
     List<Post> findByLocationIdOrderByCreatedAtDesc(UUID locationId);
 
     List<Post> findByEventIdOrderByCreatedAtDesc(UUID eventId);

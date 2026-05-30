@@ -86,12 +86,7 @@ export function canManagePostForUser(userInfo, post) {
 
   const currentUserId = getUserId(userInfo)
   const ownerId = getPostOwnerId(post)
-  if (sameId(currentUserId, ownerId)) {
-    return true
-  }
-
-  const relatedEvent = getRelatedEvent(post)
-  return isOrganizer(userInfo) && sameId(currentUserId, getActivityOrganizerId(relatedEvent))
+  return sameId(currentUserId, ownerId)
 }
 
 export function canManageActivityForUser(userInfo, activity) {

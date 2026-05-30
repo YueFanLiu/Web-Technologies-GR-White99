@@ -162,13 +162,28 @@
 
         <div class="review-item" v-for="review in eventReviews" :key="review.id">
           <div class="reviewer-info">
-            <img
-              :src="normalizeImageUrl(review.user?.photo || review.userAvatar) || fallbackAvatarImage"
-              :alt="review.user?.fullName || 'Reviewer'"
-              class="reviewer-avatar"
-              @error="handleAvatarImageError"
-            />
-            <div class="reviewer-name">{{ review.user?.fullName || 'Anonymous' }}</div>
+            <button
+              v-if="review.user?.id"
+              class="reviewer-link"
+              @click="openUserProfile(review.user.id)"
+            >
+              <img
+                :src="normalizeImageUrl(review.user?.photo || review.userAvatar) || fallbackAvatarImage"
+                :alt="review.user?.fullName || 'Reviewer'"
+                class="reviewer-avatar"
+                @error="handleAvatarImageError"
+              />
+              <span class="reviewer-name">{{ review.user?.fullName || 'Anonymous' }}</span>
+            </button>
+            <template v-else>
+              <img
+                :src="normalizeImageUrl(review.user?.photo || review.userAvatar) || fallbackAvatarImage"
+                :alt="review.user?.fullName || 'Reviewer'"
+                class="reviewer-avatar"
+                @error="handleAvatarImageError"
+              />
+              <div class="reviewer-name">{{ review.user?.fullName || 'Anonymous' }}</div>
+            </template>
             <div class="review-stars">
               <el-icon v-for="i in getReviewStars(review.rating)" :key="i" color="#f7ba2a">
                 <Star/>
@@ -379,6 +394,12 @@ const goWriteReview = () => {
     path: '/product/writeReview',
     query: { eventId }
   })
+}
+
+const openUserProfile = (profileUserId) => {
+  if (profileUserId) {
+    router.push(`/users/${profileUserId}`)
+  }
 }
 
 const getOrganizerUserId = () => {
@@ -891,6 +912,17 @@ const getReviewStars = (rating) => {
   align-items: center;
   gap: 10px;
   margin-bottom: 6px;
+}
+
+.reviewer-link {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .reviewer-avatar {

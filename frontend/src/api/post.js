@@ -15,6 +15,14 @@ export function listPosts(query) {
   })
 }
 
+export function getPublicPosts(query) {
+  return request({
+    url: '/api/posts/public',
+    method: 'get',
+    params: query
+  })
+}
+
 export function getPost(id) {
   return request({
     url: `/api/posts/${id}`,

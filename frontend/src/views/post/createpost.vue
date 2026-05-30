@@ -11,6 +11,14 @@
 
       <section class="editor-grid" v-loading="loading">
         <el-form class="main-card" :model="postForm" label-position="top">
+          <div v-if="isViewMode && loadedPost?.user" class="author-strip" @click="openUserProfile(loadedPost.user)">
+            <img :src="defaultAvatar" alt="Post author" />
+            <div>
+              <span>Posted by</span>
+              <strong>{{ loadedPost.user.fullName || 'Unknown user' }}</strong>
+            </div>
+          </div>
+
           <el-form-item label="Related Event">
             <el-input
               v-model="postForm.eventId"
@@ -96,6 +104,26 @@
               Edit Post
             </el-button>
           </section>
+
+          <section v-if="isViewMode" class="comments-card" v-loading="commentsLoading">
+            <div class="section-heading">
+              <div>
+                <h2>Comments</h2>
+                <p>Community comments for this post.</p>
+              </div>
+            </div>
+            <div class="comment-list">
+              <article v-for="comment in comments" :key="comment.id" class="comment-item">
+                <button v-if="comment.user?.id" class="comment-author" @click="openUserProfile(comment.user)">
+                  <span class="comment-avatar">{{ getInitials(comment.user?.fullName) }}</span>
+                  <strong>{{ comment.user?.fullName || 'Anonymous' }}</strong>
+                </button>
+                <strong v-else>{{ comment.user?.fullName || 'Anonymous' }}</strong>
+                <p>{{ comment.comment || comment.content || 'No comment text' }}</p>
+              </article>
+              <el-empty v-if="!commentsLoading && comments.length === 0" description="No comments yet" />
+            </div>
+          </section>
         </aside>
       </section>
     </main>
@@ -111,6 +139,7 @@ import {
   deletePostImage,
   getPost,
   getPostImages,
+  getPostReviews,
   updatePost,
   uploadPostImage
 } from '@/api/post'
@@ -132,6 +161,8 @@ const isViewMode = computed(() => route.query.mode === 'view')
 const loading = ref(false)
 const submitting = ref(false)
 const loadedPost = ref(null)
+const comments = ref([])
+const commentsLoading = ref(false)
 const canManageLoadedPost = computed(() => {
   if (!loadedPost.value) {
     return !isEditMode.value
@@ -249,6 +280,9 @@ async function loadPostForEdit() {
 
   fillPostForm(post)
   imageList.value = normalizeImages(extractList(await getPostImages(postId.value)))
+  if (isViewMode.value) {
+    await loadPostComments()
+  }
 }
 
 async function hydrateRelatedEvent(post) {
@@ -325,6 +359,29 @@ function publishPost() {
 // 返回帖子列表页
 function backToPosts() {
   router.push({ name: 'MainPost' })
+}
+
+function openUserProfile(user) {
+  if (user?.id) {
+    router.push(`/users/${user.id}`)
+  }
+}
+
+function getInitials(name) {
+  return String(name || '?').trim().slice(0, 1).toUpperCase() || '?'
+}
+
+async function loadPostComments() {
+  if (!postId.value) return
+  commentsLoading.value = true
+  try {
+    comments.value = extractList(await getPostReviews(postId.value))
+  } catch (error) {
+    console.error('Failed to load post comments:', error)
+    comments.value = []
+  } finally {
+    commentsLoading.value = false
+  }
 }
 
 // 从只读查看模式切换到编辑模式
@@ -420,6 +477,40 @@ onMounted(async () => {
 
 .main-card {
   padding: 28px;
+}
+
+.author-strip {
+  margin-bottom: 22px;
+  padding: 12px;
+  display: inline-grid;
+  grid-template-columns: 44px auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #dce7f6;
+  border-radius: 8px;
+  background: #f8fbff;
+  cursor: pointer;
+}
+
+.author-strip img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.author-strip span,
+.author-strip strong {
+  display: block;
+}
+
+.author-strip span {
+  color: #73809c;
+  font-size: 13px;
+}
+
+.author-strip strong {
+  color: #0969f6;
 }
 
 .main-card :deep(.el-form-item) {
@@ -527,6 +618,55 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.comments-card {
+  padding: 20px;
+  border: 1px solid #e0e8f6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(26, 54, 100, 0.09);
+}
+
+.comment-list {
+  display: grid;
+  gap: 12px;
+}
+
+.comment-item {
+  padding: 12px;
+  border: 1px solid #dde7f5;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.comment-author {
+  margin: 0 0 8px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #0969f6;
+  cursor: pointer;
+}
+
+.comment-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8f1ff;
+  color: #0969f6;
+  font-weight: 800;
+}
+
+.comment-item p {
+  margin: 0;
+  color: #415178;
+  line-height: 1.55;
 }
 
 .draft-button,

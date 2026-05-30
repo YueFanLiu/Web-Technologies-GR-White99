@@ -11,6 +11,17 @@ export function createEventDirectChat(eventId, userId, permissionMessage = 'You 
   })
 }
 
+export function createDirectChat(userId) {
+  return request({
+    url: '/api/chats/direct',
+    method: 'post',
+    data: { userId },
+    headers: {
+      permissionMessage: 'You need to add this user as a friend before messaging.'
+    }
+  })
+}
+
 export function getChats() {
   return request({
     url: '/api/chats',

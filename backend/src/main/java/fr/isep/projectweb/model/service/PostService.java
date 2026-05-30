@@ -25,8 +25,8 @@ public class PostService {
     private static final int SEARCH_RESULT_LIMIT = 20;
     private static final int DEFAULT_MAIN_FEED_LIMIT = 20;
     private static final int MAX_MAIN_FEED_LIMIT = 100;
+    private static final String PUBLISHED_STATUS = "PUBLISHED";
     private static final String ADMIN_ROLE = "ADMIN";
-    private static final String ORGANIZER_ROLE = "ORGANIZER";
 
     private final PostRepository postRepository;
     private final LocationDAO locationDAO;
@@ -59,6 +59,24 @@ public class PostService {
     public List<PostResponse> getAllPosts() {
         return postRepository.findAll()
                 .stream()
+                .map(ResponseMapper::toPostResponse)
+                .toList();
+    }
+
+    public List<PostResponse> getPublicPosts(String status, Integer limit) {
+        String normalizedStatus = normalizeOptional(status);
+        if (normalizedStatus == null) {
+            normalizedStatus = PUBLISHED_STATUS;
+        }
+
+        List<Post> posts = limit == null
+                ? postRepository.findByStatusIgnoreCaseOrderByCreatedAtDesc(normalizedStatus)
+                : postRepository.findByStatusIgnoreCaseOrderByCreatedAtDesc(
+                        normalizedStatus,
+                        PageRequest.of(0, normalizePositiveLimit(limit))
+                );
+
+        return posts.stream()
                 .map(ResponseMapper::toPostResponse)
                 .toList();
     }
@@ -181,6 +199,13 @@ public class PostService {
         return Math.min(limit, MAX_MAIN_FEED_LIMIT);
     }
 
+    private int normalizePositiveLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 1;
+        }
+        return limit;
+    }
+
     private String normalizeOptional(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -204,7 +229,7 @@ public class PostService {
     }
 
     private void ensureCanManagePost(Post post, User currentUser) {
-        if (isAdmin(currentUser) || isPostAuthor(post, currentUser) || isRelatedEventOrganizer(post, currentUser)) {
+        if (isAdmin(currentUser) || isPostAuthor(post, currentUser)) {
             return;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only manage your own posts");
@@ -212,18 +237,6 @@ public class PostService {
 
     private boolean isPostAuthor(Post post, User user) {
         return post.getUser() != null && user != null && Objects.equals(post.getUser().getId(), user.getId());
-    }
-
-    private boolean isRelatedEventOrganizer(Post post, User user) {
-        Event event = post.getEvent();
-        return isOrganizer(user)
-                && event != null
-                && event.getOrganizer() != null
-                && Objects.equals(event.getOrganizer().getId(), user.getId());
-    }
-
-    private boolean isOrganizer(User user) {
-        return user != null && ORGANIZER_ROLE.equalsIgnoreCase(user.getRole());
     }
 
     private boolean isAdmin(User user) {

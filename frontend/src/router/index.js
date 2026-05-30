@@ -230,6 +230,32 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/users',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: ':id',
+        component: () => import('@/views/users/PublicProfile.vue'),
+        name: 'PublicUserProfile',
+        meta: { title: 'User Profile', icon: 'user', publicAccess: true }
+      }
+    ]
+  },
+  {
+    path: '/friends',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/friends/index.vue'),
+        name: 'Friends',
+        meta: { title: 'Friends', icon: 'peoples', requiresAuth: true }
+      }
+    ]
+  },
+  {
     path: '/messages',
     component: Layout,
     hidden: true,
@@ -245,6 +271,21 @@ export const constantRoutes = [
         component: () => import('@/views/messages/detail.vue'),
         name: 'MessageDetail',
         meta: { title: 'Conversation', icon: 'message', requiresAuth: true }
+      }
+    ]
+  },
+  {
+    path: '/chats',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        redirect: '/messages'
+      },
+      {
+        path: ':chatId',
+        redirect: to => `/messages/${to.params.chatId}`
       }
     ]
   },

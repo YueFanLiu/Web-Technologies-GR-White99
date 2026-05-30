@@ -81,7 +81,7 @@ router.beforeEach(async (to, from, next) => {
   to.meta.title && useSettingsStore().setTitle(to.meta.title)
 
   if (!getToken()) {
-    if (isWhiteList(to.path)) {
+    if (isWhiteList(to.path) || to.meta.publicAccess) {
       next()
     } else {
       next('/login')

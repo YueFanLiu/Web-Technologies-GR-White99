@@ -7,7 +7,7 @@
           <p>{{ props.managerMode ? 'Manage and organize your posts.' : 'Browse community posts.' }}</p>
         </div>
         <el-button
-          v-if="props.managerMode && canCreatePost"
+          v-if="canCreatePost"
           type="primary"
           class="create-button"
           @click="goCreatePost"
@@ -25,7 +25,7 @@
               :key="tab.value"
               class="post-tab"
               :class="{ active: activeTab === tab.value }"
-              @click="activeTab = tab.value"
+              @click="selectTab(tab.value)"
             >
               <span class="tab-label">
                 <el-icon><Document /></el-icon>
@@ -73,6 +73,10 @@
               <img :src="post.cover" :alt="post.title" class="post-cover" />
 
               <div class="post-body">
+                <button v-if="post.userId" class="author-link" @click.stop="openUserProfile(post)">
+                  <img :src="getUserAvatar(post.user)" alt="Post author" @error="handleAvatarError" />
+                  <span>{{ post.user?.fullName || 'View author' }}</span>
+                </button>
                 <h2>{{ post.title }}</h2>
                 <p class="related-event">
                   <el-icon><Calendar /></el-icon>
@@ -101,12 +105,12 @@
                     <el-icon><View /></el-icon>
                     View
                   </el-button>
-                  <el-button v-if="props.managerMode && canManagePost(post)" @click="editPost(post)">
+                  <el-button v-if="canManagePost(post)" @click="editPost(post)">
                     <el-icon><EditPen /></el-icon>
                     Edit
                   </el-button>
                   <el-button
-                    v-if="props.managerMode && canManagePost(post)"
+                    v-if="canManagePost(post)"
                     class="delete-button"
                     @click="removePost(post)"
                   >
@@ -126,18 +130,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deletePost,
   getPostImages,
   getPostsByUser,
-  listPosts
+  getPublicPosts
 } from '@/api/post'
 import { getEventDetail } from '@/api/events/detail'
 import useUserStore from '@/store/modules/user'
-import { canManagePostForUser, getUserId, isAdminRole, isOrganizerRole } from '@/utils/accessControl'
+import { canManagePostForUser, getUserId } from '@/utils/accessControl'
+import defaultAvatar from '@/assets/images/profile.jpg'
 import {
   Calendar,
   Delete,
@@ -156,7 +161,7 @@ const props = defineProps({
   }
 })
 
-const activeTab = ref(props.managerMode ? 'All' : 'Published')
+const activeTab = ref('All')
 const sortBy = ref('recent')
 const keyword = ref('')
 const loading = ref(false)
@@ -168,6 +173,14 @@ function canManagePost(post) {
   return canManagePostForUser(userStore.userInfo, post)
 }
 
+function selectTab(tab) {
+  const refreshCurrentAllTab = tab === 'All' && activeTab.value === 'All'
+  activeTab.value = tab
+  if (refreshCurrentAllTab) {
+    loadPublicPosts()
+  }
+}
+
 // 宸︿晶鐘舵€佺瓫閫夋爮閰嶇疆
 const tabs = [
   { label: 'All Posts', value: 'All' },
@@ -176,19 +189,22 @@ const tabs = [
 ]
 
 // 褰撳墠鐢ㄦ埛鐨勫笘瀛愬垪琛紝椤甸潰鍔犺浇鍚庣敱鍚庣鎺ュ彛濉厖
-const posts = ref([])
+const publicPosts = ref([])
+const myPosts = ref([])
 const eventDetailCache = new Map()
 
 // 鏍规嵁鐘舵€併€佸叧閿瘝鍜屾帓搴忔柟寮忕敓鎴愭渶缁堝睍绀虹殑甯栧瓙鍒楄〃
 const filteredPosts = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  const result = posts.value.filter((post) => {
-    const matchesStatus = activeTab.value === 'All' || post.status === activeTab.value
+  const sourcePosts = activeTab.value === 'All'
+    ? publicPosts.value
+    : myPosts.value.filter((post) => post.status === activeTab.value)
+  const result = sourcePosts.filter((post) => {
     const matchesKeyword = !text || [post.title, post.relatedEvent, post.summary]
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(text))
 
-    return matchesStatus && matchesKeyword
+    return matchesKeyword
   })
 
   return [...result].sort((a, b) => {
@@ -201,14 +217,14 @@ const filteredPosts = computed(() => {
 // 缁熻鏌愪釜鐘舵€佷笅鐨勫笘瀛愭暟閲忥紝鐢ㄤ簬宸︿晶 tab 瑙掓爣
 function countByStatus(status) {
   if (status === 'All') {
-    return posts.value.length
+    return publicPosts.value.length
   }
 
-  return posts.value.filter((post) => post.status === status).length
+  return myPosts.value.filter((post) => post.status === status).length
 }
 
 function goCreatePost() {
-  if (!props.managerMode || !canCreatePost.value) {
+  if (!canCreatePost.value) {
     return
   }
 
@@ -220,9 +236,28 @@ function viewPost(post) {
   router.push({ name: 'CreatePost', query: { id: post.id, mode: 'view' } })
 }
 
+function openUserProfile(post) {
+  if (!post.userId) {
+    return
+  }
+  router.push(`/users/${post.userId}`)
+}
+
+function getUserAvatar(user) {
+  const photo = String(user?.photo || '').trim()
+  if (!photo) return defaultAvatar
+  if (/^(https?:|data:|blob:)/i.test(photo)) return photo
+  if (photo.startsWith('/')) return photo
+  return `${import.meta.env.VITE_APP_BASE_API || ''}${photo}`
+}
+
+function handleAvatarError(event) {
+  event.target.src = defaultAvatar
+}
+
 // 璺宠浆鍒扮紪杈戞ā寮忥紝createpost.vue 浼氭牴鎹?id 鍔犺浇甯栧瓙璇︽儏
 function editPost(post) {
-  if (!props.managerMode || !canManagePost(post)) {
+  if (!canManagePost(post)) {
     ElMessage.warning('You do not have permission to edit this post')
     return
   }
@@ -232,7 +267,7 @@ function editPost(post) {
 
 // 鍒犻櫎甯栧瓙锛氬厛寮瑰嚭纭妗嗭紝纭鍚庤皟鐢?DELETE /api/posts/{id}
 function removePost(post) {
-  if (!props.managerMode || !canManagePost(post)) {
+  if (!canManagePost(post)) {
     ElMessage.warning('You do not have permission to delete this post')
     return
   }
@@ -245,7 +280,8 @@ function removePost(post) {
     return deletePost(post.id)
   }).then(() => {
     ElMessage.success('Post deleted')
-    posts.value = posts.value.filter((item) => item.id !== post.id)
+    publicPosts.value = publicPosts.value.filter((item) => item.id !== post.id)
+    myPosts.value = myPosts.value.filter((item) => item.id !== post.id)
   }).catch((error) => {
     if (error !== 'cancel') {
       console.error('Failed to delete post:', error)
@@ -368,37 +404,50 @@ async function normalizePostList(list) {
   }))
 }
 
+async function loadPublicPosts() {
+  try {
+    publicPosts.value = (await normalizePostList(extractList(await getPublicPosts({ status: 'PUBLISHED' }))))
+      .filter((post) => post.status === 'Published')
+  } catch (error) {
+    console.error('Failed to load public published posts from /api/posts/public:', error)
+    publicPosts.value = []
+  }
+}
+
+async function loadMyPosts(userId) {
+  try {
+    myPosts.value = (await normalizePostList(extractList(await getPostsByUser(userId))))
+      .filter((post) => String(post.userId || '') === String(userId || ''))
+  } catch (error) {
+    console.error('Failed to load current user posts:', error)
+    myPosts.value = []
+  }
+}
+
 async function loadPosts() {
   loading.value = true
 
   try {
-    if (!props.managerMode) {
-      const res = await listPosts({ status: 'PUBLISHED', limit: 1000 })
-      posts.value = await normalizePostList(extractList(res))
-      return
-    }
-
     if (!userStore.userInfo) {
       await userStore.getInfo()
     }
     const userId = getUserId(userStore.userInfo)
 
     if (!userId) {
-      posts.value = []
+      publicPosts.value = []
+      myPosts.value = []
       ElMessage.error('Unable to load current user profile')
       return
     }
 
-    const res = isAdminRole(userStore.userInfo?.role) || isOrganizerRole(userStore.userInfo?.role)
-      ? await listPosts({ limit: 1000 })
-      : await getPostsByUser(userId)
-    const list = extractList(res)
-    const normalizedPosts = await normalizePostList(list)
-    posts.value = isAdminRole(userStore.userInfo?.role)
-      ? normalizedPosts
-      : normalizedPosts.filter((post) => canManagePostForUser(userStore.userInfo, post))
+    await Promise.all([
+      loadPublicPosts(),
+      loadMyPosts(userId)
+    ])
   } catch (error) {
     console.error('Failed to load posts:', error)
+    publicPosts.value = []
+    myPosts.value = []
   } finally {
     loading.value = false
   }
@@ -406,6 +455,12 @@ async function loadPosts() {
 
 onMounted(() => {
   loadPosts()
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'All') {
+    loadPublicPosts()
+  }
 })
 </script>
 
@@ -628,6 +683,27 @@ onMounted(() => {
   line-height: 1.2;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.author-link {
+  margin: 0 0 10px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #0969f6;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.author-link img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .related-event {

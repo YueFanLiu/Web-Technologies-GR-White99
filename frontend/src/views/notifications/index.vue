@@ -78,9 +78,8 @@ function readPayload(notification) {
 
 function normalizeNotification(notification) {
   const payload = readPayload(notification)
-  const targetType = notification.targetType || notification.target_type || notification.type || payload.targetType || ''
-  const targetId = notification.targetId || notification.target_id || payload.targetId ||
-    payload.conversationId || payload.eventId || payload.postId || payload.registrationId || ''
+  const targetType = notification.targetType || notification.target_type || payload.targetType || ''
+  const targetId = notification.targetId || notification.target_id || payload.targetId || ''
   const readAt = notification.readAt || notification.read_at || null
   const status = String(notification.status || '').toUpperCase()
 
@@ -99,6 +98,71 @@ function normalizeNotification(notification) {
     isRead: Boolean(readAt || notification.read === true || notification.isRead === true || status === 'READ'),
     createdAt: notification.createdAt || notification.created_at || notification.createTime || notification.time || ''
   }
+}
+
+function normalizeType(value) {
+  return String(value || '').trim().toUpperCase()
+}
+
+function notificationSnapshot(notification) {
+  return {
+    type: notification.type,
+    targetType: notification.targetType,
+    targetId: notification.targetId,
+    sourceType: notification.sourceType,
+    sourceId: notification.sourceId,
+    payload: notification.payload
+  }
+}
+
+function resolveEventId(notification) {
+  const metadata = notification.payload || {}
+  const targetType = normalizeType(notification.targetType)
+  const sourceType = normalizeType(notification.sourceType)
+
+  if (metadata.eventId) {
+    return metadata.eventId
+  }
+
+  if (sourceType === 'EVENT' && notification.sourceId) {
+    return notification.sourceId
+  }
+
+  if (targetType === 'EVENT' && notification.targetId) {
+    return notification.targetId
+  }
+
+  return ''
+}
+
+function resolveConversationId(notification) {
+  const metadata = notification.payload || {}
+  const targetType = normalizeType(notification.targetType)
+
+  if (metadata.conversationId) {
+    return metadata.conversationId
+  }
+
+  if (['CHAT', 'CONVERSATION', 'CHAT_CONVERSATION'].includes(targetType) && notification.targetId) {
+    return notification.targetId
+  }
+
+  return ''
+}
+
+function resolvePostId(notification) {
+  const metadata = notification.payload || {}
+  const targetType = normalizeType(notification.targetType)
+
+  if (metadata.postId) {
+    return metadata.postId
+  }
+
+  if (targetType === 'POST' && notification.targetId) {
+    return notification.targetId
+  }
+
+  return ''
 }
 
 function getErrorMessage(error, fallback) {
@@ -130,26 +194,36 @@ function formatDate(value) {
 }
 
 function resolveTarget(notification) {
-  const metadata = notification.payload || {}
-  const targetType = String(notification.targetType || notification.type || '').toUpperCase()
-  const targetId = notification.targetId || metadata.conversationId || metadata.eventId || metadata.postId
+  const notificationType = normalizeType(notification.type)
 
-  if ((targetType === 'CHAT_CONVERSATION' || metadata.conversationId) && targetId) {
-    return { path: `/messages/${targetId}` }
+  if (notificationType === 'CHAT_MESSAGE_RECEIVED') {
+    const conversationId = resolveConversationId(notification)
+    return conversationId ? { path: `/messages/${conversationId}` } : null
   }
 
-  if ((targetType === 'EVENT' || metadata.eventId) && targetId) {
-    return { path: '/product/eventDetails', query: { id: targetId } }
+  if ([
+    'EVENT_REGISTRATION_STATUS_CHANGED',
+    'EVENT_REGISTRATION_CREATED',
+    'EVENT_UPDATED',
+    'EVENT_CANCELLED',
+    'EVENT_STARTS_IN_1_DAY',
+    'EVENT_STARTS_IN_2_HOURS'
+  ].includes(notificationType)) {
+    const eventId = resolveEventId(notification)
+    return eventId ? { path: '/product/eventDetails', query: { id: eventId } } : null
   }
 
-  if ((targetType === 'POST' || metadata.postId) && targetId) {
-    return { name: 'CreatePost', query: { id: targetId, mode: 'view' } }
+  if (notificationType === 'POST_REVIEW_CREATED') {
+    const postId = resolvePostId(notification)
+    return postId ? { name: 'CreatePost', query: { id: postId, mode: 'view' } } : null
   }
 
   return null
 }
 
 async function openNotification(notification) {
+  console.log('Opening notification:', notificationSnapshot(notification))
+
   if (notification.id && !notification.isRead) {
     markNotificationRead(notification.id)
       .then(() => {
@@ -164,7 +238,21 @@ async function openNotification(notification) {
 
   const target = resolveTarget(notification)
   if (target) {
-    router.push(target)
+    router.push(target).catch((error) => {
+      console.error('Failed to navigate from notification:', error)
+    })
+    return
+  }
+
+  if ([
+    'EVENT_REGISTRATION_STATUS_CHANGED',
+    'EVENT_REGISTRATION_CREATED',
+    'EVENT_UPDATED',
+    'EVENT_CANCELLED',
+    'EVENT_STARTS_IN_1_DAY',
+    'EVENT_STARTS_IN_2_HOURS'
+  ].includes(normalizeType(notification.type))) {
+    ElMessage.warning('Unable to open event from this notification.')
   }
 }
 

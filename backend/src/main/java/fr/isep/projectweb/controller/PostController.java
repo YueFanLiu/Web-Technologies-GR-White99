@@ -55,6 +55,16 @@ public class PostController {
         return postService.getMainFeedPosts(keyword, status, locationId, eventId, limit);
     }
 
+    @GetMapping("/public")
+    @Operation(
+            summary = "Get public posts by status",
+            description = "Returns real posts ordered by creation time. Defaults to PUBLISHED and is not recommendation-ranked."
+    )
+    public List<PostResponse> getPublicPosts(@RequestParam(required = false) String status,
+                                             @RequestParam(required = false) Integer limit) {
+        return postService.getPublicPosts(status, limit);
+    }
+
     @GetMapping("/user/{userId}")
     @Operation(summary = "Get posts by user id")
     public List<PostResponse> getPostsByUserId(@PathVariable UUID userId) {
