@@ -22,6 +22,18 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
     Optional<ChatConversation> findDirectConversation(@Param("firstUserId") UUID firstUserId,
                                                       @Param("secondUserId") UUID secondUserId);
 
+    @Query(value = """
+            SELECT *
+            FROM chat_conversations c
+            WHERE c.type = 'DIRECT'
+              AND c.event_id IS NULL
+              AND LEAST(c.direct_user_one_id, c.direct_user_two_id) = LEAST(CAST(:firstUserId AS uuid), CAST(:secondUserId AS uuid))
+              AND GREATEST(c.direct_user_one_id, c.direct_user_two_id) = GREATEST(CAST(:firstUserId AS uuid), CAST(:secondUserId AS uuid))
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<ChatConversation> findDirectConversationByCanonicalPair(@Param("firstUserId") UUID firstUserId,
+                                                                     @Param("secondUserId") UUID secondUserId);
+
     @Query("""
             SELECT c
             FROM ChatConversation c
