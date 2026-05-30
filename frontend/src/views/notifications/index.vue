@@ -165,6 +165,12 @@ function resolvePostId(notification) {
   return ''
 }
 
+function isFriendRequestNotification(notification) {
+  return normalizeType(notification.type) === 'FRIEND_REQUEST_RECEIVED' ||
+    normalizeType(notification.targetType) === 'FRIEND_REQUEST' ||
+    normalizeType(notification.sourceType) === 'FRIEND_REQUEST'
+}
+
 function getErrorMessage(error, fallback) {
   return error?.response?.data?.message ||
     error?.response?.data?.msg ||
@@ -195,6 +201,16 @@ function formatDate(value) {
 
 function resolveTarget(notification) {
   const notificationType = normalizeType(notification.type)
+
+  if (isFriendRequestNotification(notification)) {
+    return {
+      path: '/friends',
+      query: {
+        tab: 'received',
+        requestId: notification.targetId || notification.sourceId || notification.payload?.requestId || ''
+      }
+    }
+  }
 
   if (notificationType === 'CHAT_MESSAGE_RECEIVED') {
     const conversationId = resolveConversationId(notification)
@@ -253,7 +269,11 @@ async function openNotification(notification) {
     'EVENT_STARTS_IN_2_HOURS'
   ].includes(normalizeType(notification.type))) {
     ElMessage.warning('Unable to open event from this notification.')
+    return
   }
+
+  console.warn('Unsupported notification target:', notificationSnapshot(notification))
+  ElMessage.warning('This notification type cannot be opened yet.')
 }
 
 async function loadNotifications() {

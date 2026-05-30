@@ -48,10 +48,19 @@
       </section>
 
       <section class="requests-grid">
-        <article class="section-card">
+        <article
+          ref="receivedSection"
+          class="section-card"
+          :class="{ focused: activeQueryTab === 'received' }"
+        >
           <h2>Received Requests</h2>
           <div class="request-list">
-            <div v-for="request in incomingRequests" :key="request.id" class="request-item">
+            <div
+              v-for="request in incomingRequests"
+              :key="request.id"
+              class="request-item"
+              :class="{ highlighted: isHighlightedRequest(request) }"
+            >
               <UserMiniCard :user="request.requester" />
               <div class="button-row">
                 <el-button type="primary" @click="acceptRequest(request)">Accept</el-button>
@@ -62,10 +71,18 @@
           </div>
         </article>
 
-        <article class="section-card">
+        <article
+          class="section-card"
+          :class="{ focused: activeQueryTab === 'sent' }"
+        >
           <h2>Sent Requests</h2>
           <div class="request-list">
-            <div v-for="request in outgoingRequests" :key="request.id" class="request-item">
+            <div
+              v-for="request in outgoingRequests"
+              :key="request.id"
+              class="request-item"
+              :class="{ highlighted: isHighlightedRequest(request) }"
+            >
               <UserMiniCard :user="request.addressee" />
               <el-button type="warning" plain @click="cancelRequest(request)">Cancel Request</el-button>
             </div>
@@ -78,8 +95,8 @@
 </template>
 
 <script setup>
-import { defineComponent, h, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, defineComponent, h, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import defaultAvatar from '@/assets/images/profile.jpg'
 import { searchUsers } from '@/api/user'
@@ -93,7 +110,7 @@ import {
   removeFriend,
   sendFriendRequest
 } from '@/api/friend'
-import { createDirectChat } from '@/api/chat'
+import { getOrCreateDirectChat } from '@/api/chat'
 import useUserStore from '@/store/modules/user'
 import { getUserId } from '@/utils/accessControl'
 
@@ -121,6 +138,7 @@ const UserMiniCard = defineComponent({
 })
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const loading = ref(false)
 const searching = ref(false)
@@ -130,6 +148,9 @@ const incomingRequests = ref([])
 const outgoingRequests = ref([])
 const searchResults = ref([])
 const messageLoadingId = ref('')
+const receivedSection = ref(null)
+const activeQueryTab = computed(() => String(route.query.tab || '').toLowerCase())
+const highlightedRequestId = computed(() => String(route.query.requestId || ''))
 
 function extractList(res) {
   const data = res?.data ?? res
@@ -161,6 +182,17 @@ function relationFor(user) {
   return { label: 'Add Friend', disabled: false }
 }
 
+function isHighlightedRequest(request) {
+  return Boolean(highlightedRequestId.value && String(request?.id || '') === highlightedRequestId.value)
+}
+
+async function focusQueryTarget() {
+  await nextTick()
+  if (activeQueryTab.value === 'received' && receivedSection.value) {
+    receivedSection.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
 async function loadAll() {
   loading.value = true
   try {
@@ -175,6 +207,7 @@ async function loadAll() {
     friends.value = extractList(friendsRes)
     incomingRequests.value = extractList(incomingRes)
     outgoingRequests.value = extractList(outgoingRes)
+    await focusQueryTarget()
   } catch (error) {
     console.error('Failed to load friends:', error)
   } finally {
@@ -258,7 +291,7 @@ async function deleteFriend(user) {
 async function messageFriend(user) {
   messageLoadingId.value = user.id
   try {
-    const chat = await createDirectChat(user.id)
+    const chat = await getOrCreateDirectChat(user.id)
     if (chat?.id) {
       router.push(`/messages/${chat.id}`)
     }
@@ -274,6 +307,13 @@ function viewProfile(user) {
 }
 
 onMounted(loadAll)
+
+watch(
+  () => [route.query.tab, route.query.requestId],
+  async () => {
+    await loadAll()
+  }
+)
 </script>
 
 <style scoped lang="scss">
@@ -327,6 +367,11 @@ onMounted(loadAll)
   padding: 20px;
 }
 
+.section-card.focused {
+  border-color: #9fc0f7;
+  box-shadow: 0 0 0 3px rgba(47, 117, 246, 0.12);
+}
+
 .section-card h2 {
   margin: 0 0 16px;
   font-size: 22px;
@@ -346,6 +391,11 @@ onMounted(loadAll)
   border: 1px solid #dde7f5;
   border-radius: 8px;
   background: #f8fbff;
+}
+
+.request-item.highlighted {
+  border-color: #2f75f6;
+  background: #eef6ff;
 }
 
 .request-list {

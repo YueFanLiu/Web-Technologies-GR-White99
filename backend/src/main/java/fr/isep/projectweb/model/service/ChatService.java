@@ -21,6 +21,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -98,9 +99,10 @@ public class ChatService {
         User otherUser = userRepository.findById(otherUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        ChatConversation conversation = chatConversationRepository
-                .findDirectConversation(currentUser.getId(), otherUserId)
-                .orElseGet(() -> createDirectConversation(currentUser, otherUser));
+        ChatConversation conversation = findDirectConversation(currentUser.getId(), otherUserId)
+                .orElseGet(() -> createDirectConversationSafely(currentUser, otherUser));
+        ensureConversationParticipant(conversation, currentUser);
+        ensureConversationParticipant(conversation, otherUser);
 
         return toConversationResponse(conversation, currentUser.getId());
     }
@@ -224,6 +226,20 @@ public class ChatService {
         return createDirectConversation(firstUser, secondUser, null);
     }
 
+    private ChatConversation createDirectConversationSafely(User firstUser, User secondUser) {
+        try {
+            return createDirectConversation(firstUser, secondUser);
+        } catch (DataIntegrityViolationException exception) {
+            return findDirectConversation(firstUser.getId(), secondUser.getId())
+                    .orElseThrow(() -> exception);
+        }
+    }
+
+    private java.util.Optional<ChatConversation> findDirectConversation(UUID firstUserId, UUID secondUserId) {
+        return chatConversationRepository.findDirectConversationByCanonicalPair(firstUserId, secondUserId)
+                .or(() -> chatConversationRepository.findDirectConversation(firstUserId, secondUserId));
+    }
+
     private ChatConversation createDirectConversation(User firstUser, User secondUser, Event event) {
         ChatConversation conversation = new ChatConversation();
         conversation.setType(CONVERSATION_TYPE_DIRECT);
@@ -236,13 +252,16 @@ public class ChatService {
             conversation.setDirectUserTwo(firstUser);
         }
 
-        ChatConversation savedConversation = chatConversationRepository.save(conversation);
-        createParticipant(savedConversation, firstUser);
-        createParticipant(savedConversation, secondUser);
+        ChatConversation savedConversation = chatConversationRepository.saveAndFlush(conversation);
+        ensureConversationParticipant(savedConversation, firstUser);
+        ensureConversationParticipant(savedConversation, secondUser);
         return savedConversation;
     }
 
-    private void createParticipant(ChatConversation conversation, User user) {
+    private void ensureConversationParticipant(ChatConversation conversation, User user) {
+        if (chatParticipantRepository.existsByConversationIdAndUserId(conversation.getId(), user.getId())) {
+            return;
+        }
         ChatParticipant participant = new ChatParticipant();
         participant.setConversation(conversation);
         participant.setUser(user);

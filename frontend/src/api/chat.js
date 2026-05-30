@@ -22,6 +22,37 @@ export function createDirectChat(userId) {
   })
 }
 
+function extractList(res) {
+  const data = res?.data ?? res
+  if (Array.isArray(data)) return data
+  return data?.rows || data?.list || data?.content || []
+}
+
+function isSameUser(user, userId) {
+  return Boolean(user?.id && userId && String(user.id) === String(userId))
+}
+
+export async function getExistingDirectChat(userId) {
+  const conversations = extractList(await getChats())
+  return conversations.find((chat) => {
+    return !chat.event && Array.isArray(chat.participants) &&
+      chat.participants.some((participant) => isSameUser(participant, userId))
+  }) || null
+}
+
+export async function getOrCreateDirectChat(userId) {
+  const existingChat = await getExistingDirectChat(userId)
+  if (existingChat) return existingChat
+
+  try {
+    return await createDirectChat(userId)
+  } catch (error) {
+    const recoveredChat = await getExistingDirectChat(userId)
+    if (recoveredChat) return recoveredChat
+    throw error
+  }
+}
+
 export function getChats() {
   return request({
     url: '/api/chats',

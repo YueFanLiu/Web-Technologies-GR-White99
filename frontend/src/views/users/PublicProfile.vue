@@ -102,7 +102,7 @@ import {
   getOutgoingFriendRequests,
   sendFriendRequest
 } from '@/api/friend'
-import { createDirectChat } from '@/api/chat'
+import { getOrCreateDirectChat } from '@/api/chat'
 import { getPostsByUser } from '@/api/post'
 import useUserStore from '@/store/modules/user'
 import { getUserId } from '@/utils/accessControl'
@@ -279,7 +279,7 @@ async function openMessage() {
 
   messageLoading.value = true
   try {
-    const chat = await createDirectChat(userId.value)
+    const chat = await getOrCreateDirectChat(userId.value)
     if (chat?.id) {
       router.push(`/messages/${chat.id}`)
     }
