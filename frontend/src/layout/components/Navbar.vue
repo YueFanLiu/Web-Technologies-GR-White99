@@ -77,6 +77,7 @@
           <span>Messages</span>
           <el-badge :value="unreadMessages" class="nav-badge" />
         </el-menu-item>
+        <el-menu-item index="/friends">Friends</el-menu-item>
         <el-menu-item index="/user/profile">Profile</el-menu-item>
         <el-sub-menu index="/post">
           <template #title>Posts</template>
