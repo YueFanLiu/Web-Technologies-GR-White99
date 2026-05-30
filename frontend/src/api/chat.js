@@ -22,7 +22,7 @@ export function getChatMessages(chatId, query) {
   return request({
     url: `/api/chats/${chatId}/messages`,
     method: 'get',
-    params: query
+    params: query || undefined
   })
 }
 

@@ -16,6 +16,15 @@
       </section>
 
       <section class="messages-card" v-loading="loading">
+        <el-alert
+          v-if="loadFailed"
+          class="load-alert"
+          :title="loadErrorMessage"
+          type="error"
+          show-icon
+          :closable="false"
+        />
+
         <div class="message-list">
           <article
             v-for="message in orderedMessages"
@@ -70,6 +79,8 @@ const userStore = useUserStore()
 const chatId = computed(() => route.params.conversationId || route.params.chatId)
 const loading = ref(false)
 const sending = ref(false)
+const loadFailed = ref(false)
+const loadErrorMessage = ref('')
 const messages = ref([])
 const chat = ref(null)
 const draft = ref('')
@@ -95,7 +106,40 @@ const eventTitle = computed(() => {
 function extractList(res) {
   const data = res?.data ?? res
   if (Array.isArray(data)) return data
-  return data?.rows || data?.list || data?.content || []
+  if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.rows)) return data.rows
+  if (Array.isArray(data?.list)) return data.list
+  if (Array.isArray(data?.content)) return data.content
+  if (Array.isArray(data?.items)) return data.items
+  return []
+}
+
+function normalizeMessage(message) {
+  return {
+    ...message,
+    id: message.id || message.messageId || message.message_id,
+    conversationId: message.conversationId || message.conversation_id || chatId.value,
+    sender: message.sender || message.user || message.author || {},
+    content: message.content || message.body || message.message || '',
+    messageType: message.messageType || message.message_type || message.type || 'TEXT',
+    createdAt: message.createdAt || message.created_at || message.createTime || message.time || '',
+    editedAt: message.editedAt || message.edited_at || null,
+    deletedAt: message.deletedAt || message.deleted_at || null
+  }
+}
+
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message ||
+    error?.response?.data?.msg ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback
+}
+
+function currentLocalDateTime() {
+  const date = new Date()
+  const offsetMs = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 19)
 }
 
 function isMine(message) {
@@ -130,17 +174,23 @@ async function loadMessages() {
   }
 
   loading.value = true
+  loadFailed.value = false
+  loadErrorMessage.value = ''
 
   try {
     if (!userStore.userInfo) {
       await userStore.getInfo()
     }
     await loadChatMeta()
-    messages.value = extractList(await getChatMessages(chatId.value, { limit: 100 }))
+    messages.value = extractList(await getChatMessages(chatId.value, { before: currentLocalDateTime() }))
+      .map(normalizeMessage)
     await markChatRead(chatId.value)
   } catch (error) {
-    console.error('Failed to load chat messages:', error)
-    ElMessage.error('Failed to load messages')
+    messages.value = []
+    loadFailed.value = true
+    loadErrorMessage.value = getErrorMessage(error, 'Failed to load messages')
+    console.error('Failed to load chat messages:', loadErrorMessage.value, error?.response?.data || error)
+    ElMessage.error(loadErrorMessage.value)
   } finally {
     loading.value = false
   }
@@ -211,10 +261,14 @@ onMounted(loadMessages)
 .messages-card {
   min-height: 560px;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid #e0e8f6;
   border-radius: 8px;
   background: #fff;
+}
+
+.load-alert {
+  margin: 16px 16px 0;
 }
 
 .message-list {

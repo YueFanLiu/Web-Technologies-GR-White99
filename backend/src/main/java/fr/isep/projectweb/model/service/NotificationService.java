@@ -5,8 +5,11 @@ import fr.isep.projectweb.model.dto.response.NotificationResponse;
 import fr.isep.projectweb.model.dto.response.UnreadNotificationCountResponse;
 import fr.isep.projectweb.model.entity.Notification;
 import fr.isep.projectweb.model.entity.User;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,13 +73,16 @@ public class NotificationService {
                                                          Integer limit,
                                                          Jwt jwt) {
         UUID currentUserId = currentUserService.getCurrentUserId(jwt);
-        return notificationRepository.findPageForRecipient(
-                        currentUserId,
-                        normalizeType(type),
-                        before,
-                        normalizeStatus(status),
-                        PageRequest.of(0, normalizeLimit(limit))
-                )
+        String normalizedType = normalizeType(type);
+        String normalizedStatus = normalizeStatus(status);
+        PageRequest pageRequest = PageRequest.of(
+                0,
+                normalizeLimit(limit),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+
+        return notificationRepository.findAll(notificationSpec(currentUserId, normalizedType, before, normalizedStatus), pageRequest)
+                .getContent()
                 .stream()
                 .map(ResponseMapper::toNotificationResponse)
                 .toList();
@@ -98,10 +105,51 @@ public class NotificationService {
         return ResponseMapper.toNotificationResponse(notificationRepository.save(notification));
     }
 
+    private Specification<Notification> notificationSpec(UUID recipientId,
+                                                         String type,
+                                                         LocalDateTime before,
+                                                         String status) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.equal(root.get("recipient").get("id"), recipientId));
+
+            if (type != null) {
+                predicates.add(criteriaBuilder.equal(root.get("type"), type));
+            }
+
+            if (before != null) {
+                predicates.add(criteriaBuilder.lessThan(root.get("createdAt"), before));
+            }
+
+            switch (status) {
+                case "UNREAD" -> {
+                    predicates.add(criteriaBuilder.isNull(root.get("readAt")));
+                    predicates.add(criteriaBuilder.isNull(root.get("archivedAt")));
+                }
+                case "READ" -> {
+                    predicates.add(criteriaBuilder.isNotNull(root.get("readAt")));
+                    predicates.add(criteriaBuilder.isNull(root.get("archivedAt")));
+                }
+                case "ARCHIVED" -> predicates.add(criteriaBuilder.isNotNull(root.get("archivedAt")));
+                default -> {
+                    // ALL intentionally adds no read/archive filter.
+                }
+            }
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
     @Transactional
     public UnreadNotificationCountResponse markAllAsRead(String type, Jwt jwt) {
         UUID currentUserId = currentUserService.getCurrentUserId(jwt);
-        notificationRepository.markAllAsRead(currentUserId, normalizeType(type), LocalDateTime.now());
+        String normalizedType = normalizeType(type);
+        LocalDateTime readAt = LocalDateTime.now();
+        if (normalizedType == null) {
+            notificationRepository.markAllAsRead(currentUserId, readAt);
+        } else {
+            notificationRepository.markAllAsReadByType(currentUserId, normalizedType, readAt);
+        }
         return getUnreadCount(jwt);
     }
 
@@ -168,8 +216,8 @@ public class NotificationService {
             return "ALL";
         }
         normalized = normalized.toUpperCase(Locale.ROOT);
-        if (!Set.of("ALL", "UNREAD", "READ").contains(normalized)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Notification status must be all, unread, or read");
+        if (!Set.of("ALL", "UNREAD", "READ", "ARCHIVED").contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Notification status must be all, unread, read, or archived");
         }
         return normalized;
     }

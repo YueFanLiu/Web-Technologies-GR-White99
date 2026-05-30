@@ -17,13 +17,17 @@ import fr.isep.projectweb.model.entity.ChatMessage;
 import fr.isep.projectweb.model.entity.ChatParticipant;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.User;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -129,11 +133,14 @@ public class ChatService {
         UUID currentUserId = currentUserService.getCurrentUserId(jwt);
         ensureParticipant(conversationId, currentUserId);
 
-        return chatMessageRepository.findPageByConversationId(
-                        conversationId,
-                        before,
-                        PageRequest.of(0, normalizeMessageLimit(limit))
-                )
+        PageRequest pageRequest = PageRequest.of(
+                0,
+                normalizeMessageLimit(limit),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
+        );
+
+        return chatMessageRepository.findAll(messageSpec(conversationId, before), pageRequest)
+                .getContent()
                 .stream()
                 .map(this::toMessageResponse)
                 .toList();
@@ -155,6 +162,20 @@ public class ChatService {
         chatConversationRepository.save(conversation);
         notifyMessageRecipients(savedMessage);
         return toMessageResponse(savedMessage);
+    }
+
+    private Specification<ChatMessage> messageSpec(UUID conversationId, LocalDateTime before) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.equal(root.get("conversation").get("id"), conversationId));
+            predicates.add(criteriaBuilder.isNull(root.get("deletedAt")));
+
+            if (before != null) {
+                predicates.add(criteriaBuilder.lessThan(root.get("createdAt"), before));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     private void notifyMessageRecipients(ChatMessage message) {

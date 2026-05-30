@@ -26,12 +26,12 @@
           v-for="notification in notifications"
           :key="notification.id"
           class="notification-item"
-          :class="{ unread: !notification.readAt && notification.status !== 'READ' }"
+          :class="{ unread: !notification.isRead }"
           @click="openNotification(notification)"
         >
           <div class="notification-main">
-            <h2>{{ notification.title || 'Notification' }}</h2>
-            <p>{{ notification.body || notification.message || notification.content || 'No details available.' }}</p>
+            <h2>{{ notification.title }}</h2>
+            <p>{{ notification.body }}</p>
           </div>
           <span>{{ formatDate(notification.createdAt) }}</span>
         </article>
@@ -48,6 +48,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { listNotifications, markNotificationRead } from '@/api/notifications'
 
@@ -59,7 +60,62 @@ const notifications = ref([])
 function extractList(res) {
   const data = res?.data ?? res
   if (Array.isArray(data)) return data
-  return data?.rows || data?.list || data?.content || []
+  if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.rows)) return data.rows
+  if (Array.isArray(data?.list)) return data.list
+  if (Array.isArray(data?.content)) return data.content
+  if (Array.isArray(data?.items)) return data.items
+  return []
+}
+
+function readPayload(notification) {
+  const payload = notification?.payload || notification?.metadata || notification?.data || {}
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    return payload
+  }
+  return {}
+}
+
+function normalizeNotification(notification) {
+  const payload = readPayload(notification)
+  const targetType = notification.targetType || notification.target_type || notification.type || payload.targetType || ''
+  const targetId = notification.targetId || notification.target_id || payload.targetId ||
+    payload.conversationId || payload.eventId || payload.postId || payload.registrationId || ''
+  const readAt = notification.readAt || notification.read_at || null
+  const status = String(notification.status || '').toUpperCase()
+
+  return {
+    ...notification,
+    id: notification.id || notification.notificationId || notification.notification_id,
+    type: notification.type || payload.type || '',
+    title: notification.title || notification.subject || 'Notification',
+    body: notification.body || notification.message || notification.content || notification.description || 'No details available.',
+    targetType,
+    targetId,
+    sourceType: notification.sourceType || notification.source_type || payload.sourceType || '',
+    sourceId: notification.sourceId || notification.source_id || payload.sourceId || '',
+    payload,
+    readAt,
+    isRead: Boolean(readAt || notification.read === true || notification.isRead === true || status === 'READ'),
+    createdAt: notification.createdAt || notification.created_at || notification.createTime || notification.time || ''
+  }
+}
+
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message ||
+    error?.response?.data?.msg ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback
+}
+
+async function fetchNotifications() {
+  try {
+    return await listNotifications({ status: 'all', limit: 50 })
+  } catch (error) {
+    console.warn('GET /api/notifications with query params failed, retrying without params:', getErrorMessage(error, 'Request failed'), error?.response?.data || error)
+    return listNotifications()
+  }
 }
 
 function formatDate(value) {
@@ -74,7 +130,7 @@ function formatDate(value) {
 }
 
 function resolveTarget(notification) {
-  const metadata = notification.payload || notification.metadata || {}
+  const metadata = notification.payload || {}
   const targetType = String(notification.targetType || notification.type || '').toUpperCase()
   const targetId = notification.targetId || metadata.conversationId || metadata.eventId || metadata.postId
 
@@ -94,8 +150,16 @@ function resolveTarget(notification) {
 }
 
 async function openNotification(notification) {
-  if (notification.id && !notification.readAt && notification.status !== 'READ') {
-    markNotificationRead(notification.id).catch(() => {})
+  if (notification.id && !notification.isRead) {
+    markNotificationRead(notification.id)
+      .then(() => {
+        notifications.value = notifications.value.map((item) => {
+          return item.id === notification.id ? { ...item, isRead: true, readAt: item.readAt || new Date().toISOString() } : item
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to mark notification as read:', getErrorMessage(error, 'Failed to mark notification as read'), error)
+      })
   }
 
   const target = resolveTarget(notification)
@@ -109,10 +173,14 @@ async function loadNotifications() {
   loadFailed.value = false
 
   try {
-    notifications.value = extractList(await listNotifications({ limit: 50 }))
+    notifications.value = extractList(await fetchNotifications())
+      .map(normalizeNotification)
   } catch (error) {
     notifications.value = []
     loadFailed.value = true
+    const message = getErrorMessage(error, 'Failed to load notifications')
+    console.error('Failed to load notifications:', message, error?.response?.data || error)
+    ElMessage.error(message)
   } finally {
     loading.value = false
   }

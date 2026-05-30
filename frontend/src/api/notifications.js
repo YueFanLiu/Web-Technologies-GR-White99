@@ -4,7 +4,7 @@ export function listNotifications(query) {
   return request({
     url: '/api/notifications',
     method: 'get',
-    params: query,
+    params: query || undefined,
     headers: {
       showErrorMessage: false
     }
@@ -30,4 +30,3 @@ export function markNotificationRead(id) {
     }
   })
 }
-

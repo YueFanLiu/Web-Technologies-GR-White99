@@ -106,11 +106,12 @@
 
           <el-select v-model="statusFilter" size="large" class="status-filter">
             <el-option label="All Status" value="all" />
-            <el-option label="Confirmed" value="CONFIRMED" />
-            <el-option label="Registered" value="REGISTERED" />
-            <el-option label="Pending" value="PENDING" />
-            <el-option label="Attended" value="ATTENDED" />
-            <el-option label="Cancelled" value="CANCELLED" />
+            <el-option
+              v-for="option in registrationStatusOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </div>
 
@@ -141,7 +142,7 @@
           <el-table-column label="Status" width="150">
             <template #default="{ row }">
               <el-tag class="status-tag" :class="row.status.toLowerCase()" effect="plain">
-                {{ row.status }}
+                {{ formatRegistrationStatus(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -165,11 +166,13 @@
                   <el-button :icon="Edit" :loading="updatingId === row.id" aria-label="Change status" />
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="CONFIRMED">Confirm</el-dropdown-item>
-                      <el-dropdown-item command="REGISTERED">Registered</el-dropdown-item>
-                      <el-dropdown-item command="PENDING">Pending</el-dropdown-item>
-                      <el-dropdown-item command="ATTENDED">Attended</el-dropdown-item>
-                      <el-dropdown-item command="CANCELLED">Cancel</el-dropdown-item>
+                      <el-dropdown-item
+                        v-for="option in registrationStatusOptions"
+                        :key="option.value"
+                        :command="option.value"
+                      >
+                        {{ option.actionLabel }}
+                      </el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
@@ -200,7 +203,7 @@
           <div>
             <h2>{{ selectedAttendee.name }}</h2>
             <el-tag class="status-tag" :class="selectedAttendee.status.toLowerCase()" effect="plain">
-              {{ selectedAttendee.status }}
+              {{ formatRegistrationStatus(selectedAttendee.status) }}
             </el-tag>
           </div>
         </div>
@@ -285,6 +288,16 @@ const attendees = ref([])
 
 const defaultEventImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
 const defaultAvatar = 'https://ui-avatars.com/api/?background=eef5ff&color=0f66e9&name=Attendee'
+const registrationStatusOptions = [
+  { label: 'Confirmed', actionLabel: 'Confirm', value: 'CONFIRMED' },
+  { label: 'Registered', actionLabel: 'Registered', value: 'REGISTERED' },
+  { label: 'Cancelled', actionLabel: 'Cancel', value: 'CANCELLED' }
+]
+const registrationStatusLabels = registrationStatusOptions.reduce((labels, option) => {
+  labels[option.value] = option.label
+  return labels
+}, {})
+const supportedRegistrationStatuses = new Set(registrationStatusOptions.map((option) => option.value))
 
 const event = reactive({
   id: '',
@@ -391,6 +404,11 @@ function normalizeStatus(status) {
   return String(status || 'REGISTERED').trim().toUpperCase()
 }
 
+function formatRegistrationStatus(status) {
+  const normalized = normalizeStatus(status)
+  return registrationStatusLabels[normalized] || normalized
+}
+
 function isActiveRegistration(status) {
   return !['CANCELLED', 'CANCELED', 'REJECTED'].includes(normalizeStatus(status))
 }
@@ -413,6 +431,17 @@ function mapRegistration(registration, userDetails = null) {
     raw: registration,
     avatar: normalizeImageUrl(user.photo || user.avatar) || avatarUrl(name)
   }
+}
+
+function getRegistrationEventId(attendee) {
+  return attendee?.eventId || attendee?.raw?.event?.id || attendee?.raw?.eventId || eventId.value
+}
+
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message ||
+    error?.response?.data?.msg ||
+    error?.message ||
+    fallback
 }
 
 function applyEvent(data) {
@@ -493,16 +522,29 @@ async function changeStatus(attendee, status) {
     return
   }
 
-  if (attendee.status === status) {
+  const nextStatus = normalizeStatus(status)
+  if (!supportedRegistrationStatuses.has(nextStatus)) {
+    ElMessage.warning('Unsupported registration status')
+    return
+  }
+
+  if (attendee.status === nextStatus) {
+    return
+  }
+
+  const requestEventId = getRegistrationEventId(attendee)
+  if (!requestEventId) {
+    ElMessage.error('Registration event id is missing')
     return
   }
 
   updatingId.value = attendee.id
   try {
     const updated = unwrapResponse(await updateRegistration(attendee.id, {
-      status
+      eventId: requestEventId,
+      status: nextStatus
     }))
-    const nextAttendee = updated?.id ? await hydrateRegistration(updated) : { ...attendee, status }
+    const nextAttendee = updated?.id ? await hydrateRegistration(updated) : { ...attendee, status: nextStatus }
     attendees.value = attendees.value.map((item) => item.id === attendee.id ? nextAttendee : item)
     if (selectedAttendee.value?.id === attendee.id) {
       selectedAttendee.value = nextAttendee
@@ -510,7 +552,7 @@ async function changeStatus(attendee, status) {
     ElMessage.success('Attendee status updated')
   } catch (error) {
     console.error(error)
-    ElMessage.error('Failed to update attendee status')
+    ElMessage.error(getErrorMessage(error, 'Failed to update attendee status'))
   } finally {
     updatingId.value = ''
   }
