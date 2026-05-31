@@ -30,6 +30,7 @@
           @click="openNotification(notification)"
         >
           <div class="notification-main">
+            <el-icon class="notification-icon"><Bell /></el-icon>
             <h2>{{ notification.title }}</h2>
             <p>{{ notification.body }}</p>
           </div>
@@ -49,8 +50,8 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
-import { listNotifications, markNotificationRead } from '@/api/notifications'
+import { Bell, Refresh } from '@element-plus/icons-vue'
+import { listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/notifications'
 
 const router = useRouter()
 const loading = ref(false)
@@ -284,6 +285,16 @@ async function loadNotifications() {
   try {
     notifications.value = extractList(await fetchNotifications())
       .map(normalizeNotification)
+    if (notifications.value.some((notification) => !notification.isRead)) {
+      await markAllNotificationsRead()
+      const readAt = new Date().toISOString()
+      notifications.value = notifications.value.map((notification) => ({
+        ...notification,
+        isRead: true,
+        readAt: notification.readAt || readAt
+      }))
+      window.dispatchEvent(new CustomEvent('app:unread-refresh'))
+    }
   } catch (error) {
     notifications.value = []
     loadFailed.value = true
@@ -360,6 +371,15 @@ onMounted(loadNotifications)
 
 .notification-main {
   min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.notification-icon {
+  color: #0f66e9;
+  font-size: 18px;
 }
 
 .notification-main h2 {
@@ -370,6 +390,7 @@ onMounted(loadNotifications)
 }
 
 .notification-main p {
+  grid-column: 2;
   margin: 8px 0 0;
   color: #4f5d7c;
   line-height: 1.5;

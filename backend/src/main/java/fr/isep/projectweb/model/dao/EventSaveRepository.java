@@ -15,6 +15,8 @@ public interface EventSaveRepository extends JpaRepository<EventSave, UUID> {
 
     boolean existsByUserIdAndEventId(UUID userId, UUID eventId);
 
+    long countByEventId(UUID eventId);
+
     List<EventSave> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     long deleteByUserIdAndEventId(UUID userId, UUID eventId);

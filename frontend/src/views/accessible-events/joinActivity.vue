@@ -4,7 +4,7 @@
       <section class="page-heading">
         <div>
           <h1>Joined Activities</h1>
-          <p>Activities you booked, attended, or favorited for later.</p>
+          <p>Activities you booked, attended, or added to Favorites for later.</p>
         </div>
         <div class="heading-actions">
           <el-button :loading="loading" @click="loadActivities">
@@ -92,6 +92,14 @@
               >
                 Leave Review
               </el-button>
+              <el-button
+                v-if="activity.tab === 'Favorites'"
+                class="danger-button"
+                :loading="cancellingId === activity.eventId"
+                @click="removeFavorite(activity)"
+              >
+                Remove Favorite
+              </el-button>
             </div>
           </div>
         </article>
@@ -119,6 +127,7 @@ import {
   getEventDetail,
   getRegistrationsByUser
 } from '@/api/events/joinActivity'
+import { getMySavedEvents, unsaveEvent } from '@/api/events/favorites'
 import useUserStore from '@/store/modules/user'
 import { canWriteReview } from '@/utils/accessControl'
 
@@ -133,7 +142,7 @@ const loadError = ref('')
 const tabs = [
   { label: 'Upcoming', value: 'Upcoming' },
   { label: 'Past', value: 'Past' },
-  { label: 'Favorited', value: 'Favorited' }
+  { label: 'Favorites', value: 'Favorites' }
 ]
 
 const filteredActivities = computed(() => {
@@ -210,13 +219,13 @@ function getStatusLabel(status) {
     CONFIRMED: 'Confirmed',
     ATTENDED: 'Attended',
     COMPLETED: 'Completed',
-    SAVED: 'Favorited'
+    SAVED: 'Favorite'
   }
   return labels[status] || status.charAt(0) + status.slice(1).toLowerCase()
 }
 
 function getActivityTab(status, startTime, endTime) {
-  if (status === 'SAVED') return 'Favorited'
+  if (status === 'SAVED') return 'Favorites'
   if (['ATTENDED', 'COMPLETED'].includes(status)) return 'Past'
 
   const compareTime = endTime || startTime
@@ -255,6 +264,29 @@ function normalizeActivity(registration) {
   }
 }
 
+function normalizeFavorite(savedEvent) {
+  const event = savedEvent.event || savedEvent
+  const startTime = event.startTime || savedEvent.startTime
+  const endTime = event.endTime || savedEvent.endTime
+
+  return {
+    key: `favorite-${savedEvent.id || event.id}`,
+    favoriteId: savedEvent.id,
+    registrationId: '',
+    eventId: event.id || savedEvent.eventId,
+    title: event.title || savedEvent.eventTitle || 'Untitled activity',
+    date: formatDate(startTime),
+    time: formatTime(startTime, endTime),
+    location: getLocationText(event.location || savedEvent.location),
+    image: getActivityImage(event, savedEvent.id),
+    status: 'SAVED',
+    statusLabel: 'Favorite',
+    tab: 'Favorites',
+    event,
+    raw: savedEvent
+  }
+}
+
 async function hydrateMissingEvents(items) {
   return Promise.all(items.map(async (registration) => {
     if (registration.event?.id || !registration.eventId) return registration
@@ -265,6 +297,21 @@ async function hydrateMissingEvents(items) {
     } catch (error) {
       console.error('Failed to load event for registration:', registration.eventId, error)
       return registration
+    }
+  }))
+}
+
+async function hydrateSavedEvents(items) {
+  return Promise.all(items.map(async (savedEvent) => {
+    const eventId = savedEvent.event?.id || savedEvent.eventId
+    if (!eventId) return savedEvent
+
+    try {
+      const event = unwrapResponse(await getEventDetail(eventId))
+      return { ...savedEvent, event }
+    } catch (error) {
+      console.error('Failed to load favorite event:', eventId, error)
+      return savedEvent
     }
   }))
 }
@@ -285,8 +332,12 @@ async function loadActivities() {
     const registrations = extractList(await getRegistrationsByUser(userId))
       .filter((registration) => !['CANCELLED', 'CANCELED', 'REJECTED'].includes(normalizeStatus(registration.status)))
 
+    const savedEvents = await hydrateSavedEvents(extractList(await getMySavedEvents()))
     const hydratedRegistrations = await hydrateMissingEvents(registrations)
-    activities.value = hydratedRegistrations.map(normalizeActivity)
+    activities.value = [
+      ...hydratedRegistrations.map(normalizeActivity),
+      ...savedEvents.map(normalizeFavorite)
+    ]
   } catch (error) {
     console.error('Failed to load joined activities:', error)
     loadError.value = 'Failed to load joined activities'
@@ -325,6 +376,25 @@ async function cancelBooking(activity) {
       console.error('Failed to cancel booking:', error)
       ElMessage.error('Failed to cancel booking')
     }
+  } finally {
+    cancellingId.value = ''
+  }
+}
+
+async function removeFavorite(activity) {
+  if (!activity.eventId) {
+    ElMessage.warning('Missing activity id')
+    return
+  }
+
+  try {
+    cancellingId.value = activity.eventId
+    await unsaveEvent(activity.eventId)
+    activities.value = activities.value.filter((item) => item.key !== activity.key)
+    ElMessage.success('Removed from Favorites')
+  } catch (error) {
+    console.error('Failed to remove favorite:', error)
+    ElMessage.error('Failed to remove favorite')
   } finally {
     cancellingId.value = ''
   }
@@ -508,7 +578,8 @@ onMounted(loadActivities)
   background: #eef1f5;
 }
 
-.status-pill.saved {
+.status-pill.saved,
+.status-pill.favorites {
   color: #b7791f;
   background: #fff5df;
 }

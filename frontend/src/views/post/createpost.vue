@@ -69,7 +69,9 @@
               list-type="picture-card"
               :auto-upload="false"
               :limit="4"
+              accept="image/jpeg,image/png"
               :disabled="isViewMode"
+              :on-change="validatePostImage"
               :on-remove="handleImageRemove"
             >
               <el-icon v-if="!isViewMode"><Plus /></el-icon>
@@ -188,6 +190,7 @@ const postForm = ref({
 
 // el-upload 使用的图片列表；已有图片会带 persisted/imageId，新上传图片会带 raw
 const imageList = ref([])
+const maxPostImageSizeBytes = 2 * 1024 * 1024
 
 // 根据创建/编辑/查看模式切换页面标题
 const pageTitle = computed(() => {
@@ -229,6 +232,24 @@ function fillPostForm(post) {
     content: post.content || post.body || post.description || ''
   }
   relatedEventKeyword.value = post.event?.title || post.eventTitle || post.eventName || ''
+}
+
+function validatePostImage(file) {
+  const rawFile = file.raw || file
+  const allowedTypes = ['image/jpeg', 'image/png']
+  if (!allowedTypes.includes(rawFile.type)) {
+    ElMessage.error('Post images must be JPEG or PNG. GIF and other animated images are not supported.')
+    imageList.value = imageList.value.filter((item) => item.uid !== file.uid)
+    return false
+  }
+
+  if (rawFile.size > maxPostImageSizeBytes) {
+    ElMessage.error('Post image is too large. Please upload a JPEG or PNG under 2 MB.')
+    imageList.value = imageList.value.filter((item) => item.uid !== file.uid)
+    return false
+  }
+
+  return true
 }
 
 async function searchRelatedEvents(query, callback) {

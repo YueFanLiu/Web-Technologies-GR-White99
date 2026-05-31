@@ -169,7 +169,7 @@ final class ResponseMapper {
         response.setId(review.getId());
         response.setRating(review.getRating());
         response.setComment(review.getComment());
-        response.setUser(toUserSummary(review.getUser()));
+        response.setUser(toPublicUserResponse(review.getUser()));
         response.setCreatedAt(review.getCreatedAt());
         return response;
     }
@@ -179,7 +179,8 @@ final class ResponseMapper {
         response.setId(review.getId());
         response.setRating(review.getRating());
         response.setComment(review.getComment());
-        response.setUser(toUserSummary(review.getUser()));
+        response.setUser(toPublicUserResponse(review.getUser()));
+        response.setParentId(review.getParent() != null ? review.getParent().getId() : null);
         response.setCreatedAt(review.getCreatedAt());
         return response;
     }

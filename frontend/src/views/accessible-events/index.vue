@@ -271,9 +271,10 @@ import {
   delEvent,
   updateEvent
 } from '@/api/events/index.js'
+import { saveEvent } from '@/api/events/favorites'
 import ActivityMap from '@/components/ActivityMap/index.vue'
 import { listLocations } from '@/api/location/index.js'
-import { listEventMapPoints, searchEventMapPoints } from '@/api/map.js'
+import { listEventMapPoints, listPopularEventMapPoints, searchEventMapPoints } from '@/api/map.js'
 import {
   ACCESSIBILITY_FILTER_OPTIONS,
   EVENT_CATEGORY_OPTIONS,
@@ -423,7 +424,7 @@ const fetchEvents = async () => {
     const events = Array.isArray(res.events) ? res.events : []
     const mappedEvents = events.map(mapEvent)
     activityList.value = mappedEvents
-    popularEvents.value = mappedEvents.slice(0, 3)
+    fetchPopularEvents()
     mapMarkers.value = res.markers || []
     mapUnavailable.value = false
   } catch (error) {
@@ -558,8 +559,25 @@ async function joinActivity(item) {
   })
 }
 
-function saveActivity(item) {
-  ElMessage.success(`Favorited "${item.title}"`)
+async function saveActivity(item) {
+  try {
+    await saveEvent(item.id)
+    ElMessage.success(`Added "${item.title}" to Favorites`)
+    fetchPopularEvents()
+  } catch (error) {
+    console.error('Failed to favorite activity:', error)
+  }
+}
+
+async function fetchPopularEvents() {
+  try {
+    const res = await listPopularEventMapPoints({ limit: 3 })
+    const events = Array.isArray(res.events) ? res.events : []
+    popularEvents.value = events.map(mapEvent)
+  } catch (error) {
+    console.error('Failed to load popular events:', error)
+    popularEvents.value = activityList.value.slice(0, 3)
+  }
 }
 
 function createPost(item) {
@@ -619,7 +637,7 @@ const searchEvents = async (params = {}) => {
     const events = Array.isArray(res.events) ? res.events : []
     const mappedEvents = events.map(mapEvent)
     activityList.value = mappedEvents
-    popularEvents.value = mappedEvents.slice(0, 3)
+    fetchPopularEvents()
     mapMarkers.value = res.markers || []
     mapUnavailable.value = false
   } catch (error) {

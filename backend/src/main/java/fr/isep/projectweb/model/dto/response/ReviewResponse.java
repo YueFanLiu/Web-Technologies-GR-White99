@@ -8,7 +8,8 @@ public class ReviewResponse {
     private UUID id;
     private Integer rating;
     private String comment;
-    private UserSummaryResponse user;
+    private PublicUserResponse user;
+    private UUID parentId;
     private LocalDateTime createdAt;
 
     public UUID getId() {
@@ -35,12 +36,20 @@ public class ReviewResponse {
         this.comment = comment;
     }
 
-    public UserSummaryResponse getUser() {
+    public PublicUserResponse getUser() {
         return user;
     }
 
-    public void setUser(UserSummaryResponse user) {
+    public void setUser(PublicUserResponse user) {
         this.user = user;
+    }
+
+    public UUID getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(UUID parentId) {
+        this.parentId = parentId;
     }
 
     public LocalDateTime getCreatedAt() {

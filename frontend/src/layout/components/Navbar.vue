@@ -70,6 +70,7 @@
           <el-menu-item v-if="canCreateActivity" index="/manager/manageEvent">Created Activities</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/notifications">
+          <el-icon><Bell /></el-icon>
           <span>Notifications</span>
           <el-badge :value="unreadNotifications" :hidden="unreadNotifications <= 0" class="nav-badge" />
         </el-menu-item>
@@ -105,6 +106,7 @@ import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import { useRouter } from 'vue-router'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Bell } from '@element-plus/icons-vue'
 import { canCreateActivityForUser } from '@/utils/accessControl'
 import { getUnreadNotificationCount } from '@/api/notifications'
 import { getChats } from '@/api/chat'

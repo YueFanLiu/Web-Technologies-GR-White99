@@ -18,6 +18,14 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
     boolean existsByEventIdAndUserIdAndStatusIgnoreCase(UUID eventId, UUID userId, String status);
 
     @Query("""
+            SELECT COUNT(r)
+            FROM Registration r
+            WHERE r.event.id = :eventId
+              AND UPPER(COALESCE(r.status, '')) NOT IN ('CANCELLED', 'CANCELED', 'REJECTED')
+            """)
+    long countActiveByEventId(@Param("eventId") UUID eventId);
+
+    @Query("""
             SELECT r
             FROM Registration r
             JOIN FETCH r.event e

@@ -65,28 +65,57 @@
               maxlength="1000"
               show-word-limit
               resize="none"
-              placeholder="Write a comment"
+              :placeholder="replyingTo ? `Reply to ${replyingTo.user?.fullName || 'this comment'}` : 'Write a comment'"
             />
-            <el-button type="primary" :loading="submittingComment" @click="submitComment">
-              Submit Comment
-            </el-button>
+            <div v-if="replyingTo" class="replying-row">
+              <span>Replying to {{ replyingTo.user?.fullName || 'this comment' }}</span>
+              <el-button size="small" text @click="cancelReply">Cancel</el-button>
+            </div>
+            <div class="composer-actions">
+              <el-button type="primary" :loading="submittingComment" @click="submitComment">
+                {{ replyingTo ? 'Submit Reply' : 'Submit Comment' }}
+              </el-button>
+            </div>
           </div>
 
           <div class="comment-list" v-loading="commentsLoading">
-            <article v-for="comment in comments" :key="comment.id" class="comment-item">
+            <article v-for="comment in topLevelComments" :key="comment.id" class="comment-item">
               <div class="comment-top">
                 <button v-if="comment.user?.id" class="comment-author" @click="openUserProfile(comment.user)">
-                  <span class="comment-avatar">{{ getInitials(comment.user?.fullName) }}</span>
+                  <img :src="getAvatar(comment.user)" alt="Comment author" class="comment-avatar-img" @error="handleAvatarError" />
                   <strong>{{ comment.user?.fullName || 'Anonymous' }}</strong>
                 </button>
                 <strong v-else>{{ comment.user?.fullName || 'Anonymous' }}</strong>
                 <el-rate :model-value="Number(comment.rating || 0)" disabled />
               </div>
               <p>{{ comment.comment || comment.content || 'No comment text' }}</p>
-              <div v-if="canManageComment(comment)" class="comment-actions">
-                <el-button size="small" text type="danger" @click="removeComment(comment)">
+              <div class="comment-actions">
+                <el-button size="small" text type="primary" @click="startReply(comment)">
+                  Reply
+                </el-button>
+                <el-button v-if="canManageComment(comment)" size="small" text type="danger" @click="removeComment(comment)">
                   Delete
                 </el-button>
+              </div>
+              <div v-if="repliesFor(comment.id).length" class="reply-list">
+                <article v-for="reply in repliesFor(comment.id)" :key="reply.id" class="reply-item">
+                  <div class="comment-top">
+                    <button v-if="reply.user?.id" class="comment-author" @click="openUserProfile(reply.user)">
+                      <img :src="getAvatar(reply.user)" alt="Reply author" class="comment-avatar-img small" @error="handleAvatarError" />
+                      <strong>{{ reply.user?.fullName || 'Anonymous' }}</strong>
+                    </button>
+                    <strong v-else>{{ reply.user?.fullName || 'Anonymous' }}</strong>
+                  </div>
+                  <p>{{ reply.comment || reply.content || 'No reply text' }}</p>
+                  <div class="comment-actions">
+                    <el-button size="small" text type="primary" @click="startReply(comment)">
+                      Reply
+                    </el-button>
+                    <el-button v-if="canManageComment(reply)" size="small" text type="danger" @click="removeComment(reply)">
+                      Delete
+                    </el-button>
+                  </div>
+                </article>
               </div>
             </article>
             <el-empty v-if="!commentsLoading && comments.length === 0" description="No comments yet" />
@@ -130,12 +159,24 @@ const post = ref({})
 const relatedEvent = ref(null)
 const images = ref([])
 const comments = ref([])
+const replyingTo = ref(null)
 const commentForm = ref({
   rating: 5,
   comment: ''
 })
 
 const canManageLoadedPost = computed(() => canManagePostForUser(userStore.userInfo, post.value))
+const commentsByParent = computed(() => {
+  return comments.value.reduce((grouped, comment) => {
+    const parentId = comment.parentId || ''
+    if (!grouped[parentId]) {
+      grouped[parentId] = []
+    }
+    grouped[parentId].push(comment)
+    return grouped
+  }, {})
+})
+const topLevelComments = computed(() => commentsByParent.value[''] || [])
 
 function extractList(res) {
   if (Array.isArray(res)) return res
@@ -164,6 +205,10 @@ function handleAvatarError(event) {
 
 function getInitials(name) {
   return String(name || '?').trim().slice(0, 1).toUpperCase() || '?'
+}
+
+function repliesFor(parentId) {
+  return commentsByParent.value[String(parentId || '')] || []
 }
 
 function formatDate(value) {
@@ -200,6 +245,15 @@ function canManageComment(comment) {
   return canManagePostComment(comment, post.value, relatedEvent.value, userStore.userInfo)
 }
 
+function startReply(comment) {
+  replyingTo.value = comment
+  commentForm.value.comment = ''
+}
+
+function cancelReply() {
+  replyingTo.value = null
+}
+
 async function loadComments() {
   if (!postId.value) return
   commentsLoading.value = true
@@ -227,10 +281,12 @@ async function submitComment() {
   try {
     await createPostReview(postId.value, {
       rating: commentForm.value.rating,
-      comment: commentForm.value.comment.trim()
+      comment: commentForm.value.comment.trim(),
+      parentId: replyingTo.value?.id || null
     })
     commentForm.value.rating = 5
     commentForm.value.comment = ''
+    replyingTo.value = null
     await loadComments()
     ElMessage.success('Comment submitted')
   } catch (error) {
@@ -437,6 +493,19 @@ onMounted(loadPostDetail)
   justify-self: end;
 }
 
+.replying-row,
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.replying-row {
+  color: #4f5d7c;
+  font-size: 13px;
+}
+
 .comment-list {
   display: grid;
   gap: 14px;
@@ -473,6 +542,31 @@ onMounted(loadPostDetail)
   border-radius: 50%;
   background: #eaf2ff;
   color: #0f66e9;
+}
+
+.comment-avatar-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.comment-avatar-img.small {
+  width: 28px;
+  height: 28px;
+}
+
+.reply-list {
+  margin-top: 12px;
+  margin-left: 34px;
+  display: grid;
+  gap: 10px;
+}
+
+.reply-item {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fbff;
 }
 
 .comment-actions {

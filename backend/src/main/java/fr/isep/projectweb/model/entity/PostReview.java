@@ -28,6 +28,10 @@ public class PostReview {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @ManyToOne
+    @JoinColumn(name = "parent_id")
+    private PostReview parent;
+
     private Integer rating;
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -61,6 +65,14 @@ public class PostReview {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public PostReview getParent() {
+        return parent;
+    }
+
+    public void setParent(PostReview parent) {
+        this.parent = parent;
     }
 
     public Integer getRating() {

@@ -64,6 +64,12 @@ public class EventController {
         return eventService.searchEvents(keyword, locationId != null ? locationId : location, date, activityType, accessibilityOptions);
     }
 
+    @GetMapping("/popular")
+    @Operation(summary = "Get popular events based on registrations, favorites, reviews, ratings, and timing")
+    public List<EventResponse> getPopularEvents(@RequestParam(required = false) Integer limit) {
+        return eventService.getPopularEvents(limit);
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get one event by id")
     public EventResponse getEventById(@PathVariable UUID id) {

@@ -30,3 +30,14 @@ export function markNotificationRead(id) {
     }
   })
 }
+
+export function markAllNotificationsRead(type) {
+  return request({
+    url: '/api/notifications/read-all',
+    method: 'post',
+    data: type ? { type } : {},
+    headers: {
+      showErrorMessage: false
+    }
+  })
+}

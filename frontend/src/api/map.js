@@ -60,6 +60,10 @@ export function listEventMapPoints(query) {
   return getEventsForMap('/api/events', query)
 }
 
+export function listPopularEventMapPoints(query) {
+  return getEventsForMap('/api/events/popular', query)
+}
+
 export function searchEventMapPoints(query) {
   return getEventsForMap('/api/events/search', query)
 }

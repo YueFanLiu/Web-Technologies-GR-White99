@@ -55,6 +55,13 @@
             </el-icon>
             <span>{{ eventLocationAddress }}</span>
           </div>
+
+          <div class="meta-item" v-if="eventDetail.category">
+            <el-icon>
+              <CollectionTag/>
+            </el-icon>
+            <span>Activity Type: {{ eventDetail.category }}</span>
+          </div>
         </div>
 
         <!-- 地图 -->
@@ -238,6 +245,7 @@ import {
   Lock,
   Warning,
   Star,
+  CollectionTag,
 } from '@element-plus/icons-vue'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
 import fallbackAvatarImage from '@/assets/images/profile.jpg'

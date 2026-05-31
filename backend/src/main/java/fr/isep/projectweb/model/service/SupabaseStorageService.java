@@ -108,12 +108,12 @@ public class SupabaseStorageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image file must not be empty");
         }
         if (file.getSize() > maxImageSizeBytes) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image file is too large");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image file is too large. Maximum size is " + maxImageSizeBytes + " bytes.");
         }
 
         String contentType = file.getContentType();
         if (!isAllowedImageContentType(contentType)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded file must be a JPEG or PNG image");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded file must be a JPEG or PNG image. GIF and animated images are not supported.");
         }
     }
 

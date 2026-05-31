@@ -73,10 +73,6 @@
             <el-icon><ArrowLeft /></el-icon>
             Back to Event
           </el-button>
-          <el-button size="large" class="calendar-action" @click="addToCalendar">
-            <el-icon><Calendar /></el-icon>
-            Add to Calendar
-          </el-button>
         </div>
       </section>
     </main>
@@ -86,7 +82,6 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
 import {
   ArrowLeft,
@@ -202,9 +197,6 @@ function backToEvent() {
   })
 }
 
-function addToCalendar() {
-  ElMessage.success('Added to calendar')
-}
 </script>
 
 <style scoped lang="scss">
@@ -344,13 +336,12 @@ function addToCalendar() {
 .action-row {
   margin-top: 28px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
 .primary-action,
-.secondary-action,
-.calendar-action {
+.secondary-action {
   height: 54px;
   border-radius: 11px;
   font-size: 16px;
@@ -364,12 +355,6 @@ function addToCalendar() {
 .secondary-action {
   border-color: #2f75f6;
   color: #0f66e9;
-  background: #fff;
-}
-
-.calendar-action {
-  border-color: #d3ddeb;
-  color: #344466;
   background: #fff;
 }
 

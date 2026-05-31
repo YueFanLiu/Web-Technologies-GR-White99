@@ -103,6 +103,19 @@ public class PostReviewService {
         validateReview(request);
         review.setRating(request.getRating());
         review.setComment(request.getComment().trim());
+        review.setParent(resolveParentReview(review.getPost().getId(), request.getParentId()));
+    }
+
+    private PostReview resolveParentReview(UUID postId, UUID parentId) {
+        if (parentId == null) {
+            return null;
+        }
+
+        PostReview parent = findReview(postId, parentId);
+        if (parent.getParent() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Replies can only target top-level comments");
+        }
+        return parent;
     }
 
     private void validateReview(ReviewRequest request) {

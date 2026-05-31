@@ -65,7 +65,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
@@ -85,6 +85,7 @@ const messages = ref([])
 const chat = ref(null)
 const draft = ref('')
 const messageListRef = ref(null)
+let refreshTimer = null
 
 const orderedMessages = computed(() => {
   return [...messages.value].sort((left, right) => {
@@ -137,12 +138,6 @@ function getErrorMessage(error, fallback) {
     fallback
 }
 
-function currentLocalDateTime() {
-  const date = new Date()
-  const offsetMs = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 19)
-}
-
 function isMine(message) {
   return String(message.sender?.id || '') === String(getUserId(userStore.userInfo) || '')
 }
@@ -183,7 +178,7 @@ async function loadMessages() {
       await userStore.getInfo()
     }
     await loadChatMeta()
-    messages.value = extractList(await getChatMessages(chatId.value, { before: currentLocalDateTime() }))
+    messages.value = extractList(await getChatMessages(chatId.value))
       .map(normalizeMessage)
     await markChatRead(chatId.value)
     window.dispatchEvent(new CustomEvent('app:unread-refresh'))
@@ -196,6 +191,48 @@ async function loadMessages() {
     ElMessage.error(loadErrorMessage.value)
   } finally {
     loading.value = false
+  }
+}
+
+function mergeMessages(incomingMessages) {
+  const existingIds = new Set(messages.value.map((message) => String(message.id || '')))
+  const normalizedIncoming = incomingMessages.map(normalizeMessage)
+  const newMessages = normalizedIncoming.filter((message) => message.id && !existingIds.has(String(message.id)))
+  if (newMessages.length === 0) {
+    return false
+  }
+  messages.value = [...messages.value, ...newMessages]
+  return true
+}
+
+async function refreshMessagesQuietly() {
+  if (!chatId.value || loading.value || sending.value || document.hidden) {
+    return
+  }
+
+  try {
+    const incomingMessages = extractList(await getChatMessages(chatId.value))
+    if (mergeMessages(incomingMessages)) {
+      await markChatRead(chatId.value)
+      window.dispatchEvent(new CustomEvent('app:unread-refresh'))
+      await scrollToBottom()
+    }
+  } catch (error) {
+    console.warn('Failed to refresh chat messages:', error)
+  }
+}
+
+function startMessageRefresh() {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer)
+  }
+  refreshTimer = window.setInterval(refreshMessagesQuietly, 4000)
+}
+
+function stopMessageRefresh() {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer)
+    refreshTimer = null
   }
 }
 
@@ -216,8 +253,10 @@ async function submitMessage() {
 
   try {
     draft.value = ''
-    await sendChatMessage(chatId.value, content)
-    await loadMessages()
+    const sentMessage = await sendChatMessage(chatId.value, content)
+    mergeMessages([sentMessage])
+    await scrollToBottom()
+    refreshMessagesQuietly()
   } catch (error) {
     console.error('Failed to send message:', error)
   } finally {
@@ -225,7 +264,12 @@ async function submitMessage() {
   }
 }
 
-onMounted(loadMessages)
+onMounted(async () => {
+  await loadMessages()
+  startMessageRefresh()
+})
+
+onBeforeUnmount(stopMessageRefresh)
 </script>
 
 <style scoped lang="scss">
