@@ -55,6 +55,15 @@ public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecific
     @Query("""
             SELECT e
             FROM Event e
+            WHERE UPPER(COALESCE(e.status, '')) NOT IN ('CANCELLED', 'DRAFT')
+              AND e.endTime >= CURRENT_TIMESTAMP
+            ORDER BY e.recommendationScore DESC, e.startTime ASC, e.id ASC
+            """)
+    List<Event> findPopularEvents(Pageable pageable);
+
+    @Query("""
+            SELECT e
+            FROM Event e
             WHERE LOWER(COALESCE(e.title, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(e.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
                OR LOWER(COALESCE(e.category, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))

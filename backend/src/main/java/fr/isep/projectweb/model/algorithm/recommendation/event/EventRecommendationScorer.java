@@ -89,6 +89,10 @@ public class EventRecommendationScorer {
     private static final double MAX_RATING_SCORE = 10.0;
     private static final double REVIEW_COUNT_WEIGHT = 1.0;
     private static final double MAX_REVIEW_COUNT_SCORE = 10.0;
+    private static final double ACTIVE_REGISTRATION_WEIGHT = 4.0;
+    private static final double MAX_ACTIVE_REGISTRATION_SCORE = 200.0;
+    private static final double FAVORITE_WEIGHT = 2.5;
+    private static final double MAX_FAVORITE_SCORE = 125.0;
 
     /*
      * Media weights.
@@ -210,7 +214,13 @@ public class EventRecommendationScorer {
         }
 
         double reviewScore = cappedScore(features.getReviewCount(), REVIEW_COUNT_WEIGHT, MAX_REVIEW_COUNT_SCORE);
-        return ratingScore + reviewScore;
+        double registrationScore = cappedScore(
+                features.getActiveRegistrationCount(),
+                ACTIVE_REGISTRATION_WEIGHT,
+                MAX_ACTIVE_REGISTRATION_SCORE
+        );
+        double favoriteScore = cappedScore(features.getFavoriteCount(), FAVORITE_WEIGHT, MAX_FAVORITE_SCORE);
+        return ratingScore + reviewScore + registrationScore + favoriteScore;
     }
 
     private double imageScore(EventRecommendationFeatures features) {

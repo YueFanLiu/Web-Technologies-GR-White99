@@ -29,17 +29,20 @@ public class RegistrationService {
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
     private final BookingCredentialEmailService bookingCredentialEmailService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public RegistrationService(RegistrationRepository registrationRepository,
                                EventRepository eventRepository,
                                CurrentUserService currentUserService,
                                NotificationService notificationService,
-                               BookingCredentialEmailService bookingCredentialEmailService) {
+                               BookingCredentialEmailService bookingCredentialEmailService,
+                               RecommendationScoreService recommendationScoreService) {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.currentUserService = currentUserService;
         this.notificationService = notificationService;
         this.bookingCredentialEmailService = bookingCredentialEmailService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     public RegistrationResponse createRegistration(RegistrationRequest request, Jwt jwt) {
@@ -48,6 +51,7 @@ public class RegistrationService {
         applyRequest(registration, request);
         Registration savedRegistration = registrationRepository.save(registration);
         Event event = savedRegistration.getEvent();
+        recommendationScoreService.recomputeEventScore(event.getId());
         notificationService.create(
                 event.getOrganizer(),
                 savedRegistration.getUser(),
@@ -111,6 +115,7 @@ public class RegistrationService {
         String previousStatus = registration.getStatus();
         applyRequest(registration, request);
         Registration savedRegistration = registrationRepository.save(registration);
+        recommendationScoreService.recomputeEventScore(savedRegistration.getEvent().getId());
         if (!java.util.Objects.equals(previousStatus, savedRegistration.getStatus())) {
             Event event = savedRegistration.getEvent();
             notificationService.create(
@@ -140,8 +145,12 @@ public class RegistrationService {
     public void deleteRegistration(UUID id, Jwt jwt) {
         Registration registration = findRegistrationById(id);
         ensureCanManageRegistration(registration, currentUserService.getCurrentUser(jwt));
+        UUID eventId = registration.getEvent() != null ? registration.getEvent().getId() : null;
         bookingCredentialEmailService.sendBookingCancellation(registration);
         registrationRepository.delete(registration);
+        if (eventId != null) {
+            recommendationScoreService.recomputeEventScore(eventId);
+        }
     }
 
     private void applyRequest(Registration registration, RegistrationRequest request) {

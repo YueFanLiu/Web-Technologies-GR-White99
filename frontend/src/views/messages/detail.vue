@@ -32,6 +32,13 @@
             class="message-row"
             :class="{ mine: isMine(message) }"
           >
+            <img
+              v-if="!isMine(message)"
+              class="message-avatar"
+              :src="getAvatar(message.sender)"
+              alt="Message sender"
+              @error="handleAvatarError"
+            />
             <div class="message-bubble">
               <strong>{{ message.sender?.fullName || 'Unknown user' }}</strong>
               <p>{{ message.content || 'Message unavailable' }}</p>
@@ -72,6 +79,7 @@ import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
 import { getChatMessages, getChats, markChatRead, sendChatMessage } from '@/api/chat'
 import useUserStore from '@/store/modules/user'
 import { getUserId } from '@/utils/accessControl'
+import defaultAvatar from '@/assets/images/profile.jpg'
 
 const route = useRoute()
 const router = useRouter()
@@ -117,16 +125,18 @@ function extractList(res) {
 }
 
 function normalizeMessage(message) {
+  const payload = message?.data ?? message
   return {
-    ...message,
-    id: message.id || message.messageId || message.message_id,
-    conversationId: message.conversationId || message.conversation_id || chatId.value,
-    sender: message.sender || message.user || message.author || {},
-    content: message.content || message.body || message.message || '',
-    messageType: message.messageType || message.message_type || message.type || 'TEXT',
-    createdAt: message.createdAt || message.created_at || message.createTime || message.time || '',
-    editedAt: message.editedAt || message.edited_at || null,
-    deletedAt: message.deletedAt || message.deleted_at || null
+    ...payload,
+    id: payload.id || payload.messageId || payload.message_id,
+    conversationId: payload.conversationId || payload.conversation_id || chatId.value,
+    sender: payload.sender || payload.user || payload.author || {},
+    senderId: payload.senderId || payload.sender_id || payload.sender?.id || payload.user?.id || payload.author?.id || '',
+    content: payload.content || payload.body || payload.message || '',
+    messageType: payload.messageType || payload.message_type || payload.type || 'TEXT',
+    createdAt: payload.createdAt || payload.created_at || payload.createTime || payload.time || '',
+    editedAt: payload.editedAt || payload.edited_at || null,
+    deletedAt: payload.deletedAt || payload.deleted_at || null
   }
 }
 
@@ -139,7 +149,17 @@ function getErrorMessage(error, fallback) {
 }
 
 function isMine(message) {
-  return String(message.sender?.id || '') === String(getUserId(userStore.userInfo) || '')
+  const currentUserId = getUserId(userStore.userInfo)
+  const senderId = message.sender?.id || message.senderId
+  return String(senderId || '') === String(currentUserId || '')
+}
+
+function getAvatar(user) {
+  return user?.photo || defaultAvatar
+}
+
+function handleAvatarError(event) {
+  event.target.src = defaultAvatar
 }
 
 function formatDate(value) {
@@ -253,10 +273,8 @@ async function submitMessage() {
 
   try {
     draft.value = ''
-    const sentMessage = await sendChatMessage(chatId.value, content)
-    mergeMessages([sentMessage])
-    await scrollToBottom()
-    refreshMessagesQuietly()
+    await sendChatMessage(chatId.value, content)
+    await loadMessages()
   } catch (error) {
     console.error('Failed to send message:', error)
   } finally {
@@ -335,10 +353,21 @@ onBeforeUnmount(stopMessageRefresh)
 
 .message-row {
   display: flex;
+  gap: 10px;
+  align-items: flex-end;
 }
 
 .message-row.mine {
   justify-content: flex-end;
+}
+
+.message-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #d8e3f4;
 }
 
 .message-bubble {

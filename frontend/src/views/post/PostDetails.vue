@@ -56,9 +56,10 @@
             <span>{{ comments.length }}</span>
           </div>
 
-          <div class="comment-composer">
-            <el-rate v-model="commentForm.rating" />
+          <div ref="commentComposerRef" class="comment-composer">
+            <el-rate v-if="!replyingTo" v-model="commentForm.rating" />
             <el-input
+              ref="commentInputRef"
               v-model="commentForm.comment"
               type="textarea"
               :rows="3"
@@ -90,7 +91,8 @@
               </div>
               <p>{{ comment.comment || comment.content || 'No comment text' }}</p>
               <div class="comment-actions">
-                <el-button size="small" text type="primary" @click="startReply(comment)">
+                <el-button class="reply-button" size="small" plain type="primary" @click="startReply(comment)">
+                  <el-icon><ChatRound /></el-icon>
                   Reply
                 </el-button>
                 <el-button v-if="canManageComment(comment)" size="small" text type="danger" @click="removeComment(comment)">
@@ -108,7 +110,8 @@
                   </div>
                   <p>{{ reply.comment || reply.content || 'No reply text' }}</p>
                   <div class="comment-actions">
-                    <el-button size="small" text type="primary" @click="startReply(comment)">
+                    <el-button class="reply-button" size="small" plain type="primary" @click="startReply(comment)">
+                      <el-icon><ChatRound /></el-icon>
                       Reply
                     </el-button>
                     <el-button v-if="canManageComment(reply)" size="small" text type="danger" @click="removeComment(reply)">
@@ -127,7 +130,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -145,6 +148,7 @@ import defaultAvatar from '@/assets/images/profile.jpg'
 import {
   ArrowLeft,
   Calendar,
+  ChatRound,
   EditPen
 } from '@element-plus/icons-vue'
 
@@ -160,6 +164,8 @@ const relatedEvent = ref(null)
 const images = ref([])
 const comments = ref([])
 const replyingTo = ref(null)
+const commentComposerRef = ref(null)
+const commentInputRef = ref(null)
 const commentForm = ref({
   rating: 5,
   comment: ''
@@ -167,7 +173,9 @@ const commentForm = ref({
 
 const canManageLoadedPost = computed(() => canManagePostForUser(userStore.userInfo, post.value))
 const commentsByParent = computed(() => {
-  return comments.value.reduce((grouped, comment) => {
+  return [...comments.value]
+    .sort((left, right) => new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime())
+    .reduce((grouped, comment) => {
     const parentId = comment.parentId || ''
     if (!grouped[parentId]) {
       grouped[parentId] = []
@@ -176,7 +184,7 @@ const commentsByParent = computed(() => {
     return grouped
   }, {})
 })
-const topLevelComments = computed(() => commentsByParent.value[''] || [])
+const topLevelComments = computed(() => [...(commentsByParent.value[''] || [])].reverse())
 
 function extractList(res) {
   if (Array.isArray(res)) return res
@@ -245,9 +253,12 @@ function canManageComment(comment) {
   return canManagePostComment(comment, post.value, relatedEvent.value, userStore.userInfo)
 }
 
-function startReply(comment) {
+async function startReply(comment) {
   replyingTo.value = comment
   commentForm.value.comment = ''
+  await nextTick()
+  commentComposerRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  commentInputRef.value?.focus?.()
 }
 
 function cancelReply() {
@@ -570,8 +581,19 @@ onMounted(loadPostDetail)
 }
 
 .comment-actions {
+  margin-top: 8px;
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.reply-button {
+  font-weight: 700;
+}
+
+.reply-button :deep(.el-icon) {
+  margin-right: 4px;
 }
 
 @media (max-width: 980px) {

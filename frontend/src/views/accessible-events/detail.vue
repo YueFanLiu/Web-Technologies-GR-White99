@@ -164,23 +164,28 @@
           </div>
         </div>
 
-        <div v-if="canReviewEvent" class="review-composer">
-          <el-rate v-model="reviewForm.rating" />
+        <div v-if="canReviewEvent" ref="reviewComposerRef" class="review-composer">
+          <el-rate v-if="!replyingToReview" v-model="reviewForm.rating" />
           <el-input
+            ref="reviewInputRef"
             v-model="reviewForm.comment"
             type="textarea"
             :rows="3"
             maxlength="1000"
             show-word-limit
             resize="none"
-            placeholder="Write a review"
+            :placeholder="replyingToReview ? `Reply to ${replyingToReview.user?.fullName || 'this review'}` : 'Write a review'"
           />
+          <div v-if="replyingToReview" class="replying-row">
+            <span>Replying to {{ replyingToReview.user?.fullName || 'this review' }}</span>
+            <el-button size="small" text @click="cancelReplyReview">Cancel</el-button>
+          </div>
           <el-button type="primary" :loading="submittingReview" @click="submitReview">
-            Submit Review
+            {{ replyingToReview ? 'Submit Reply' : 'Submit Review' }}
           </el-button>
         </div>
 
-        <div class="review-item" v-for="review in eventReviews" :key="review.id">
+        <div class="review-item" v-for="review in topLevelEventReviews" :key="review.id">
           <div class="reviewer-info">
             <button
               v-if="review.user?.id"
@@ -211,9 +216,50 @@
             </div>
           </div>
           <p class="review-text">{{ review.comment || review.content }}</p>
-          <div v-if="canManageReview(review)" class="review-actions">
-            <el-button size="small" text type="primary" @click="editReview(review)">Edit</el-button>
-            <el-button size="small" text type="danger" @click="removeReview(review)">Delete</el-button>
+          <div class="review-actions">
+            <el-button class="reply-button" size="small" plain type="primary" @click="startReplyReview(review)">
+              <el-icon><ChatRound /></el-icon>
+              Reply
+            </el-button>
+            <el-button v-if="canManageReview(review)" size="small" text type="primary" @click="editReview(review)">Edit</el-button>
+            <el-button v-if="canManageReview(review)" size="small" text type="danger" @click="removeReview(review)">Delete</el-button>
+          </div>
+
+          <div v-if="eventReviewReplies(review.id).length" class="review-replies">
+            <article v-for="reply in eventReviewReplies(review.id)" :key="reply.id" class="review-reply">
+              <div class="reviewer-info">
+                <button
+                  v-if="reply.user?.id"
+                  class="reviewer-link"
+                  @click="openUserProfile(reply.user.id)"
+                >
+                  <img
+                    :src="normalizeImageUrl(reply.user?.photo || reply.userAvatar) || fallbackAvatarImage"
+                    :alt="reply.user?.fullName || 'Reviewer'"
+                    class="reviewer-avatar small"
+                    @error="handleAvatarImageError"
+                  />
+                  <span class="reviewer-name">{{ reply.user?.fullName || 'Anonymous' }}</span>
+                </button>
+                <template v-else>
+                  <img
+                    :src="normalizeImageUrl(reply.user?.photo || reply.userAvatar) || fallbackAvatarImage"
+                    :alt="reply.user?.fullName || 'Reviewer'"
+                    class="reviewer-avatar small"
+                    @error="handleAvatarImageError"
+                  />
+                  <div class="reviewer-name">{{ reply.user?.fullName || 'Anonymous' }}</div>
+                </template>
+              </div>
+              <p class="review-text">{{ reply.comment || reply.content }}</p>
+              <div class="review-actions">
+                <el-button class="reply-button" size="small" plain type="primary" @click="startReplyReview(review)">
+                  <el-icon><ChatRound /></el-icon>
+                  Reply
+                </el-button>
+                <el-button v-if="canManageReview(reply)" size="small" text type="danger" @click="removeReview(reply)">Delete</el-button>
+              </div>
+            </article>
           </div>
         </div>
         <p v-if="eventReviews.length === 0" class="review-text">No reviews yet.</p>
@@ -223,7 +269,7 @@
 </template>
 
 <script setup>
-import {ref, computed, onMounted} from 'vue'
+import {ref, computed, onMounted, nextTick} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {
@@ -246,6 +292,7 @@ import {
   Warning,
   Star,
   CollectionTag,
+  ChatRound,
 } from '@element-plus/icons-vue'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
 import fallbackAvatarImage from '@/assets/images/profile.jpg'
@@ -269,6 +316,9 @@ const eventDetail = ref({})
 const eventImages = ref([])
 const eventReviews = ref([])
 const eventRegistrations = ref([])
+const replyingToReview = ref(null)
+const reviewComposerRef = ref(null)
+const reviewInputRef = ref(null)
 const currentRegistration = ref(null)
 const contactingOrganizer = ref(false)
 const accessibilityInfo = ref({})
@@ -322,8 +372,23 @@ const spotsLeft = computed(() => {
 })
 
 const reviewCount = computed(() => {
-  return eventDetail.value.reviewCount ?? eventReviews.value.length
+  return eventDetail.value.reviewCount ?? topLevelEventReviews.value.length
 })
+
+const eventReviewsByParent = computed(() => {
+  return [...eventReviews.value]
+    .sort((left, right) => new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime())
+    .reduce((grouped, review) => {
+      const parentId = review.parentId || ''
+      if (!grouped[parentId]) {
+        grouped[parentId] = []
+      }
+      grouped[parentId].push(review)
+      return grouped
+    }, {})
+})
+
+const topLevelEventReviews = computed(() => [...(eventReviewsByParent.value[''] || [])].reverse())
 
 const canReviewEvent = computed(() => {
   return canWriteReview(eventDetail.value, currentRegistration.value, userStore.userInfo)
@@ -424,14 +489,17 @@ const submitReview = async () => {
 
   submittingReview.value = true
   try {
+    const wasReply = Boolean(replyingToReview.value)
     await createEventReview(eventId, {
-      rating: reviewForm.value.rating,
-      comment: reviewForm.value.comment.trim()
+      rating: replyingToReview.value ? null : reviewForm.value.rating,
+      comment: reviewForm.value.comment.trim(),
+      parentId: replyingToReview.value?.id || null
     })
     reviewForm.value.rating = 5
     reviewForm.value.comment = ''
+    replyingToReview.value = null
     await fetchEventReviews()
-    ElMessage.success('Review submitted')
+    ElMessage.success(wasReply ? 'Reply submitted' : 'Review submitted')
   } catch (error) {
     console.error('Failed to submit review:', error)
   } finally {
@@ -621,6 +689,27 @@ const canManageReview = (review) => {
   return canManageEventReview(review, eventDetail.value, userStore.userInfo)
 }
 
+const eventReviewReplies = (parentId) => {
+  return eventReviewsByParent.value[String(parentId || '')] || []
+}
+
+const startReplyReview = async (review) => {
+  if (!canReviewEvent.value) {
+    ElMessage.warning('You can reply only after confirmed registration and event start.')
+    return
+  }
+
+  replyingToReview.value = review
+  reviewForm.value.comment = ''
+  await nextTick()
+  reviewComposerRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  reviewInputRef.value?.focus?.()
+}
+
+const cancelReplyReview = () => {
+  replyingToReview.value = null
+}
+
 const editReview = async (review) => {
   if (!canManageReview(review)) {
     ElMessage.warning('You do not have permission to perform this action.')
@@ -638,8 +727,9 @@ const editReview = async (review) => {
     })
 
     const updated = await updateEventReview(eventId, review.id, {
-      rating: review.rating || 1,
-      comment: value.trim()
+      rating: review.parentId ? null : (review.rating || 1),
+      comment: value.trim(),
+      parentId: review.parentId || null
     })
     eventReviews.value = eventReviews.value.map((item) => item.id === review.id ? updated : item)
     ElMessage.success('Review updated')
@@ -663,7 +753,7 @@ const removeReview = async (review) => {
       type: 'warning'
     })
     await deleteEventReview(eventId, review.id)
-    eventReviews.value = eventReviews.value.filter((item) => item.id !== review.id)
+    eventReviews.value = eventReviews.value.filter((item) => item.id !== review.id && item.parentId !== review.id)
     ElMessage.success('Review deleted')
   } catch (error) {
     if (error !== 'cancel') {
@@ -986,6 +1076,12 @@ const getReviewStars = (rating) => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
+  object-fit: cover;
+}
+
+.reviewer-avatar.small {
+  width: 28px;
+  height: 28px;
 }
 
 .reviewer-name {
@@ -1007,5 +1103,37 @@ const getReviewStars = (rating) => {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.replying-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #31547f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reply-button {
+  font-weight: 700;
+}
+
+.reply-button :deep(.el-icon) {
+  margin-right: 4px;
+}
+
+.review-replies {
+  margin-top: 12px;
+  margin-left: 34px;
+  display: grid;
+  gap: 10px;
+}
+
+.review-reply {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fbff;
 }
 </style>

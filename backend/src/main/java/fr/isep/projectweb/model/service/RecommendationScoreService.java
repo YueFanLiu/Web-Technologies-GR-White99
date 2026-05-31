@@ -9,12 +9,14 @@ import fr.isep.projectweb.model.algorithm.recommendation.post.PostRecommendation
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
+import fr.isep.projectweb.model.dao.EventSaveRepository;
 import fr.isep.projectweb.model.dao.AccessibilityPreferenceRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dao.LocationImageRepository;
 import fr.isep.projectweb.model.dao.PostImageRepository;
 import fr.isep.projectweb.model.dao.PostRepository;
 import fr.isep.projectweb.model.dao.PostReviewRepository;
+import fr.isep.projectweb.model.dao.RegistrationRepository;
 import fr.isep.projectweb.model.entity.AccessibilityPreference;
 import fr.isep.projectweb.model.entity.Event;
 import fr.isep.projectweb.model.entity.Location;
@@ -38,6 +40,8 @@ public class RecommendationScoreService {
     private final LocationDAO locationDAO;
     private final EventImageRepository eventImageRepository;
     private final EventReviewRepository eventReviewRepository;
+    private final EventSaveRepository eventSaveRepository;
+    private final RegistrationRepository registrationRepository;
     private final PostImageRepository postImageRepository;
     private final PostReviewRepository postReviewRepository;
     private final LocationImageRepository locationImageRepository;
@@ -51,6 +55,8 @@ public class RecommendationScoreService {
                                       LocationDAO locationDAO,
                                       EventImageRepository eventImageRepository,
                                       EventReviewRepository eventReviewRepository,
+                                      EventSaveRepository eventSaveRepository,
+                                      RegistrationRepository registrationRepository,
                                       PostImageRepository postImageRepository,
                                       PostReviewRepository postReviewRepository,
                                       LocationImageRepository locationImageRepository,
@@ -63,6 +69,8 @@ public class RecommendationScoreService {
         this.locationDAO = locationDAO;
         this.eventImageRepository = eventImageRepository;
         this.eventReviewRepository = eventReviewRepository;
+        this.eventSaveRepository = eventSaveRepository;
+        this.registrationRepository = registrationRepository;
         this.postImageRepository = postImageRepository;
         this.postReviewRepository = postReviewRepository;
         this.locationImageRepository = locationImageRepository;
@@ -75,8 +83,9 @@ public class RecommendationScoreService {
     @Transactional
     public void recomputeEventScore(UUID eventId) {
         eventRepository.findById(eventId).ifPresent(event -> {
-            event.setRecommendationScore(eventRecommendationScorer.score(toEventFeatures(event, LocalDateTime.now())));
-            event.setRecommendationScoreUpdatedAt(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            event.setRecommendationScore(eventRecommendationScorer.score(toEventFeatures(event, now)));
+            event.setRecommendationScoreUpdatedAt(now);
             eventRepository.save(event);
         });
     }
@@ -156,6 +165,8 @@ public class RecommendationScoreService {
         features.setAverageRating(eventReviewRepository.averageRatingByEventId(eventId));
         features.setReviewCount(eventReviewRepository.countByEventId(eventId));
         features.setImageCount(eventImageRepository.countByEventId(eventId));
+        features.setActiveRegistrationCount(registrationRepository.countActiveByEventId(eventId));
+        features.setFavoriteCount(eventSaveRepository.countByEventId(eventId));
 
         return features;
     }

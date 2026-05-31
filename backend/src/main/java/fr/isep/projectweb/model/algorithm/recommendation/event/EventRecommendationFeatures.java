@@ -100,6 +100,8 @@ public class EventRecommendationFeatures {
     private Double averageRating;
     private long reviewCount;
     private long imageCount;
+    private long activeRegistrationCount;
+    private long favoriteCount;
 
     public String getKeyword() {
         return keyword;
@@ -235,5 +237,21 @@ public class EventRecommendationFeatures {
 
     public void setImageCount(long imageCount) {
         this.imageCount = imageCount;
+    }
+
+    public long getActiveRegistrationCount() {
+        return activeRegistrationCount;
+    }
+
+    public void setActiveRegistrationCount(long activeRegistrationCount) {
+        this.activeRegistrationCount = activeRegistrationCount;
+    }
+
+    public long getFavoriteCount() {
+        return favoriteCount;
+    }
+
+    public void setFavoriteCount(long favoriteCount) {
+        this.favoriteCount = favoriteCount;
     }
 }

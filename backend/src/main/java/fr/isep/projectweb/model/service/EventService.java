@@ -3,7 +3,6 @@ package fr.isep.projectweb.model.service;
 import fr.isep.projectweb.model.dao.EventImageRepository;
 import fr.isep.projectweb.model.dao.EventRepository;
 import fr.isep.projectweb.model.dao.EventReviewRepository;
-import fr.isep.projectweb.model.dao.EventSaveRepository;
 import fr.isep.projectweb.model.dao.LocationDAO;
 import fr.isep.projectweb.model.dao.RegistrationRepository;
 import fr.isep.projectweb.model.dto.request.EventRequest;
@@ -48,7 +47,6 @@ public class EventService {
     private final EventRepository eventRepository;
     private final EventImageRepository eventImageRepository;
     private final EventReviewRepository eventReviewRepository;
-    private final EventSaveRepository eventSaveRepository;
     private final LocationDAO locationDAO;
     private final RegistrationRepository registrationRepository;
     private final CurrentUserService currentUserService;
@@ -58,7 +56,6 @@ public class EventService {
     public EventService(EventRepository eventRepository,
                         EventImageRepository eventImageRepository,
                         EventReviewRepository eventReviewRepository,
-                        EventSaveRepository eventSaveRepository,
                         LocationDAO locationDAO,
                         RegistrationRepository registrationRepository,
                         CurrentUserService currentUserService,
@@ -67,7 +64,6 @@ public class EventService {
         this.eventRepository = eventRepository;
         this.eventImageRepository = eventImageRepository;
         this.eventReviewRepository = eventReviewRepository;
-        this.eventSaveRepository = eventSaveRepository;
         this.locationDAO = locationDAO;
         this.registrationRepository = registrationRepository;
         this.currentUserService = currentUserService;
@@ -135,23 +131,8 @@ public class EventService {
 
     public List<EventResponse> getPopularEvents(Integer limit) {
         int resultLimit = Math.min(normalizeLimit(limit), 10);
-        LocalDateTime now = LocalDateTime.now();
-        return eventRepository.findAll()
+        return eventRepository.findPopularEvents(PageRequest.of(0, resultLimit))
                 .stream()
-                .filter(event -> !"CANCELLED".equalsIgnoreCase(String.valueOf(event.getStatus())))
-                .filter(event -> !"DRAFT".equalsIgnoreCase(String.valueOf(event.getStatus())))
-                .filter(event -> event.getEndTime() == null || !event.getEndTime().isBefore(now))
-                .sorted((left, right) -> {
-                    int scoreComparison = Double.compare(popularScore(right, now), popularScore(left, now));
-                    if (scoreComparison != 0) {
-                        return scoreComparison;
-                    }
-                    LocalDateTime leftStart = left.getStartTime() != null ? left.getStartTime() : LocalDateTime.MAX;
-                    LocalDateTime rightStart = right.getStartTime() != null ? right.getStartTime() : LocalDateTime.MAX;
-                    int startComparison = leftStart.compareTo(rightStart);
-                    return startComparison != 0 ? startComparison : left.getId().compareTo(right.getId());
-                })
-                .limit(resultLimit)
                 .map(event -> toResponse(event, false))
                 .toList();
     }
@@ -272,46 +253,6 @@ public class EventService {
                         criteriaBuilder.equal(accessibility.get("featureKey"), featureKey)
                 ));
         return criteriaBuilder.exists(subquery);
-    }
-
-    private double popularScore(Event event, LocalDateTime now) {
-        UUID eventId = event.getId();
-        long activeRegistrationCount = registrationRepository.countActiveByEventId(eventId);
-        long favoriteCount = eventSaveRepository.countByEventId(eventId);
-        long reviewCount = eventReviewRepository.countByEventId(eventId);
-        Double averageRating = eventReviewRepository.averageRatingByEventId(eventId);
-
-        double registrationScore = Math.min(activeRegistrationCount, 50) * 4.0;
-        double favoriteScore = Math.min(favoriteCount, 50) * 2.5;
-        double reviewScore = Math.min(reviewCount, 50) * 1.5;
-        double ratingScore = averageRating != null ? averageRating * 5.0 : 0.0;
-        double timeScore = upcomingTimeScore(event, now);
-        double recommendationScore = event.getRecommendationScore() != null
-                ? Math.min(event.getRecommendationScore(), 100.0) * 0.2
-                : 0.0;
-
-        return registrationScore + favoriteScore + reviewScore + ratingScore + timeScore + recommendationScore;
-    }
-
-    private double upcomingTimeScore(Event event, LocalDateTime now) {
-        if (event.getStartTime() == null) {
-            return 0.0;
-        }
-        if (event.getEndTime() != null && event.getEndTime().isBefore(now)) {
-            return -100.0;
-        }
-
-        long daysUntilStart = java.time.Duration.between(now, event.getStartTime()).toDays();
-        if (daysUntilStart < 0) {
-            return 12.0;
-        }
-        if (daysUntilStart <= 7) {
-            return 18.0;
-        }
-        if (daysUntilStart <= 30) {
-            return 10.0;
-        }
-        return 3.0;
     }
 
     public EventResponse getEventById(UUID id) {

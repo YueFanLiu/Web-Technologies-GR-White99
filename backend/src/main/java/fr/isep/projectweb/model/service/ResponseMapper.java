@@ -170,6 +170,7 @@ final class ResponseMapper {
         response.setRating(review.getRating());
         response.setComment(review.getComment());
         response.setUser(toPublicUserResponse(review.getUser()));
+        response.setParentId(review.getParent() != null ? review.getParent().getId() : null);
         response.setCreatedAt(review.getCreatedAt());
         return response;
     }

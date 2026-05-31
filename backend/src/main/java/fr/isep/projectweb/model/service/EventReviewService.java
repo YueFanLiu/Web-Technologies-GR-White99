@@ -111,12 +111,29 @@ public class EventReviewService {
         validateReview(request);
         review.setRating(request.getRating());
         review.setComment(normalizeComment(request.getComment()));
+        review.setParent(resolveParentReview(review.getEvent().getId(), request.getParentId()));
     }
 
     private void validateReview(ReviewRequest request) {
-        if (request.getRating() == null || request.getRating() < 1 || request.getRating() > 5) {
+        boolean isReply = request.getParentId() != null;
+        if (!isReply && (request.getRating() == null || request.getRating() < 1 || request.getRating() > 5)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
+        if (isReply && request.getRating() != null && (request.getRating() < 1 || request.getRating() > 5)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
+        }
+    }
+
+    private EventReview resolveParentReview(UUID eventId, UUID parentId) {
+        if (parentId == null) {
+            return null;
+        }
+
+        EventReview parent = findReview(eventId, parentId);
+        if (parent.getParent() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Replies can only target top-level reviews");
+        }
+        return parent;
     }
 
     private void ensureCanCreateReview(Event event, User currentUser) {

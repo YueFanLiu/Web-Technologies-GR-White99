@@ -22,13 +22,16 @@ public class EventSaveService {
     private final EventSaveRepository eventSaveRepository;
     private final EventRepository eventRepository;
     private final CurrentUserService currentUserService;
+    private final RecommendationScoreService recommendationScoreService;
 
     public EventSaveService(EventSaveRepository eventSaveRepository,
                             EventRepository eventRepository,
-                            CurrentUserService currentUserService) {
+                            CurrentUserService currentUserService,
+                            RecommendationScoreService recommendationScoreService) {
         this.eventSaveRepository = eventSaveRepository;
         this.eventRepository = eventRepository;
         this.currentUserService = currentUserService;
+        this.recommendationScoreService = recommendationScoreService;
     }
 
     @Transactional
@@ -42,7 +45,9 @@ public class EventSaveService {
                     EventSave eventSave = new EventSave();
                     eventSave.setUser(currentUser);
                     eventSave.setEvent(event);
-                    return ResponseMapper.toEventSaveResponse(eventSaveRepository.save(eventSave));
+                    EventSave saved = eventSaveRepository.save(eventSave);
+                    recommendationScoreService.recomputeEventScore(eventId);
+                    return ResponseMapper.toEventSaveResponse(saved);
                 });
     }
 
@@ -68,6 +73,7 @@ public class EventSaveService {
         findEvent(eventId);
         UUID currentUserId = currentUserService.getCurrentUserId(jwt);
         eventSaveRepository.deleteByUserIdAndEventId(currentUserId, eventId);
+        recommendationScoreService.recomputeEventScore(eventId);
     }
 
     private Event findEvent(UUID eventId) {

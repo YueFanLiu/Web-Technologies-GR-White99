@@ -28,11 +28,15 @@ public class EventReview {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false)
+    @Column
     private Integer rating;
 
     @Column(columnDefinition = "TEXT")
     private String comment;
+
+    @ManyToOne
+    @JoinColumn(name = "parent_id")
+    private EventReview parent;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -78,6 +82,14 @@ public class EventReview {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public EventReview getParent() {
+        return parent;
+    }
+
+    public void setParent(EventReview parent) {
+        this.parent = parent;
     }
 
     public LocalDateTime getCreatedAt() {
