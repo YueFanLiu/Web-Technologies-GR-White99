@@ -170,6 +170,12 @@ export const constantRoutes = [
         name: 'CreatePost',
         meta: { title: 'Create Post', icon: 'edit', requiresAuth: true }
       },
+      {
+        path: 'postDetails',
+        component: () => import('@/views/post/PostDetails.vue'),
+        name: 'PostDetails',
+        meta: { title: 'Post Details', icon: 'post', requiresAuth: true }
+      },
     ]
   },
   {

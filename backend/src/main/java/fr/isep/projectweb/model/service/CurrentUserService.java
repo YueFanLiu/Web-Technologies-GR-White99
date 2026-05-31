@@ -24,14 +24,25 @@ public class CurrentUserService {
     }
 
     public User getCurrentUser(Jwt jwt) {
-        return userRepository.findById(getCurrentUserId(jwt))
+        return findCurrentUserByEmail(jwt)
+                .or(() -> userRepository.findById(getCurrentUserId(jwt)))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User profile not found"));
     }
 
     public User getOrCreateCurrentUser(Jwt jwt) {
         UUID userId = getCurrentUserId(jwt);
-        return userRepository.findById(userId)
+        return findCurrentUserByEmail(jwt)
+                .or(() -> userRepository.findById(userId))
                 .orElseGet(() -> userRepository.save(buildUserFromJwt(jwt, userId)));
+    }
+
+    private java.util.Optional<User> findCurrentUserByEmail(Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        if (email == null || email.isBlank()) {
+            return java.util.Optional.empty();
+        }
+
+        return userRepository.findFirstByEmailIgnoreCase(email.trim());
     }
 
     public UUID getCurrentUserId(Jwt jwt) {

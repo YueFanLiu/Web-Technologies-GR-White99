@@ -4,7 +4,7 @@
       <section class="page-heading">
         <div>
           <h1>Joined Activities</h1>
-          <p>Activities you booked, attended, or saved for later.</p>
+          <p>Activities you booked, attended, or favorited for later.</p>
         </div>
         <div class="heading-actions">
           <el-button :loading="loading" @click="loadActivities">
@@ -133,7 +133,7 @@ const loadError = ref('')
 const tabs = [
   { label: 'Upcoming', value: 'Upcoming' },
   { label: 'Past', value: 'Past' },
-  { label: 'Saved', value: 'Saved' }
+  { label: 'Favorited', value: 'Favorited' }
 ]
 
 const filteredActivities = computed(() => {
@@ -210,13 +210,13 @@ function getStatusLabel(status) {
     CONFIRMED: 'Confirmed',
     ATTENDED: 'Attended',
     COMPLETED: 'Completed',
-    SAVED: 'Saved'
+    SAVED: 'Favorited'
   }
   return labels[status] || status.charAt(0) + status.slice(1).toLowerCase()
 }
 
 function getActivityTab(status, startTime, endTime) {
-  if (status === 'SAVED') return 'Saved'
+  if (status === 'SAVED') return 'Favorited'
   if (['ATTENDED', 'COMPLETED'].includes(status)) return 'Past'
 
   const compareTime = endTime || startTime

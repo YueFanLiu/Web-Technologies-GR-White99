@@ -78,7 +78,16 @@
                   <span>{{ post.user?.fullName || 'View author' }}</span>
                 </button>
                 <h2>{{ post.title }}</h2>
-                <p class="related-event">
+                <button
+                  v-if="post.eventId"
+                  class="related-event related-event-link"
+                  type="button"
+                  @click.stop="openRelatedEvent(post)"
+                >
+                  <el-icon><Calendar /></el-icon>
+                  {{ post.relatedEvent }}
+                </button>
+                <p v-else class="related-event">
                   <el-icon><Calendar /></el-icon>
                   {{ post.relatedEvent }}
                 </p>
@@ -233,7 +242,7 @@ function goCreatePost() {
 
 // 璺宠浆鍒板彧璇绘煡鐪嬫ā寮忥紝createpost.vue 浼氭牴鎹?mode=view 绂佺敤琛ㄥ崟
 function viewPost(post) {
-  router.push({ name: 'CreatePost', query: { id: post.id, mode: 'view' } })
+  router.push({ name: 'PostDetails', query: { id: post.id } })
 }
 
 function openUserProfile(post) {
@@ -241,6 +250,13 @@ function openUserProfile(post) {
     return
   }
   router.push(`/users/${post.userId}`)
+}
+
+function openRelatedEvent(post) {
+  if (!post.eventId) {
+    return
+  }
+  router.push({ path: '/product/eventDetails', query: { id: post.eventId } })
 }
 
 function getUserAvatar(user) {
@@ -708,11 +724,23 @@ watch(activeTab, (tab) => {
 
 .related-event {
   margin: 0 0 12px;
+  padding: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  border: 0;
+  background: transparent;
   color: #0969f6;
+  font: inherit;
   font-size: 14px;
+}
+
+.related-event-link {
+  cursor: pointer;
+}
+
+.related-event-link:hover {
+  text-decoration: underline;
 }
 
 .summary {

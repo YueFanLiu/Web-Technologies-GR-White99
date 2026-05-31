@@ -123,7 +123,7 @@
                     </div>
                     <el-button type="primary" @click="goToDetails(item)">View Details</el-button>
                     <el-button v-if="showParentActions" @click="joinActivity(item)">Join Activity</el-button>
-                    <el-button v-if="showParentActions" @click="saveActivity(item)">Save</el-button>
+                    <el-button v-if="showParentActions" @click="saveActivity(item)">Favorite</el-button>
                     <el-button v-if="showParentActions" @click="createPost(item)">Create Post</el-button>
                     <el-button v-if="canManageEvent(item) && !props.managerMode" @click="openEditDialog(item)">
                       Manage Activity
@@ -559,7 +559,7 @@ async function joinActivity(item) {
 }
 
 function saveActivity(item) {
-  ElMessage.success(`Saved "${item.title}"`)
+  ElMessage.success(`Favorited "${item.title}"`)
 }
 
 function createPost(item) {

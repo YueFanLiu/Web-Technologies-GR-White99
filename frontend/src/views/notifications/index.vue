@@ -231,7 +231,7 @@ function resolveTarget(notification) {
 
   if (notificationType === 'POST_REVIEW_CREATED') {
     const postId = resolvePostId(notification)
-    return postId ? { name: 'CreatePost', query: { id: postId, mode: 'view' } } : null
+    return postId ? { name: 'PostDetails', query: { id: postId } } : null
   }
 
   return null

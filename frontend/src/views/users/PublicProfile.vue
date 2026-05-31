@@ -296,7 +296,7 @@ function goMyProfile() {
 }
 
 function openPost(post) {
-  router.push({ name: 'CreatePost', query: { id: post.id, mode: 'view' } })
+  router.push({ name: 'PostDetails', query: { id: post.id } })
 }
 
 watch(userId, () => {

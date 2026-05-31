@@ -405,7 +405,7 @@ const submitReview = async () => {
   }
 
   if (!canReviewEvent.value) {
-    ElMessage.warning('You can review only confirmed events you attended after they have ended.')
+    ElMessage.warning('You can review only confirmed events after they have started.')
     return
   }
 

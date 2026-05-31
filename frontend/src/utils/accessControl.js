@@ -76,6 +76,17 @@ export function isEventEnded(event) {
   return ['ENDED', 'COMPLETED', 'PAST'].includes(status)
 }
 
+export function isEventStarted(event) {
+  const rawStartTime = event?.startTime || event?.startDate || event?.startsAt
+  const startTime = rawStartTime ? new Date(rawStartTime) : null
+  if (startTime && !Number.isNaN(startTime.getTime())) {
+    return startTime.getTime() <= Date.now()
+  }
+
+  const status = String(event?.status || '').trim().toUpperCase()
+  return ['ONGOING', 'STARTED', 'ENDED', 'COMPLETED', 'PAST'].includes(status)
+}
+
 export function isConfirmedRegistration(registration) {
   return String(registration?.status || '').trim().toUpperCase() === 'CONFIRMED'
 }
@@ -154,7 +165,7 @@ export function canManagePostComment(comment, post, event, userInfo) {
 }
 
 export function canWriteReview(event, registration, userInfo = null) {
-  if (!isEventEnded(event) || !isConfirmedRegistration(registration)) {
+  if (!isEventStarted(event) || !isConfirmedRegistration(registration)) {
     return false
   }
 

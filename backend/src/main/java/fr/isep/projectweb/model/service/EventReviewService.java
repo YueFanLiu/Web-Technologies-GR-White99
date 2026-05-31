@@ -120,8 +120,8 @@ public class EventReviewService {
     }
 
     private void ensureCanCreateReview(Event event, User currentUser) {
-        if (event.getEndTime() == null || event.getEndTime().isAfter(LocalDateTime.now())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only review an event after it has ended");
+        if (event.getStartTime() == null || event.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only review an event after it has started");
         }
 
         if (!registrationRepository.existsByEventIdAndUserIdAndStatusIgnoreCase(
