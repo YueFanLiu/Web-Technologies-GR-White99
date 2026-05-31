@@ -11,7 +11,9 @@ export class ActivityPage {
   }
 
   async openActivityByTitle(title) {
-    await this.page.getByText(title, { exact: false }).first().click()
+    const card = this.page.locator('article, .activity-card, .event-card').filter({ hasText: title }).first()
+    await expect(card).toBeVisible()
+    await card.getByRole('button', { name: /view details/i }).click()
     await expect(this.page).toHaveURL(/\/product\/eventDetails/)
   }
 
@@ -23,7 +25,7 @@ export class ActivityPage {
     await this.page.getByLabel(/phone number/i).fill(contact.phone)
     await this.page.getByRole('button', { name: /confirm booking/i }).first().click()
     await expect(this.page).toHaveURL(/\/product\/bookingConfirmation/)
-    await expect(this.page.getByText(/booking/i)).toBeVisible()
+    await expect(this.page.getByRole('heading', { name: /booking|confirmation/i }).first()).toBeVisible()
   }
 
   async expectCannotContactOrganizerBeforeConfirmed() {
@@ -32,7 +34,7 @@ export class ActivityPage {
   }
 
   async submitReview(text) {
-    await expect(this.page.getByText(/reviews/i)).toBeVisible()
+    await expect(this.page.getByRole('heading', { name: /^reviews$/i })).toBeVisible()
     await this.page.getByPlaceholder(/write a review/i).fill(text)
     await this.page.getByRole('button', { name: /submit review/i }).click()
     await expect(this.page.getByText(text)).toBeVisible()

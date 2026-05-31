@@ -26,7 +26,7 @@ export class CommonPage {
   }
 
   async unreadBadgeShouldNotShowZero() {
-    await expect(this.page.locator('.el-badge__content', { hasText: /^0$/ })).toHaveCount(0)
+    await expect(this.page.locator('.el-badge__content:visible', { hasText: /^0$/ })).toHaveCount(0)
   }
 }
 

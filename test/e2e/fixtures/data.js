@@ -11,7 +11,7 @@ export function activityData() {
   return {
     title: `E2E Cross-day Activity ${suffix}`,
     description: `Automated activity created by Playwright ${suffix}`,
-    category: 'Education',
+    category: 'Tech',
     capacity: '20',
     price: '0',
     venueName: `E2E Venue ${suffix}`,

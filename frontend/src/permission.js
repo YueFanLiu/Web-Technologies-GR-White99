@@ -106,7 +106,18 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  if (to.meta.roles?.length && !roleAllowed(userStore.userInfo, to.meta.roles)) {
+  if (to.meta.roles?.length && !roleAllowed(userStore.userInfo || { role: userStore.role }, to.meta.roles)) {
+    try {
+      await userStore.getInfo()
+    } catch (error) {
+      await userStore.logOut()
+      ElMessage.error(error?.response?.data?.message || error?.message || 'Failed to load current user')
+      next('/login')
+      return
+    }
+  }
+
+  if (to.meta.roles?.length && !roleAllowed(userStore.userInfo || { role: userStore.role }, to.meta.roles)) {
     next('/401')
     return
   }

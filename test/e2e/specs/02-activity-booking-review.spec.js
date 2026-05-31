@@ -51,16 +51,15 @@ test.describe.serial('activity booking, confirmation, and reviews', () => {
   test('confirmed attendee can leave multiple reviews after activity started', async ({ browser }) => {
     const context = await browser.newContext({ storageState: authState('attendee') })
     const page = await context.newPage()
+    const activities = new ActivityPage(page)
     const firstReview = `E2E review after confirmation ${Date.now()}`
     const secondReview = `E2E second review after confirmation ${Date.now()}`
 
     await page.goto('/product/mainEvent')
     await page.getByPlaceholder(/search/i).fill(activity.title)
     await page.keyboard.press('Enter')
-    await page.getByText(activity.title, { exact: false }).first().click()
-    await expect(page).toHaveURL(/\/product\/eventDetails/)
+    await activities.openActivityByTitle(activity.title)
 
-    const activities = new ActivityPage(page)
     await activities.submitReview(firstReview)
     await activities.submitReview(secondReview)
     await context.close()
