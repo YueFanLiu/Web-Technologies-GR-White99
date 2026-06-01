@@ -19,4 +19,7 @@ public interface EventReviewRepository extends JpaRepository<EventReview, UUID> 
 
     @Query("SELECT AVG(r.rating) FROM EventReview r WHERE r.event.id = :eventId AND r.parent IS NULL")
     Double averageRatingByEventId(@Param("eventId") UUID eventId);
+
+    @Query("SELECT DISTINCT r.event.id FROM EventReview r WHERE r.user.id = :userId AND r.parent IS NULL")
+    List<UUID> findReviewedEventIdsByUserId(@Param("userId") UUID userId);
 }

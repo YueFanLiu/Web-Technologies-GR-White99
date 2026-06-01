@@ -1,6 +1,7 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.FriendRequestCreateRequest;
+import fr.isep.projectweb.model.dto.response.FriendRecommendationResponse;
 import fr.isep.projectweb.model.dto.response.FriendRequestResponse;
 import fr.isep.projectweb.model.dto.response.FriendResponse;
 import fr.isep.projectweb.model.service.FriendService;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,6 +36,13 @@ public class FriendController {
     @Operation(summary = "Get the current authenticated user's friends")
     public List<FriendResponse> getFriends(@AuthenticationPrincipal Jwt jwt) {
         return friendService.getFriends(jwt);
+    }
+
+    @GetMapping("/api/friends/recommendations")
+    @Operation(summary = "Get recommended users to add as friends")
+    public List<FriendRecommendationResponse> getFriendRecommendations(@RequestParam(required = false) Integer limit,
+                                                                       @AuthenticationPrincipal Jwt jwt) {
+        return friendService.getFriendRecommendations(limit, jwt);
     }
 
     @DeleteMapping("/api/friends/{friendUserId}")

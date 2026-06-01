@@ -26,6 +26,14 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
     long countActiveByEventId(@Param("eventId") UUID eventId);
 
     @Query("""
+            SELECT r.event.id
+            FROM Registration r
+            WHERE r.user.id = :userId
+              AND UPPER(COALESCE(r.status, '')) NOT IN ('CANCELLED', 'CANCELED', 'REJECTED')
+            """)
+    List<UUID> findActiveEventIdsByUserId(@Param("userId") UUID userId);
+
+    @Query("""
             SELECT r
             FROM Registration r
             JOIN FETCH r.event e

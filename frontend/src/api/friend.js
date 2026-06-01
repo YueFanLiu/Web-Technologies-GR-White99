@@ -7,6 +7,16 @@ export function getFriends() {
   })
 }
 
+export function getFriendRecommendations(limit = 6) {
+  return request({
+    url: '/api/friends/recommendations',
+    method: 'get',
+    params: {
+      limit
+    }
+  })
+}
+
 export function removeFriend(friendUserId) {
   return request({
     url: `/api/friends/${friendUserId}`,

@@ -15,8 +15,11 @@ public interface PostReviewRepository extends JpaRepository<PostReview, UUID> {
 
     long countByPostId(UUID postId);
 
-    @Query("SELECT AVG(r.rating) FROM PostReview r WHERE r.post.id = :postId")
+    @Query("SELECT AVG(r.rating) FROM PostReview r WHERE r.post.id = :postId AND r.parent IS NULL")
     Double averageRatingByPostId(@Param("postId") UUID postId);
 
     Optional<PostReview> findByIdAndPostId(UUID id, UUID postId);
+
+    @Query("SELECT DISTINCT r.post.id FROM PostReview r WHERE r.user.id = :userId AND r.parent IS NULL")
+    List<UUID> findReviewedPostIdsByUserId(@Param("userId") UUID userId);
 }

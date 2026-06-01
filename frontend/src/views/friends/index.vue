@@ -20,6 +20,28 @@
         <el-button type="primary" size="large" :loading="searching" @click="searchPeople">Search</el-button>
       </section>
 
+      <section v-if="visibleRecommendations.length || recommendationsLoading" class="section-card recommendation-card" v-loading="recommendationsLoading">
+        <div class="section-heading">
+          <div>
+            <h2>Recommended Friends</h2>
+            <p>People you may know through mutual friends, shared activities, and accessibility preferences.</p>
+          </div>
+          <el-button text :loading="recommendationsLoading" @click="loadRecommendations">Refresh</el-button>
+        </div>
+        <div class="user-grid">
+          <article v-for="item in visibleRecommendations" :key="item.user?.id" class="user-card recommendation-item">
+            <UserMiniCard :user="item.user" />
+            <ul class="recommendation-reasons" aria-label="Recommendation reasons">
+              <li v-for="reason in item.reasons || []" :key="reason">{{ reason }}</li>
+            </ul>
+            <el-button :disabled="relationFor(item.user).disabled" @click="addFriend(item.user)">
+              {{ relationFor(item.user).label }}
+            </el-button>
+          </article>
+        </div>
+        <el-empty v-if="!recommendationsLoading && visibleRecommendations.length === 0" description="No recommendations right now" />
+      </section>
+
       <section v-if="searchResults.length" class="section-card">
         <h2>Add Friends</h2>
         <div class="user-grid">
@@ -103,6 +125,7 @@ import { searchUsers } from '@/api/user'
 import {
   acceptFriendRequest,
   cancelFriendRequest,
+  getFriendRecommendations,
   getFriends,
   getIncomingFriendRequests,
   getOutgoingFriendRequests,
@@ -147,10 +170,13 @@ const friends = ref([])
 const incomingRequests = ref([])
 const outgoingRequests = ref([])
 const searchResults = ref([])
+const recommendations = ref([])
+const recommendationsLoading = ref(false)
 const messageLoadingId = ref('')
 const receivedSection = ref(null)
 const activeQueryTab = computed(() => String(route.query.tab || '').toLowerCase())
 const highlightedRequestId = computed(() => String(route.query.requestId || ''))
+const visibleRecommendations = computed(() => recommendations.value.filter((item) => item?.user && !relationFor(item.user).disabled))
 
 function extractList(res) {
   const data = res?.data ?? res
@@ -207,11 +233,24 @@ async function loadAll() {
     friends.value = extractList(friendsRes)
     incomingRequests.value = extractList(incomingRes)
     outgoingRequests.value = extractList(outgoingRes)
+    await loadRecommendations()
     await focusQueryTarget()
   } catch (error) {
     console.error('Failed to load friends:', error)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadRecommendations() {
+  recommendationsLoading.value = true
+  try {
+    recommendations.value = extractList(await getFriendRecommendations(8))
+  } catch (error) {
+    console.error('Failed to load friend recommendations:', error)
+    recommendations.value = []
+  } finally {
+    recommendationsLoading.value = false
   }
 }
 
@@ -384,6 +423,25 @@ watch(
   font-size: 22px;
 }
 
+.section-heading {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+}
+
+.section-heading p {
+  margin: 6px 0 0;
+  color: #5d6d8f;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .user-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -398,6 +456,22 @@ watch(
   border: 1px solid #dde7f5;
   border-radius: 8px;
   background: #f8fbff;
+}
+
+.recommendation-item {
+  grid-template-rows: auto minmax(54px, auto) auto;
+}
+
+.recommendation-reasons {
+  margin: 0;
+  padding-left: 18px;
+  color: #4f5d7c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.recommendation-reasons li + li {
+  margin-top: 3px;
 }
 
 .request-item.highlighted {
