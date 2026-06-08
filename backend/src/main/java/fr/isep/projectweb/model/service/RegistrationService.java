@@ -1,18 +1,24 @@
 package fr.isep.projectweb.model.service;
 
 import fr.isep.projectweb.model.dao.EventRepository;
+import fr.isep.projectweb.model.dao.EventTicketTierRepository;
 import fr.isep.projectweb.model.dao.RegistrationRepository;
 import fr.isep.projectweb.model.dto.request.RegistrationRequest;
 import fr.isep.projectweb.model.dto.response.RegistrationResponse;
 import fr.isep.projectweb.model.entity.Event;
+import fr.isep.projectweb.model.entity.EventTicketTier;
 import fr.isep.projectweb.model.entity.Registration;
 import fr.isep.projectweb.model.entity.User;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -26,28 +32,36 @@ public class RegistrationService {
 
     private final RegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
+    private final EventTicketTierRepository eventTicketTierRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
     private final BookingCredentialEmailService bookingCredentialEmailService;
     private final RecommendationScoreService recommendationScoreService;
+    private final CalendarService calendarService;
 
     public RegistrationService(RegistrationRepository registrationRepository,
                                EventRepository eventRepository,
+                               EventTicketTierRepository eventTicketTierRepository,
                                CurrentUserService currentUserService,
                                NotificationService notificationService,
                                BookingCredentialEmailService bookingCredentialEmailService,
-                               RecommendationScoreService recommendationScoreService) {
+                               RecommendationScoreService recommendationScoreService,
+                               CalendarService calendarService) {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
+        this.eventTicketTierRepository = eventTicketTierRepository;
         this.currentUserService = currentUserService;
         this.notificationService = notificationService;
         this.bookingCredentialEmailService = bookingCredentialEmailService;
         this.recommendationScoreService = recommendationScoreService;
+        this.calendarService = calendarService;
     }
 
     public RegistrationResponse createRegistration(RegistrationRequest request, Jwt jwt) {
         Registration registration = new Registration();
-        registration.setUser(currentUserService.getOrCreateCurrentUser(jwt));
+        User user = currentUserService.getOrCreateCurrentUser(jwt);
+        registration.setUser(user);
+        ensureNoActiveDuplicate(request.getEventId(), user.getId());
         applyRequest(registration, request);
         Registration savedRegistration = registrationRepository.save(registration);
         Event event = savedRegistration.getEvent();
@@ -108,6 +122,12 @@ public class RegistrationService {
         return ResponseMapper.toRegistrationResponse(registration);
     }
 
+    public String getRegistrationCalendarIcs(UUID id, Jwt jwt) {
+        Registration registration = findRegistrationById(id);
+        ensureCanViewRegistration(registration, currentUserService.getCurrentUser(jwt));
+        return calendarService.buildRegistrationIcs(registration);
+    }
+
     public RegistrationResponse updateRegistration(UUID id, RegistrationRequest request, Jwt jwt) {
         Registration registration = findRegistrationById(id);
         ensureCanUpdateRegistration(registration, currentUserService.getCurrentUser(jwt));
@@ -154,9 +174,77 @@ public class RegistrationService {
     }
 
     private void applyRequest(Registration registration, RegistrationRequest request) {
-        registration.setEvent(findEventById(request.getEventId()));
-        registration.setStatus(request.getStatus());
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Registration payload is required");
+        }
+        Event event = findEventById(request.getEventId());
+        registration.setEvent(event);
+        registration.setStatus(normalizeStatus(request.getStatus()));
+        applyTicketRequest(registration, request, event);
         applyContactRequest(registration, request);
+    }
+
+    private void applyTicketRequest(Registration registration, RegistrationRequest request, Event event) {
+        EventTicketTier ticketTier = resolveTicketTier(request.getTicketTierId(), event, registration.getTicketTier());
+        int quantity = request.getQuantity() != null ? request.getQuantity() : safeQuantity(registration.getQuantity());
+        if (quantity <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity must be greater than zero");
+        }
+        validateTicketTier(ticketTier);
+        validateCapacity(event, ticketTier, quantity, registration.getId());
+
+        BigDecimal unitPrice = ticketTier != null && ticketTier.getPrice() != null
+                ? ticketTier.getPrice()
+                : safePrice(event.getPrice());
+        registration.setTicketTier(ticketTier);
+        registration.setQuantity(quantity);
+        registration.setUnitPrice(unitPrice);
+        registration.setTotalPrice(unitPrice.multiply(BigDecimal.valueOf(quantity)));
+        registration.setCurrency("SGD");
+    }
+
+    private EventTicketTier resolveTicketTier(UUID requestTierId, Event event, EventTicketTier existingTier) {
+        if (requestTierId != null) {
+            return eventTicketTierRepository.findByIdAndEventId(requestTierId, event.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket tier does not belong to this event"));
+        }
+        if (existingTier != null && Objects.equals(existingTier.getEvent().getId(), event.getId())) {
+            return existingTier;
+        }
+        return eventTicketTierRepository.findFirstByEventIdAndActiveTrueOrderBySortOrderAscNameAsc(event.getId())
+                .orElse(null);
+    }
+
+    private void validateTicketTier(EventTicketTier ticketTier) {
+        if (ticketTier == null) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(ticketTier.getActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket tier is not active");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (ticketTier.getSalesStartAt() != null && now.isBefore(ticketTier.getSalesStartAt())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket tier sales have not started");
+        }
+        if (ticketTier.getSalesEndAt() != null && now.isAfter(ticketTier.getSalesEndAt())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket tier sales have ended");
+        }
+    }
+
+    private void validateCapacity(Event event, EventTicketTier ticketTier, int quantity, UUID excludeRegistrationId) {
+        long eventSoldQuantity = registrationRepository.sumActiveQuantityByEventId(event.getId(), excludeRegistrationId);
+        long eventCapacity = event.getCapacity() != null ? event.getCapacity() : 0L;
+        if (eventCapacity > 0 && eventSoldQuantity + quantity > eventCapacity) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough remaining event capacity");
+        }
+        if (ticketTier == null) {
+            return;
+        }
+        long tierCapacity = ticketTier.getCapacity() != null ? ticketTier.getCapacity() : 0L;
+        long tierSoldQuantity = registrationRepository.sumActiveQuantityByTicketTierId(ticketTier.getId(), excludeRegistrationId);
+        if (tierCapacity > 0 && tierSoldQuantity + quantity > tierCapacity) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough remaining ticket tier capacity");
+        }
     }
 
     private void applyContactRequest(Registration registration, RegistrationRequest request) {
@@ -245,6 +333,18 @@ public class RegistrationService {
         }
     }
 
+    private void ensureNoActiveDuplicate(UUID eventId, UUID userId) {
+        if (eventId == null || userId == null) {
+            return;
+        }
+        boolean hasActiveDuplicate = registrationRepository.findByEventIdAndUserIdOrderByRegisteredAtDesc(eventId, userId)
+                .stream()
+                .anyMatch(registration -> !isInactiveRegistrationStatus(registration.getStatus()));
+        if (hasActiveDuplicate) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already have an active registration for this event");
+        }
+    }
+
     private void ensureCanManageEventRegistrations(Event event, User currentUser) {
         if (isAdmin(currentUser) || isEventOrganizer(event, currentUser)) {
             return;
@@ -273,6 +373,27 @@ public class RegistrationService {
 
     private boolean isConfirmedStatus(String status) {
         return status != null && CONFIRMED_STATUS.equalsIgnoreCase(status.trim());
+    }
+
+    private boolean isInactiveRegistrationStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return normalized.equals("CANCELLED") || normalized.equals("CANCELED") || normalized.equals("REJECTED");
+    }
+
+    private String normalizeStatus(String status) {
+        String normalized = normalizeOptional(status);
+        return normalized != null ? normalized.toUpperCase(Locale.ROOT) : CONFIRMED_STATUS;
+    }
+
+    private int safeQuantity(Integer quantity) {
+        return quantity != null ? quantity : 1;
+    }
+
+    private BigDecimal safePrice(BigDecimal price) {
+        return price != null ? price : BigDecimal.ZERO;
     }
 
     private String normalizeOptional(String value) {

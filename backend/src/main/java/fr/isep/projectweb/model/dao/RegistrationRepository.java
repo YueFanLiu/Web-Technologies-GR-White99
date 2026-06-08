@@ -17,6 +17,8 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     boolean existsByEventIdAndUserIdAndStatusIgnoreCase(UUID eventId, UUID userId, String status);
 
+    List<Registration> findByEventIdAndUserIdOrderByRegisteredAtDesc(UUID eventId, UUID userId);
+
     @Query("""
             SELECT COUNT(r)
             FROM Registration r
@@ -24,6 +26,26 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
               AND UPPER(COALESCE(r.status, '')) NOT IN ('CANCELLED', 'CANCELED', 'REJECTED')
             """)
     long countActiveByEventId(@Param("eventId") UUID eventId);
+
+    @Query("""
+            SELECT COALESCE(SUM(r.quantity), 0)
+            FROM Registration r
+            WHERE r.event.id = :eventId
+              AND (:excludeRegistrationId IS NULL OR r.id <> :excludeRegistrationId)
+              AND UPPER(COALESCE(r.status, '')) NOT IN ('CANCELLED', 'CANCELED', 'REJECTED')
+            """)
+    long sumActiveQuantityByEventId(@Param("eventId") UUID eventId,
+                                    @Param("excludeRegistrationId") UUID excludeRegistrationId);
+
+    @Query("""
+            SELECT COALESCE(SUM(r.quantity), 0)
+            FROM Registration r
+            WHERE r.ticketTier.id = :ticketTierId
+              AND (:excludeRegistrationId IS NULL OR r.id <> :excludeRegistrationId)
+              AND UPPER(COALESCE(r.status, '')) NOT IN ('CANCELLED', 'CANCELED', 'REJECTED')
+            """)
+    long sumActiveQuantityByTicketTierId(@Param("ticketTierId") UUID ticketTierId,
+                                         @Param("excludeRegistrationId") UUID excludeRegistrationId);
 
     @Query("""
             SELECT r.event.id

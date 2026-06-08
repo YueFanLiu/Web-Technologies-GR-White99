@@ -59,19 +59,25 @@
                 <h2>2. Booking Details</h2>
               </div>
 
-              <div class="ticket-row">
+              <div
+                v-for="tier in visibleTicketTiers"
+                :key="tier.id"
+                class="ticket-row"
+                :class="{ selected: tier.id === selectedTicketTierId }"
+                @click="selectTicketTier(tier.id)"
+              >
                 <div>
-                  <h3>General Admission</h3>
-                  <p>Standard activity booking</p>
+                  <h3>{{ tier.name }}</h3>
+                  <p>{{ tierDescription(tier) }}</p>
                 </div>
 
                 <div class="quantity-control">
-                  <el-button :icon="Minus" @click="decreaseQuantity" />
+                  <el-button :icon="Minus" @click.stop="decreaseQuantity" />
                   <span>{{ quantity }}</span>
-                  <el-button :icon="Plus" @click="increaseQuantity" />
+                  <el-button :icon="Plus" @click.stop="increaseQuantity" />
                 </div>
 
-                <strong>{{ formatPrice(unitPrice) }}</strong>
+                <strong>{{ formatPrice(tier.price) }}</strong>
               </div>
 
               <div class="total-row">
@@ -152,7 +158,7 @@
           <div class="summary-list">
             <div>
               <span>Ticket</span>
-              <strong>General Admission x{{ quantity }}</strong>
+              <strong>{{ selectedTicketTier?.name || 'Standard' }} x{{ quantity }}</strong>
             </div>
             <div>
               <span>Price</span>
@@ -188,6 +194,7 @@ import {
   createEventRegistration,
   getCurrentUserProfile,
   getEventDetail,
+  getEventTicketTiers,
   getRegistrationsByUser
 } from '@/api/events/detail'
 import { isAlreadyRegisteredError } from '@/constants/events'
@@ -215,6 +222,8 @@ const submitting = ref(false)
 const alreadyRegistered = ref(false)
 const existingRegistration = ref(null)
 const rawEvent = ref(null)
+const ticketTiers = ref([])
+const selectedTicketTierId = ref('')
 
 const event = reactive({
   id: eventId || '',
@@ -223,7 +232,8 @@ const event = reactive({
   time: 'Time TBA',
   location: 'Location TBA',
   image: fallbackEventImage,
-  price: 0
+  price: 0,
+  capacity: 0
 })
 
 const contact = ref({
@@ -232,7 +242,25 @@ const contact = ref({
   phone: ''
 })
 
-const unitPrice = computed(() => Number(event.price || 0))
+const fallbackTicketTier = computed(() => ({
+  id: 'fallback-standard',
+  name: 'Standard',
+  type: 'STANDARD',
+  price: Number(event.price || 0),
+  active: true,
+  remainingQuantity: event.capacity || 0
+}))
+
+const visibleTicketTiers = computed(() => {
+  const tiers = ticketTiers.value.length ? ticketTiers.value : [fallbackTicketTier.value]
+  return tiers.filter((tier) => tier.active !== false)
+})
+
+const selectedTicketTier = computed(() => {
+  return visibleTicketTiers.value.find((tier) => tier.id === selectedTicketTierId.value) || visibleTicketTiers.value[0] || fallbackTicketTier.value
+})
+
+const unitPrice = computed(() => Number(selectedTicketTier.value?.price || 0))
 const totalPrice = computed(() => unitPrice.value * quantity.value)
 
 function increaseQuantity() {
@@ -248,6 +276,19 @@ function decreaseQuantity() {
 function formatPrice(value) {
   const amount = Number(value || 0)
   return amount === 0 ? 'Free' : `S$${amount.toFixed(2)}`
+}
+
+function selectTicketTier(id) {
+  selectedTicketTierId.value = id
+}
+
+function tierDescription(tier) {
+  const parts = []
+  if (tier.type) parts.push(String(tier.type).replaceAll('_', ' '))
+  if (tier.remainingQuantity !== undefined && tier.remainingQuantity !== null) {
+    parts.push(`${tier.remainingQuantity} remaining`)
+  }
+  return parts.join(' · ') || 'Activity ticket'
 }
 
 function backToEvent() {
@@ -314,6 +355,7 @@ function applyEvent(detail) {
     || normalizeImageUrl(detail?.imageUrls?.[0])
     || fallbackImage(detail?.id || eventId)
   event.price = Number(detail?.price || 0)
+  event.capacity = Number(detail?.capacity || 0)
 }
 
 function normalizeStatus(status) {
@@ -337,9 +379,22 @@ function persistConfirmation(registration) {
   const payload = {
     registration,
     event: rawEvent.value || event,
-    quantity: quantity.value
+    quantity: quantity.value,
+    ticketTier: selectedTicketTier.value
   }
   sessionStorage.setItem('lastBookingConfirmation', JSON.stringify(payload))
+}
+
+async function loadTicketTiers() {
+  try {
+    const tiers = extractList(await getEventTicketTiers(eventId))
+    ticketTiers.value = tiers.length ? tiers : []
+    selectedTicketTierId.value = visibleTicketTiers.value[0]?.id || ''
+  } catch (error) {
+    console.warn('Failed to load ticket tiers:', error)
+    ticketTiers.value = []
+    selectedTicketTierId.value = fallbackTicketTier.value.id
+  }
 }
 
 async function loadExistingRegistration() {
@@ -372,6 +427,7 @@ async function loadPage() {
   try {
     const detail = await getEventDetail(eventId)
     applyEvent(detail)
+    await loadTicketTiers()
     await loadExistingRegistration()
   } catch (error) {
     console.error('Failed to load booking page:', error)
@@ -407,6 +463,8 @@ function confirmBooking() {
   createEventRegistration({
     eventId,
     status: 'REGISTERED',
+    ticketTierId: selectedTicketTier.value?.id === 'fallback-standard' ? null : selectedTicketTier.value?.id,
+    quantity: quantity.value,
     contactFullName: contact.value.fullName.trim(),
     contactEmail,
     contactPhone: contact.value.phone.trim()
@@ -567,6 +625,13 @@ onMounted(loadPage)
   border: 1px solid #d8e3f4;
   border-radius: 12px;
   background: #fbfdff;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ticket-row.selected {
+  border-color: #0f66e9;
+  box-shadow: 0 0 0 3px rgba(15, 102, 233, 0.12);
 }
 
 .ticket-row h3 {

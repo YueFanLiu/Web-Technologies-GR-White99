@@ -281,6 +281,26 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/admin',
+    component: Layout,
+    hidden: true,
+    redirect: '/admin/users',
+    children: [
+      {
+        path: 'users',
+        component: () => import('@/views/admin/UserManagement.vue'),
+        name: 'Access4AllUserManagement',
+        meta: { title: 'User Management', icon: 'user', requiresAuth: true, roles: ['ADMIN'] }
+      },
+      {
+        path: 'reports',
+        component: () => import('@/views/admin/PlatformReports.vue'),
+        name: 'Access4AllPlatformReports',
+        meta: { title: 'Platform Reports', icon: 'chart', requiresAuth: true, roles: ['ADMIN'] }
+      }
+    ]
+  },
+  {
     path: '/chats',
     component: Layout,
     hidden: true,

@@ -5,6 +5,8 @@ import fr.isep.projectweb.model.dto.response.RegistrationResponse;
 import fr.isep.projectweb.model.service.RegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -62,6 +64,16 @@ public class RegistrationController {
     @Operation(summary = "Get one registration by id")
     public RegistrationResponse getRegistrationById(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return registrationService.getRegistrationById(id, jwt);
+    }
+
+    @GetMapping(value = "/{id}/calendar.ics", produces = "text/calendar")
+    @Operation(summary = "Download registration calendar ICS")
+    public ResponseEntity<String> downloadCalendar(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        String ics = registrationService.getRegistrationCalendarIcs(id, jwt);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"access4all-registration-" + id + ".ics\"")
+                .contentType(MediaType.parseMediaType("text/calendar; charset=UTF-8"))
+                .body(ics);
     }
 
     @PutMapping("/{id}")

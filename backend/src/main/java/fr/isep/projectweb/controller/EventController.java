@@ -1,7 +1,9 @@
 package fr.isep.projectweb.controller;
 
 import fr.isep.projectweb.model.dto.request.EventRequest;
+import fr.isep.projectweb.model.dto.response.EventAnalyticsResponse;
 import fr.isep.projectweb.model.dto.response.EventResponse;
+import fr.isep.projectweb.model.service.EventAnalyticsService;
 import fr.isep.projectweb.model.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,9 +21,11 @@ import java.util.UUID;
 public class EventController {
 
     private final EventService eventService;
+    private final EventAnalyticsService eventAnalyticsService;
 
-    public EventController(EventService eventService) {
+    public EventController(EventService eventService, EventAnalyticsService eventAnalyticsService) {
         this.eventService = eventService;
+        this.eventAnalyticsService = eventAnalyticsService;
     }
 
     @PostMapping
@@ -74,6 +78,12 @@ public class EventController {
     @Operation(summary = "Get one event by id")
     public EventResponse getEventById(@PathVariable UUID id) {
         return eventService.getEventById(id);
+    }
+
+    @GetMapping("/{id}/analytics")
+    @Operation(summary = "Get event analytics")
+    public EventAnalyticsResponse getEventAnalytics(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return eventAnalyticsService.getEventAnalytics(id, jwt);
     }
 
     @PutMapping("/{id}")

@@ -1,45 +1,18 @@
-package fr.isep.projectweb.model.entity;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+package fr.isep.projectweb.model.dto.response;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "users")
-public class User {
+public class AdminUserResponse {
 
-    @Id
     private UUID id;
-
-    @Column(nullable = false, unique = true)
     private String email;
-
-    @Column(name = "full_name", nullable = false)
     private String fullName;
-
     private String phone;
-
-    @Column(columnDefinition = "TEXT")
-    private String photo;
-
-    @Column(nullable = false)
     private String role;
-
-    @Column(nullable = false)
-    private String status = "ACTIVE";
-
-    @Column(name = "created_at", insertable = false, updatable = false)
+    private String status;
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", insertable = false, updatable = false)
     private LocalDateTime updatedAt;
-
-    public User() {
-    }
 
     public UUID getId() {
         return id;
@@ -73,14 +46,6 @@ public class User {
         this.phone = phone;
     }
 
-    public String getPhoto() {
-        return photo;
-    }
-
-    public void setPhoto(String photo) {
-        this.photo = photo;
-    }
-
     public String getRole() {
         return role;
     }
@@ -101,7 +66,15 @@ public class User {
         return createdAt;
     }
 
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

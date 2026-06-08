@@ -45,6 +45,10 @@
               <el-icon><User /></el-icon>
               <span>Registered: {{ registered }} / {{ capacity }}</span>
             </p>
+            <p>
+              <el-icon><Tickets /></el-icon>
+              <span>Ticket Sales: {{ formatMoney(ticketSalesTotal) }}</span>
+            </p>
           </div>
         </div>
       </section>
@@ -89,6 +93,46 @@
             <strong>{{ remainingSpots }}</strong>
           </div>
         </article>
+
+        <article class="summary-card">
+          <span class="summary-icon teal">
+            <el-icon><Money /></el-icon>
+          </span>
+          <div>
+            <p>Ticket Sales</p>
+            <strong>{{ formatMoney(ticketSalesTotal) }}</strong>
+          </div>
+        </article>
+
+        <article class="summary-card">
+          <span class="summary-icon rose">
+            <el-icon><Star /></el-icon>
+          </span>
+          <div>
+            <p>Average Rating</p>
+            <strong>{{ averageRatingLabel }}</strong>
+          </div>
+        </article>
+      </section>
+
+      <section v-if="eventId && ticketTierAnalytics.length" class="table-card analytics-card">
+        <div class="section-heading">
+          <h2>Ticket Tier Analytics</h2>
+          <p>Revenue is calculated from registration price snapshots.</p>
+        </div>
+        <el-table :data="ticketTierAnalytics" class="attendee-table" empty-text="No ticket tiers found">
+          <el-table-column prop="name" label="Ticket Tier" min-width="180" />
+          <el-table-column prop="type" label="Type" min-width="130" />
+          <el-table-column label="Sold" width="120">
+            <template #default="{ row }">{{ row.soldQuantity || 0 }}</template>
+          </el-table-column>
+          <el-table-column label="Remaining" width="130">
+            <template #default="{ row }">{{ row.remainingQuantity || 0 }}</template>
+          </el-table-column>
+          <el-table-column label="Revenue" width="150">
+            <template #default="{ row }">{{ formatMoney(row.revenue) }}</template>
+          </el-table-column>
+        </el-table>
       </section>
 
       <section v-if="eventId" class="table-card">
@@ -129,6 +173,15 @@
           </el-table-column>
 
           <el-table-column prop="role" label="Role" min-width="150" />
+
+          <el-table-column label="Ticket" min-width="180">
+            <template #default="{ row }">
+              <div class="ticket-cell">
+                <span>{{ row.ticketName }}</span>
+                <small>x{{ row.quantity }} · {{ formatMoney(row.totalPrice) }}</small>
+              </div>
+            </template>
+          </el-table-column>
 
           <el-table-column label="Registered At" min-width="190">
             <template #default="{ row }">
@@ -247,9 +300,11 @@ import {
   Edit,
   Location,
   Message,
+  Money,
   Plus,
   Refresh,
   Search,
+  Star,
   Tickets,
   User,
   UserFilled,
@@ -258,6 +313,7 @@ import {
 import {
   deleteRegistration,
   getEvent,
+  getEventAnalytics,
   getRegistration,
   getRegistrationsByEvent,
   updateRegistration
@@ -286,6 +342,7 @@ const selectedAttendee = ref(null)
 const searchText = ref('')
 const statusFilter = ref('all')
 const attendees = ref([])
+const analytics = ref(null)
 
 const defaultEventImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
 const defaultAvatar = 'https://ui-avatars.com/api/?background=eef5ff&color=0f66e9&name=Attendee'
@@ -312,9 +369,17 @@ const event = reactive({
 })
 
 const capacity = computed(() => event.capacity)
-const registered = computed(() => attendees.value.filter((attendee) => isActiveRegistration(attendee.status)).length)
-const confirmedCount = computed(() => attendees.value.filter((attendee) => attendee.status === 'CONFIRMED').length)
-const remainingSpots = computed(() => Math.max(capacity.value - registered.value, 0))
+const registered = computed(() => analytics.value?.soldQuantity ?? attendees.value
+  .filter((attendee) => isActiveRegistration(attendee.status))
+  .reduce((sum, attendee) => sum + Number(attendee.quantity || 1), 0))
+const confirmedCount = computed(() => analytics.value?.confirmedCount ?? attendees.value.filter((attendee) => attendee.status === 'CONFIRMED').length)
+const remainingSpots = computed(() => analytics.value?.remainingSpots ?? Math.max(capacity.value - registered.value, 0))
+const ticketSalesTotal = computed(() => analytics.value?.ticketSalesTotal ?? 0)
+const ticketTierAnalytics = computed(() => analytics.value?.ticketTiers || [])
+const averageRatingLabel = computed(() => {
+  const rating = Number(analytics.value?.averageRating || 0)
+  return rating > 0 ? rating.toFixed(1) : 'N/A'
+})
 
 function unwrapResponse(res) {
   return res?.data ?? res
@@ -410,6 +475,11 @@ function formatRegistrationStatus(status) {
   return registrationStatusLabels[normalized] || normalized
 }
 
+function formatMoney(value) {
+  const amount = Number(value || 0)
+  return amount === 0 ? 'Free' : `S$${amount.toFixed(2)}`
+}
+
 function isActiveRegistration(status) {
   return !['CANCELLED', 'CANCELED', 'REJECTED'].includes(normalizeStatus(status))
 }
@@ -427,6 +497,9 @@ function mapRegistration(registration, userDetails = null) {
     name,
     role: roleDisplayLabel(user.role || 'USER'),
     status: normalizeStatus(registration.status),
+    ticketName: registration.ticketTierName || 'Standard',
+    quantity: registration.quantity || 1,
+    totalPrice: registration.totalPrice || 0,
     registeredDate: registeredAt.date,
     registeredTime: registeredAt.time,
     raw: registration,
@@ -491,6 +564,7 @@ async function loadAttendees() {
     applyEvent(eventData)
     const registrations = await getRegistrationsByEvent(eventId.value)
     attendees.value = await mapRegistrations(extractList(registrations))
+    analytics.value = unwrapResponse(await getEventAnalytics(eventId.value))
   } catch (error) {
     console.error(error)
     ElMessage.error('Failed to load attendees')
@@ -764,7 +838,7 @@ onMounted(loadAttendees)
 .summary-grid {
   margin-top: 20px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -803,6 +877,37 @@ onMounted(loadAttendees)
 .summary-icon.amber {
   color: #d98a00;
   background: #fff5df;
+}
+
+.summary-icon.teal {
+  color: #0b8f83;
+  background: #e4fbf8;
+}
+
+.summary-icon.rose {
+  color: #c2416c;
+  background: #fff0f5;
+}
+
+.analytics-card {
+  margin-top: 20px;
+  padding: 22px;
+}
+
+.section-heading {
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #071a47;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.section-heading p {
+  margin: 6px 0 0;
+  color: #667091;
 }
 
 .summary-card p {

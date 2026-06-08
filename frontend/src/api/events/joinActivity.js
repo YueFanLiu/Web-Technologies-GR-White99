@@ -21,6 +21,14 @@ export function getRegistration(id) {
   })
 }
 
+export function downloadRegistrationCalendar(registrationId) {
+  return request({
+    url: `/api/registrations/${registrationId}/calendar.ics`,
+    method: 'get',
+    responseType: 'blob'
+  })
+}
+
 export function getRegistrationsByUser(userId) {
   return request({
     url: `/api/registrations/user/${userId}`,

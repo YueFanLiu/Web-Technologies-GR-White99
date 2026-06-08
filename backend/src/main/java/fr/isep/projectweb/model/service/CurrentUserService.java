@@ -24,16 +24,20 @@ public class CurrentUserService {
     }
 
     public User getCurrentUser(Jwt jwt) {
-        return findCurrentUserByEmail(jwt)
+        User user = findCurrentUserByEmail(jwt)
                 .or(() -> userRepository.findById(getCurrentUserId(jwt)))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User profile not found"));
+        ensureActive(user);
+        return user;
     }
 
     public User getOrCreateCurrentUser(Jwt jwt) {
         UUID userId = getCurrentUserId(jwt);
-        return findCurrentUserByEmail(jwt)
+        User user = findCurrentUserByEmail(jwt)
                 .or(() -> userRepository.findById(userId))
                 .orElseGet(() -> userRepository.save(buildUserFromJwt(jwt, userId)));
+        ensureActive(user);
+        return user;
     }
 
     private java.util.Optional<User> findCurrentUserByEmail(Jwt jwt) {
@@ -70,7 +74,14 @@ public class CurrentUserService {
         user.setFullName(resolveFullName(jwt));
         user.setPhone(null);
         user.setRole(resolveRole(jwt));
+        user.setStatus("ACTIVE");
         return user;
+    }
+
+    private void ensureActive(User user) {
+        if (user != null && "DEACTIVATED".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User account is deactivated");
+        }
     }
 
     private String resolveFullName(Jwt jwt) {

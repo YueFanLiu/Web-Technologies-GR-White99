@@ -9,6 +9,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -41,6 +42,22 @@ public class Registration {
 
     @Column(name = "contact_phone")
     private String contactPhone;
+
+    @ManyToOne
+    @JoinColumn(name = "ticket_tier_id")
+    private EventTicketTier ticketTier;
+
+    @Column(nullable = false)
+    private Integer quantity = 1;
+
+    @Column(name = "unit_price", nullable = false)
+    private BigDecimal unitPrice = BigDecimal.ZERO;
+
+    @Column(name = "total_price", nullable = false)
+    private BigDecimal totalPrice = BigDecimal.ZERO;
+
+    @Column(nullable = false)
+    private String currency = "SGD";
 
     public Registration() {
     }
@@ -103,5 +120,45 @@ public class Registration {
 
     public void setContactPhone(String contactPhone) {
         this.contactPhone = contactPhone;
+    }
+
+    public EventTicketTier getTicketTier() {
+        return ticketTier;
+    }
+
+    public void setTicketTier(EventTicketTier ticketTier) {
+        this.ticketTier = ticketTier;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+
+    public BigDecimal getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(BigDecimal unitPrice) {
+        this.unitPrice = unitPrice;
+    }
+
+    public BigDecimal getTotalPrice() {
+        return totalPrice;
+    }
+
+    public void setTotalPrice(BigDecimal totalPrice) {
+        this.totalPrice = totalPrice;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 }

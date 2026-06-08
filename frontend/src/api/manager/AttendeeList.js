@@ -58,6 +58,16 @@ export function getRegistrationsByEvent(eventId) {
 
 export const getEventRegistrations = getRegistrationsByEvent
 
+export function getEventAnalytics(eventId) {
+  return request({
+    url: `/api/events/${eventId}/analytics`,
+    method: 'get',
+    headers: {
+      permissionMessage: 'You do not have permission to view analytics for this event.'
+    }
+  })
+}
+
 export function createRegistration(data) {
   return request({
     url: '/api/registrations',

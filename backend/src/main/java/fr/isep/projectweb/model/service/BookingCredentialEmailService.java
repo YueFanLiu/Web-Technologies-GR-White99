@@ -97,6 +97,9 @@ public class BookingCredentialEmailService {
                 Booking ID: %s
                 Activity: %s
                 Status: %s
+                Ticket: %s
+                Quantity: %s
+                Total: %s
                 Start: %s
                 End: %s
                 Location: %s
@@ -107,6 +110,9 @@ public class BookingCredentialEmailService {
                 registration.getId(),
                 event.getTitle(),
                 registration.getStatus() != null ? registration.getStatus() : "CONFIRMED",
+                ticketName(registration),
+                registration.getQuantity() != null ? registration.getQuantity() : 1,
+                formatMoney(registration),
                 event.getStartTime() != null ? event.getStartTime().format(DATE_TIME_FORMAT) : "TBA",
                 event.getEndTime() != null ? event.getEndTime().format(DATE_TIME_FORMAT) : "TBA",
                 formatLocation(event)
@@ -121,6 +127,9 @@ public class BookingCredentialEmailService {
 
                 Cancelled Booking ID: %s
                 Activity: %s
+                Ticket: %s
+                Quantity: %s
+                Total: %s
                 Start: %s
                 End: %s
                 Location: %s
@@ -130,10 +139,25 @@ public class BookingCredentialEmailService {
                 firstNonBlank(registration.getContactFullName(), user != null ? user.getFullName() : null, "there"),
                 registration.getId(),
                 event.getTitle(),
+                ticketName(registration),
+                registration.getQuantity() != null ? registration.getQuantity() : 1,
+                formatMoney(registration),
                 event.getStartTime() != null ? event.getStartTime().format(DATE_TIME_FORMAT) : "TBA",
                 event.getEndTime() != null ? event.getEndTime().format(DATE_TIME_FORMAT) : "TBA",
                 formatLocation(event)
         );
+    }
+
+    private String ticketName(Registration registration) {
+        return registration.getTicketTier() != null ? registration.getTicketTier().getName() : "Standard";
+    }
+
+    private String formatMoney(Registration registration) {
+        java.math.BigDecimal total = registration.getTotalPrice() != null ? registration.getTotalPrice() : java.math.BigDecimal.ZERO;
+        if (total.compareTo(java.math.BigDecimal.ZERO) == 0) {
+            return "Free";
+        }
+        return (registration.getCurrency() != null ? registration.getCurrency() : "SGD") + " " + total;
     }
 
     private String formatLocation(Event event) {

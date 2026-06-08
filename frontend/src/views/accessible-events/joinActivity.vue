@@ -71,12 +71,19 @@
               </span>
               <span>
                 <el-icon><Tickets /></el-icon>
-                {{ activity.statusLabel }}
+                {{ activity.ticketSummary }}
               </span>
             </div>
 
             <div class="activity-actions">
               <el-button @click="viewDetails(activity)">View Details</el-button>
+              <el-button
+                v-if="activity.registrationId"
+                @click="downloadCalendar(activity)"
+              >
+                <el-icon><Download /></el-icon>
+                Download ICS
+              </el-button>
               <el-button
                 v-if="activity.tab === 'Upcoming'"
                 class="danger-button"
@@ -119,10 +126,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Calendar, Clock, Refresh, Tickets } from '@element-plus/icons-vue'
+import { Calendar, Clock, Download, Refresh, Tickets } from '@element-plus/icons-vue'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
 import {
   deleteRegistration,
+  downloadRegistrationCalendar,
   getCurrentUserProfile,
   getEventDetail,
   getRegistrationsByUser
@@ -224,6 +232,11 @@ function getStatusLabel(status) {
   return labels[status] || status.charAt(0) + status.slice(1).toLowerCase()
 }
 
+function formatPrice(value) {
+  const amount = Number(value || 0)
+  return amount === 0 ? 'Free' : `S$${amount.toFixed(2)}`
+}
+
 function getActivityTab(status, startTime, endTime) {
   if (status === 'SAVED') return 'Favorites'
   if (['ATTENDED', 'COMPLETED'].includes(status)) return 'Past'
@@ -258,6 +271,7 @@ function normalizeActivity(registration) {
     image: getActivityImage(event, registration.id),
     status,
     statusLabel: getStatusLabel(status),
+    ticketSummary: `${registration.ticketTierName || 'Standard'} x${registration.quantity || 1} · ${formatPrice(registration.totalPrice)}`,
     tab: getActivityTab(status, startTime, endTime),
     event,
     raw: registration
@@ -281,6 +295,7 @@ function normalizeFavorite(savedEvent) {
     image: getActivityImage(event, savedEvent.id),
     status: 'SAVED',
     statusLabel: 'Favorite',
+    ticketSummary: 'Favorite',
     tab: 'Favorites',
     event,
     raw: savedEvent
@@ -378,6 +393,24 @@ async function cancelBooking(activity) {
     }
   } finally {
     cancellingId.value = ''
+  }
+}
+
+async function downloadCalendar(activity) {
+  if (!activity.registrationId) {
+    ElMessage.warning('Missing booking id')
+    return
+  }
+  try {
+    const blob = await downloadRegistrationCalendar(activity.registrationId)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `access4all-registration-${activity.registrationId}.ics`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Failed to download calendar:', error)
   }
 }
 

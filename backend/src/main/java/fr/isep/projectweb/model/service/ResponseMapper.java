@@ -137,6 +137,15 @@ final class ResponseMapper {
         response.setContactFullName(registration.getContactFullName());
         response.setContactEmail(registration.getContactEmail());
         response.setContactPhone(registration.getContactPhone());
+        if (registration.getTicketTier() != null) {
+            response.setTicketTierId(registration.getTicketTier().getId());
+            response.setTicketTierName(registration.getTicketTier().getName());
+            response.setTicketTierType(registration.getTicketTier().getType());
+        }
+        response.setQuantity(registration.getQuantity());
+        response.setUnitPrice(registration.getUnitPrice());
+        response.setTotalPrice(registration.getTotalPrice());
+        response.setCurrency(registration.getCurrency());
         return response;
     }
 

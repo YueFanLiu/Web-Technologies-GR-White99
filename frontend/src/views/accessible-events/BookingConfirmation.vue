@@ -58,11 +58,34 @@
               <strong>{{ booking.registeredAt }}</strong>
             </div>
             <div>
+              <span>Ticket</span>
+              <strong>{{ booking.ticket }}</strong>
+            </div>
+            <div>
               <span>Quantity</span>
               <strong>{{ booking.quantity }}</strong>
             </div>
+            <div>
+              <span>Total</span>
+              <strong>{{ booking.total }}</strong>
+            </div>
           </div>
         </section>
+
+        <div class="calendar-row">
+          <el-button size="large" @click="downloadIcs">
+            <el-icon><Download /></el-icon>
+            Download ICS
+          </el-button>
+          <el-button size="large" @click="openGoogleCalendar">
+            <el-icon><Calendar /></el-icon>
+            Google Calendar
+          </el-button>
+          <el-button size="large" @click="openOutlookCalendar">
+            <el-icon><Calendar /></el-icon>
+            Outlook Calendar
+          </el-button>
+        </div>
 
         <div class="action-row">
           <el-button size="large" type="primary" class="primary-action" @click="viewMyEvents">
@@ -82,12 +105,15 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import fallbackEventImage from '@/assets/images/login-background.jpg'
+import { downloadRegistrationCalendar } from '@/api/events/detail'
 import {
   ArrowLeft,
   Calendar,
   Check,
   Clock,
+  Download,
   Location,
   Tickets
 } from '@element-plus/icons-vue'
@@ -106,6 +132,7 @@ function readStoredConfirmation() {
 const storedConfirmation = readStoredConfirmation()
 const registration = storedConfirmation.registration || {}
 const storedEvent = storedConfirmation.event || registration.event || {}
+const storedTicketTier = storedConfirmation.ticketTier || {}
 
 function normalizeImageUrl(value) {
   const url = String(value || '').trim()
@@ -182,9 +209,16 @@ const booking = computed(() => {
     confirmationNumber: registration.id || 'Not available',
     status: registration.status || 'REGISTERED',
     registeredAt: formatDateTime(registration.registeredAt),
-    quantity: storedConfirmation.quantity || 1
+    ticket: registration.ticketTierName || storedTicketTier.name || 'Standard',
+    quantity: registration.quantity || storedConfirmation.quantity || 1,
+    total: formatPrice(registration.totalPrice ?? storedConfirmation.totalPrice)
   }
 })
+
+function formatPrice(value) {
+  const amount = Number(value || 0)
+  return amount === 0 ? 'Free' : `S$${amount.toFixed(2)}`
+}
 
 function viewMyEvents() {
   router.push('/my-events/joined')
@@ -195,6 +229,62 @@ function backToEvent() {
     path: '/product/eventDetails',
     query: eventId.value ? { id: eventId.value } : {}
   })
+}
+
+function calendarDate(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return ''
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+}
+
+function providerCalendarPayload() {
+  const startValue = storedEvent.startTime || registration.event?.startTime
+  const endValue = storedEvent.endTime || registration.event?.endTime
+  return {
+    start: calendarDate(startValue),
+    end: calendarDate(endValue),
+    startIso: startValue ? new Date(startValue).toISOString() : '',
+    endIso: endValue ? new Date(endValue).toISOString() : '',
+    title: encodeURIComponent(storedEvent.title || registration.event?.title || 'Access4All Event'),
+    details: encodeURIComponent(storedEvent.description || ''),
+    location: encodeURIComponent(event.value.location || '')
+  }
+}
+
+async function downloadIcs() {
+  if (!registration.id) {
+    ElMessage.warning('Registration is not available')
+    return
+  }
+  try {
+    const blob = await downloadRegistrationCalendar(registration.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `access4all-registration-${registration.id}.ics`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+function openGoogleCalendar() {
+  const payload = providerCalendarPayload()
+  if (!payload.start || !payload.end) {
+    ElMessage.warning('Event time is not available')
+    return
+  }
+  window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${payload.title}&dates=${payload.start}/${payload.end}&details=${payload.details}&location=${payload.location}`, '_blank')
+}
+
+function openOutlookCalendar() {
+  const payload = providerCalendarPayload()
+  if (!payload.startIso || !payload.endIso) {
+    ElMessage.warning('Event time is not available')
+    return
+  }
+  window.open(`https://outlook.live.com/calendar/0/deeplink/compose?subject=${payload.title}&startdt=${encodeURIComponent(payload.startIso)}&enddt=${encodeURIComponent(payload.endIso)}&body=${payload.details}&location=${payload.location}`, '_blank')
 }
 
 </script>
@@ -340,6 +430,17 @@ function backToEvent() {
   gap: 18px;
 }
 
+.calendar-row {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.calendar-row .el-button {
+  width: 100%;
+}
+
 .primary-action,
 .secondary-action {
   height: 54px;
@@ -368,6 +469,7 @@ function backToEvent() {
   }
 
   .event-summary,
+  .calendar-row,
   .action-row {
     grid-template-columns: 1fr;
   }

@@ -9,6 +9,8 @@ public class RegistrationRequest {
     private String contactFullName;
     private String contactEmail;
     private String contactPhone;
+    private UUID ticketTierId;
+    private Integer quantity;
 
     public UUID getEventId() {
         return eventId;
@@ -48,5 +50,21 @@ public class RegistrationRequest {
 
     public void setContactPhone(String contactPhone) {
         this.contactPhone = contactPhone;
+    }
+
+    public UUID getTicketTierId() {
+        return ticketTierId;
+    }
+
+    public void setTicketTierId(UUID ticketTierId) {
+        this.ticketTierId = ticketTierId;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
     }
 }

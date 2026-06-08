@@ -67,11 +67,26 @@ export function getEventRegistrations(eventId) {
     })
 }
 
+export function getEventTicketTiers(eventId) {
+    return request({
+        url: `/api/events/${eventId}/ticket-tiers`,
+        method: 'get'
+    })
+}
+
 export function createEventRegistration(data) {
     return request({
         url: '/api/registrations',
         method: 'post',
         data
+    })
+}
+
+export function downloadRegistrationCalendar(registrationId) {
+    return request({
+        url: `/api/registrations/${registrationId}/calendar.ics`,
+        method: 'get',
+        responseType: 'blob'
     })
 }
 
