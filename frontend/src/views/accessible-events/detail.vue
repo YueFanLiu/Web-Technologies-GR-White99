@@ -65,14 +65,6 @@
         </div>
 
         <!-- 地图 -->
-        <div class="map-wrapper">
-          <img
-              src="https://picsum.photos/id/1025/600/400"
-              alt="Map"
-              class="map-image"
-          />
-        </div>
-
         <!-- 活动描述 -->
         <div class="description-section">
           <h3>Description</h3>
@@ -874,15 +866,6 @@ const getReviewStars = (rating) => {
   align-items: center;
   gap: 8px;
   color: #555;
-}
-
-.map-wrapper {
-  margin: 20px 0;
-}
-
-.map-image {
-  width: 100%;
-  border-radius: 8px;
 }
 
 .description-section h3 {
