@@ -24,6 +24,14 @@ export function createEvent(data) {
   })
 }
 
+export function createEventTicketTier(eventId, data) {
+  return request({
+    url: `/api/events/${eventId}/ticket-tiers`,
+    method: 'post',
+    data
+  })
+}
+
 export function uploadEventImage(eventId, file) {
   const data = new FormData()
   data.append('file', file)

@@ -57,13 +57,13 @@
               <span>Registered at</span>
               <strong>{{ booking.registeredAt }}</strong>
             </div>
-            <div>
-              <span>Ticket</span>
-              <strong>{{ booking.ticket }}</strong>
-            </div>
-            <div>
-              <span>Quantity</span>
-              <strong>{{ booking.quantity }}</strong>
+            <div class="ticket-detail-row">
+              <span>Tickets</span>
+              <strong>
+                <span v-for="item in bookingItems" :key="item.key" class="ticket-line">
+                  {{ item.name }} x{{ item.quantity }} · {{ item.total }}
+                </span>
+              </strong>
             </div>
             <div>
               <span>Total</span>
@@ -131,8 +131,12 @@ function readStoredConfirmation() {
 
 const storedConfirmation = readStoredConfirmation()
 const registration = storedConfirmation.registration || {}
+const registrations = Array.isArray(storedConfirmation.registrations) && storedConfirmation.registrations.length
+  ? storedConfirmation.registrations
+  : [registration].filter(Boolean)
 const storedEvent = storedConfirmation.event || registration.event || {}
 const storedTicketTier = storedConfirmation.ticketTier || {}
+const storedTicketItems = Array.isArray(storedConfirmation.ticketItems) ? storedConfirmation.ticketItems : []
 
 function normalizeImageUrl(value) {
   const url = String(value || '').trim()
@@ -209,10 +213,31 @@ const booking = computed(() => {
     confirmationNumber: registration.id || 'Not available',
     status: registration.status || 'REGISTERED',
     registeredAt: formatDateTime(registration.registeredAt),
-    ticket: registration.ticketTierName || storedTicketTier.name || 'Standard',
-    quantity: registration.quantity || storedConfirmation.quantity || 1,
-    total: formatPrice(registration.totalPrice ?? storedConfirmation.totalPrice)
+    total: formatPrice(registrations.reduce((sum, item) => sum + Number(item?.totalPrice || 0), 0) || storedConfirmation.totalPrice)
   }
+})
+
+const bookingItems = computed(() => {
+  if (storedTicketItems.length) {
+    return storedTicketItems.map((item, index) => {
+      const itemRegistration = item.registration || registrations[index] || {}
+      const unitPrice = Number(item.unitPrice ?? itemRegistration.unitPrice ?? item.ticketTier?.price ?? 0)
+      const quantity = Number(item.quantity || itemRegistration.quantity || 1)
+      return {
+        key: itemRegistration.id || item.ticketTier?.id || index,
+        name: itemRegistration.ticketTierName || item.ticketTier?.name || 'Standard',
+        quantity,
+        total: formatPrice(item.totalPrice ?? itemRegistration.totalPrice ?? unitPrice * quantity)
+      }
+    })
+  }
+
+  return registrations.map((item, index) => ({
+    key: item.id || index,
+    name: item.ticketTierName || storedTicketTier.name || 'Standard',
+    quantity: Number(item.quantity || storedConfirmation.quantity || 1),
+    total: formatPrice(item.totalPrice ?? storedConfirmation.totalPrice)
+  }))
 })
 
 function formatPrice(value) {
@@ -421,6 +446,21 @@ function openOutlookCalendar() {
 
 .details-list .booking-id {
   color: #0f66e9;
+}
+
+.details-list .ticket-detail-row {
+  align-items: flex-start;
+  padding: 13px 0;
+}
+
+.ticket-detail-row strong {
+  display: grid;
+  gap: 6px;
+}
+
+.ticket-line {
+  display: block;
+  color: #071a47;
 }
 
 .action-row {

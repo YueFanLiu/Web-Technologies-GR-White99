@@ -63,8 +63,7 @@
                 v-for="tier in visibleTicketTiers"
                 :key="tier.id"
                 class="ticket-row"
-                :class="{ selected: tier.id === selectedTicketTierId }"
-                @click="selectTicketTier(tier.id)"
+                :class="{ selected: ticketTierQuantity(tier) > 0 }"
               >
                 <div>
                   <h3>{{ tier.name }}</h3>
@@ -72,9 +71,9 @@
                 </div>
 
                 <div class="quantity-control">
-                  <el-button :icon="Minus" @click.stop="decreaseQuantity" />
-                  <span>{{ quantity }}</span>
-                  <el-button :icon="Plus" @click.stop="increaseQuantity" />
+                  <el-button :icon="Minus" @click.stop="decreaseQuantity(tier)" />
+                  <span>{{ ticketTierQuantity(tier) }}</span>
+                  <el-button :icon="Plus" @click.stop="increaseQuantity(tier)" />
                 </div>
 
                 <strong>{{ formatPrice(tier.price) }}</strong>
@@ -158,11 +157,11 @@
           <div class="summary-list">
             <div>
               <span>Ticket</span>
-              <strong>{{ selectedTicketTier?.name || 'Standard' }} x{{ quantity }}</strong>
+              <strong>{{ selectedTicketSummary }}</strong>
             </div>
             <div>
               <span>Price</span>
-              <strong>{{ formatPrice(unitPrice) }}</strong>
+              <strong>{{ selectedTicketPriceSummary }}</strong>
             </div>
           </div>
 
@@ -216,14 +215,14 @@ const router = useRouter()
 const route = useRoute()
 
 const eventId = route.query.eventId || route.query.id
-const quantity = ref(Number(route.query.quantity) || 1)
+const initialQuantity = Math.max(1, Number(route.query.quantity) || 1)
 const loading = ref(false)
 const submitting = ref(false)
 const alreadyRegistered = ref(false)
 const existingRegistration = ref(null)
 const rawEvent = ref(null)
 const ticketTiers = ref([])
-const selectedTicketTierId = ref('')
+const ticketTierQuantities = ref({})
 
 const event = reactive({
   id: eventId || '',
@@ -256,21 +255,66 @@ const visibleTicketTiers = computed(() => {
   return tiers.filter((tier) => tier.active !== false)
 })
 
-const selectedTicketTier = computed(() => {
-  return visibleTicketTiers.value.find((tier) => tier.id === selectedTicketTierId.value) || visibleTicketTiers.value[0] || fallbackTicketTier.value
+const selectedTicketItems = computed(() => {
+  return visibleTicketTiers.value
+    .map((tier) => ({
+      tier,
+      quantity: ticketTierQuantity(tier),
+      unitPrice: Number(tier.price || 0)
+    }))
+    .filter((item) => item.quantity > 0)
 })
 
-const unitPrice = computed(() => Number(selectedTicketTier.value?.price || 0))
-const totalPrice = computed(() => unitPrice.value * quantity.value)
+const totalQuantity = computed(() => {
+  return selectedTicketItems.value.reduce((sum, item) => sum + item.quantity, 0)
+})
 
-function increaseQuantity() {
-  quantity.value += 1
+const totalPrice = computed(() => {
+  return selectedTicketItems.value.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+})
+
+const selectedTicketSummary = computed(() => {
+  if (!selectedTicketItems.value.length) return 'No tickets selected'
+  return selectedTicketItems.value
+    .map((item) => `${item.tier.name || 'Standard'} x${item.quantity}`)
+    .join(', ')
+})
+
+const selectedTicketPriceSummary = computed(() => {
+  if (!selectedTicketItems.value.length) return formatPrice(0)
+  return selectedTicketItems.value
+    .map((item) => `${item.tier.name || 'Standard'} ${formatPrice(item.unitPrice)}`)
+    .join(', ')
+})
+
+function ticketTierKey(tier) {
+  return tier?.id || 'fallback-standard'
 }
 
-function decreaseQuantity() {
-  if (quantity.value > 1) {
-    quantity.value -= 1
+function ticketTierQuantity(tier) {
+  return Number(ticketTierQuantities.value[ticketTierKey(tier)] || 0)
+}
+
+function setTicketTierQuantity(tier, value) {
+  const quantity = Math.max(0, Number(value || 0))
+  ticketTierQuantities.value = {
+    ...ticketTierQuantities.value,
+    [ticketTierKey(tier)]: quantity
   }
+}
+
+function increaseQuantity(tier) {
+  const nextQuantity = ticketTierQuantity(tier) + 1
+  const remaining = Number(tier.remainingQuantity || 0)
+  if (remaining > 0 && nextQuantity > remaining) {
+    ElMessage.warning('Not enough remaining tickets')
+    return
+  }
+  setTicketTierQuantity(tier, nextQuantity)
+}
+
+function decreaseQuantity(tier) {
+  setTicketTierQuantity(tier, ticketTierQuantity(tier) - 1)
 }
 
 function formatPrice(value) {
@@ -278,8 +322,15 @@ function formatPrice(value) {
   return amount === 0 ? 'Free' : `S$${amount.toFixed(2)}`
 }
 
-function selectTicketTier(id) {
-  selectedTicketTierId.value = id
+function ensureTicketTierQuantities() {
+  const nextQuantities = { ...ticketTierQuantities.value }
+  visibleTicketTiers.value.forEach((tier, index) => {
+    const key = ticketTierKey(tier)
+    if (nextQuantities[key] === undefined) {
+      nextQuantities[key] = route.query.quantity && index === 0 ? initialQuantity : 0
+    }
+  })
+  ticketTierQuantities.value = nextQuantities
 }
 
 function tierDescription(tier) {
@@ -375,12 +426,23 @@ function extractList(res) {
   return res?.rows || res?.data || res?.list || res?.content || []
 }
 
-function persistConfirmation(registration) {
+function persistConfirmation(registration, ticketItems = selectedTicketItems.value) {
+  const registrations = Array.isArray(registration) ? registration : [registration].filter(Boolean)
+  const primaryRegistration = registrations[0] || {}
   const payload = {
-    registration,
+    registration: primaryRegistration,
+    registrations,
     event: rawEvent.value || event,
-    quantity: quantity.value,
-    ticketTier: selectedTicketTier.value
+    quantity: ticketItems.reduce((sum, item) => sum + item.quantity, 0),
+    totalPrice: ticketItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    ticketItems: ticketItems.map((item, index) => ({
+      ticketTier: item.tier,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.unitPrice * item.quantity,
+      registration: registrations[index] || null
+    })),
+    ticketTier: ticketItems[0]?.tier || null
   }
   sessionStorage.setItem('lastBookingConfirmation', JSON.stringify(payload))
 }
@@ -389,11 +451,11 @@ async function loadTicketTiers() {
   try {
     const tiers = extractList(await getEventTicketTiers(eventId))
     ticketTiers.value = tiers.length ? tiers : []
-    selectedTicketTierId.value = visibleTicketTiers.value[0]?.id || ''
+    ensureTicketTierQuantities()
   } catch (error) {
     console.warn('Failed to load ticket tiers:', error)
     ticketTiers.value = []
-    selectedTicketTierId.value = fallbackTicketTier.value.id
+    ensureTicketTierQuantities()
   }
 }
 
@@ -450,7 +512,15 @@ function confirmBooking() {
   }
 
   if (alreadyRegistered.value && existingRegistration.value) {
-    persistConfirmation(existingRegistration.value)
+    persistConfirmation(existingRegistration.value, [{
+      tier: {
+        id: existingRegistration.value.ticketTierId || 'existing-ticket',
+        name: existingRegistration.value.ticketTierName || 'Standard',
+        price: Number(existingRegistration.value.unitPrice || existingRegistration.value.totalPrice || 0)
+      },
+      quantity: Number(existingRegistration.value.quantity || 1),
+      unitPrice: Number(existingRegistration.value.unitPrice || existingRegistration.value.totalPrice || 0)
+    }])
     ElMessage.info('You are already registered for this activity.')
     router.push({
       path: '/product/bookingConfirmation',
@@ -459,17 +529,30 @@ function confirmBooking() {
     return
   }
 
+  if (!selectedTicketItems.value.length || totalQuantity.value <= 0) {
+    ElMessage.warning('Please select at least one ticket')
+    return
+  }
+
   submitting.value = true
-  createEventRegistration({
-    eventId,
-    status: 'REGISTERED',
-    ticketTierId: selectedTicketTier.value?.id === 'fallback-standard' ? null : selectedTicketTier.value?.id,
-    quantity: quantity.value,
-    contactFullName: contact.value.fullName.trim(),
-    contactEmail,
-    contactPhone: contact.value.phone.trim()
-  }).then((registration) => {
-    persistConfirmation(registration)
+  const itemsToSubmit = selectedTicketItems.value.map((item) => ({ ...item }))
+  const createdRegistrations = []
+
+  itemsToSubmit.reduce((promise, item) => {
+    return promise.then(async () => {
+      const registration = await createEventRegistration({
+        eventId,
+        status: 'REGISTERED',
+        ticketTierId: item.tier?.id === 'fallback-standard' ? null : item.tier?.id,
+        quantity: item.quantity,
+        contactFullName: contact.value.fullName.trim(),
+        contactEmail,
+        contactPhone: contact.value.phone.trim()
+      })
+      createdRegistrations.push(registration)
+    })
+  }, Promise.resolve()).then(() => {
+    persistConfirmation(createdRegistrations, itemsToSubmit)
     ElMessage.success('Booking confirmed')
     router.push({
       path: '/product/bookingConfirmation',

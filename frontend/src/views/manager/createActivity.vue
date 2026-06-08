@@ -206,6 +206,46 @@
             </el-form>
           </section>
 
+          <section class="side-card">
+            <div class="side-title">
+              <el-icon><Money /></el-icon>
+              <h2>Ticket & Pricing</h2>
+            </div>
+            <p>Set ticket tiers for booking. Free tickets use price 0.</p>
+
+            <div class="ticket-tier-list">
+              <article v-for="(tier, index) in form.ticketTiers" :key="tier.localId" class="ticket-tier-item">
+                <div class="ticket-tier-header">
+                  <strong>Tier {{ index + 1 }}</strong>
+                  <el-button
+                    v-if="form.ticketTiers.length > 1"
+                    :icon="Delete"
+                    circle
+                    text
+                    type="danger"
+                    @click="removeTicketTier(index)"
+                  />
+                </div>
+                <el-input v-model="tier.name" placeholder="Name, e.g. Standard" />
+                <el-select v-model="tier.type" placeholder="Type">
+                  <el-option label="Standard" value="STANDARD" />
+                  <el-option label="VIP" value="VIP" />
+                  <el-option label="Early Bird" value="EARLY_BIRD" />
+                </el-select>
+                <div class="ticket-tier-fields">
+                  <el-input v-model="tier.price" type="number" min="0" step="0.01" placeholder="Price">
+                    <template #prefix>S$</template>
+                  </el-input>
+                  <el-input v-model="tier.capacity" type="number" min="0" placeholder="Capacity" />
+                </div>
+              </article>
+            </div>
+
+            <el-button class="add-tier-button" :icon="Plus" @click="addTicketTier">
+              Add Ticket Tier
+            </el-button>
+          </section>
+
           <section class="side-card action-card">
             <div class="side-title">
               <el-icon><Promotion /></el-icon>
@@ -239,6 +279,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   createEvent,
+  createEventTicketTier,
   createLocation,
   createLocationAccessibility,
   uploadEventImage
@@ -248,10 +289,13 @@ import useUserStore from '@/store/modules/user'
 import { canCreateActivityForUser } from '@/utils/accessControl'
 import {
   Calendar,
+  Delete,
   InfoFilled,
   Location,
   Microphone,
+  Money,
   Picture,
+  Plus,
   Promotion,
   Service,
   Upload,
@@ -281,8 +325,19 @@ const form = ref({
   venueName: '',
   address: '',
   accessibility: [],
-  capacity: ''
+  capacity: '',
+  ticketTiers: [
+    {
+      localId: 1,
+      name: 'Standard',
+      type: 'STANDARD',
+      price: 0,
+      capacity: ''
+    }
+  ]
 })
+
+let nextTicketTierLocalId = 2
 
 const coverList = ref([])
 const defaultCoverImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=760&q=80'
@@ -360,7 +415,40 @@ function validateBusinessFields(startTime, endTime) {
     return false
   }
 
+  const ticketTierTotalCapacity = form.value.ticketTiers.reduce((sum, tier) => sum + Number(tier.capacity || 0), 0)
+  if (ticketTierTotalCapacity > capacity) {
+    ElMessage.warning('Ticket tier capacity cannot exceed total event capacity')
+    return false
+  }
+
+  const invalidTier = form.value.ticketTiers.find((tier) => {
+    const price = Number(tier.price || 0)
+    const tierCapacity = Number(tier.capacity || 0)
+    return !tier.name?.trim()
+      || price < 0
+      || !Number.isInteger(tierCapacity)
+      || tierCapacity < 0
+  })
+  if (invalidTier) {
+    ElMessage.warning('Please check ticket tier name, price, and capacity')
+    return false
+  }
+
   return true
+}
+
+function addTicketTier() {
+  form.value.ticketTiers.push({
+    localId: nextTicketTierLocalId++,
+    name: '',
+    type: 'STANDARD',
+    price: 0,
+    capacity: ''
+  })
+}
+
+function removeTicketTier(index) {
+  form.value.ticketTiers.splice(index, 1)
 }
 
 function handleCoverChange(file, fileList) {
@@ -449,7 +537,7 @@ async function publishActivity() {
       startTime,
       endTime,
       capacity: Number(form.value.capacity),
-      price: 0,
+      price: Number(form.value.ticketTiers[0]?.price || 0),
       isVirtual: false,
       status: 'PUBLISHED',
       locationId
@@ -459,6 +547,15 @@ async function publishActivity() {
     if (!eventId) {
       throw new Error('Create event response did not include an id')
     }
+
+    await Promise.all(form.value.ticketTiers.map((tier, index) => createEventTicketTier(eventId, {
+      name: tier.name.trim(),
+      type: tier.type,
+      price: Number(tier.price || 0),
+      capacity: Number(tier.capacity || 0),
+      active: true,
+      sortOrder: index
+    })))
 
     if (coverFile.value) {
       await uploadEventImage(eventId, coverFile.value)
@@ -631,6 +728,40 @@ onBeforeUnmount(() => {
   color: #26365f;
   font-size: 15px;
   line-height: 1.6;
+}
+
+.ticket-tier-list {
+  display: grid;
+  gap: 14px;
+}
+
+.ticket-tier-item {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d8e3f4;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.ticket-tier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #071a47;
+}
+
+.ticket-tier-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.add-tier-button {
+  width: 100%;
+  margin-top: 14px;
+  border-radius: 8px;
+  font-weight: 700;
 }
 
 .two-column {
