@@ -61,8 +61,8 @@ public class RegistrationService {
         Registration registration = new Registration();
         User user = currentUserService.getOrCreateCurrentUser(jwt);
         registration.setUser(user);
-        ensureNoActiveDuplicate(request.getEventId(), user.getId());
         applyRequest(registration, request);
+        ensureNoActiveDuplicate(registration);
         Registration savedRegistration = registrationRepository.save(registration);
         Event event = savedRegistration.getEvent();
         recommendationScoreService.recomputeEventScore(event.getId());
@@ -333,16 +333,28 @@ public class RegistrationService {
         }
     }
 
-    private void ensureNoActiveDuplicate(UUID eventId, UUID userId) {
+    private void ensureNoActiveDuplicate(Registration registration) {
+        UUID eventId = registration.getEvent() != null ? registration.getEvent().getId() : null;
+        UUID userId = registration.getUser() != null ? registration.getUser().getId() : null;
         if (eventId == null || userId == null) {
             return;
         }
+        UUID ticketTierId = registration.getTicketTier() != null ? registration.getTicketTier().getId() : null;
         boolean hasActiveDuplicate = registrationRepository.findByEventIdAndUserIdOrderByRegisteredAtDesc(eventId, userId)
                 .stream()
-                .anyMatch(registration -> !isInactiveRegistrationStatus(registration.getStatus()));
+                .filter(existing -> !isInactiveRegistrationStatus(existing.getStatus()))
+                .anyMatch(existing -> hasSameTicketTarget(existing, ticketTierId));
         if (hasActiveDuplicate) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already have an active registration for this event");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already have an active registration for this ticket tier");
         }
+    }
+
+    private boolean hasSameTicketTarget(Registration existing, UUID ticketTierId) {
+        UUID existingTicketTierId = existing.getTicketTier() != null ? existing.getTicketTier().getId() : null;
+        if (ticketTierId == null) {
+            return existingTicketTierId == null;
+        }
+        return Objects.equals(existingTicketTierId, ticketTierId);
     }
 
     private void ensureCanManageEventRegistrations(Event event, User currentUser) {

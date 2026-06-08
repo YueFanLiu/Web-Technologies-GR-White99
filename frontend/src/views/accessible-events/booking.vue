@@ -63,17 +63,17 @@
                 v-for="tier in visibleTicketTiers"
                 :key="tier.id"
                 class="ticket-row"
-                :class="{ selected: ticketTierQuantity(tier) > 0 }"
+                :class="{ selected: ticketTierQuantity(tier) > 0, disabled: isTicketTierBooked(tier) }"
               >
                 <div>
                   <h3>{{ tier.name }}</h3>
-                  <p>{{ tierDescription(tier) }}</p>
+                  <p>{{ ticketTierDescription(tier) }}</p>
                 </div>
 
                 <div class="quantity-control">
-                  <el-button :icon="Minus" @click.stop="decreaseQuantity(tier)" />
+                  <el-button :icon="Minus" :disabled="isTicketTierBooked(tier)" @click.stop="decreaseQuantity(tier)" />
                   <span>{{ ticketTierQuantity(tier) }}</span>
-                  <el-button :icon="Plus" @click.stop="increaseQuantity(tier)" />
+                  <el-button :icon="Plus" :disabled="isTicketTierBooked(tier)" @click.stop="increaseQuantity(tier)" />
                 </div>
 
                 <strong>{{ formatPrice(tier.price) }}</strong>
@@ -220,6 +220,7 @@ const loading = ref(false)
 const submitting = ref(false)
 const alreadyRegistered = ref(false)
 const existingRegistration = ref(null)
+const existingActiveRegistrations = ref([])
 const rawEvent = ref(null)
 const ticketTiers = ref([])
 const ticketTierQuantities = ref({})
@@ -291,6 +292,10 @@ function ticketTierKey(tier) {
   return tier?.id || 'fallback-standard'
 }
 
+function registrationTicketTierKey(registration) {
+  return registration?.ticketTierId || registration?.ticketTier?.id || 'fallback-standard'
+}
+
 function ticketTierQuantity(tier) {
   return Number(ticketTierQuantities.value[ticketTierKey(tier)] || 0)
 }
@@ -304,6 +309,10 @@ function setTicketTierQuantity(tier, value) {
 }
 
 function increaseQuantity(tier) {
+  if (isTicketTierBooked(tier)) {
+    ElMessage.info('You already booked this ticket tier')
+    return
+  }
   const nextQuantity = ticketTierQuantity(tier) + 1
   const remaining = Number(tier.remainingQuantity || 0)
   if (remaining > 0 && nextQuantity > remaining) {
@@ -314,6 +323,9 @@ function increaseQuantity(tier) {
 }
 
 function decreaseQuantity(tier) {
+  if (isTicketTierBooked(tier)) {
+    return
+  }
   setTicketTierQuantity(tier, ticketTierQuantity(tier) - 1)
 }
 
@@ -331,6 +343,18 @@ function ensureTicketTierQuantities() {
     }
   })
   ticketTierQuantities.value = nextQuantities
+}
+
+function ticketTierDescription(tier) {
+  const parts = []
+  if (tier.type) parts.push(String(tier.type).replaceAll('_', ' '))
+  if (tier.remainingQuantity !== undefined && tier.remainingQuantity !== null) {
+    parts.push(`${tier.remainingQuantity} remaining`)
+  }
+  if (isTicketTierBooked(tier)) {
+    parts.push('Already booked')
+  }
+  return parts.join(' · ') || 'Activity ticket'
 }
 
 function tierDescription(tier) {
@@ -469,14 +493,23 @@ async function loadExistingRegistration() {
   if (!userId) return
 
   const registrations = extractList(await getRegistrationsByUser(userId))
-  const match = registrations.find((registration) => {
+  const activeMatches = registrations.filter((registration) => {
     return String(registrationEventId(registration)) === String(eventId) && isActiveRegistration(registration)
   })
 
-  if (match) {
+  existingActiveRegistrations.value = activeMatches
+  const bookedKeys = new Set(activeMatches.map(registrationTicketTierKey))
+  const bookableTiers = visibleTicketTiers.value.filter((tier) => !bookedKeys.has(ticketTierKey(tier)))
+
+  if (activeMatches.length && bookableTiers.length === 0) {
     alreadyRegistered.value = true
-    existingRegistration.value = match
+    existingRegistration.value = activeMatches[0]
   }
+}
+
+function isTicketTierBooked(tier) {
+  const key = ticketTierKey(tier)
+  return existingActiveRegistrations.value.some((registration) => registrationTicketTierKey(registration) === key)
 }
 
 async function loadPage() {
@@ -535,8 +568,16 @@ function confirmBooking() {
   }
 
   submitting.value = true
-  const itemsToSubmit = selectedTicketItems.value.map((item) => ({ ...item }))
+  const itemsToSubmit = selectedTicketItems.value
+    .filter((item) => !isTicketTierBooked(item.tier))
+    .map((item) => ({ ...item }))
   const createdRegistrations = []
+
+  if (!itemsToSubmit.length) {
+    ElMessage.warning('Please select a ticket tier you have not booked yet')
+    submitting.value = false
+    return
+  }
 
   itemsToSubmit.reduce((promise, item) => {
     return promise.then(async () => {
@@ -715,6 +756,12 @@ onMounted(loadPage)
 .ticket-row.selected {
   border-color: #0f66e9;
   box-shadow: 0 0 0 3px rgba(15, 102, 233, 0.12);
+}
+
+.ticket-row.disabled {
+  cursor: not-allowed;
+  background: #f2f5fa;
+  opacity: 0.72;
 }
 
 .ticket-row h3 {
