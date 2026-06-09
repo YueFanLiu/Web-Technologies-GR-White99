@@ -58,3 +58,5 @@ management:
 security:
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+  jwt:
+    hmac-secret: ${SUPABASE_JWT_SECRET:}

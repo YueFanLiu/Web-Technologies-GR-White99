@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -18,7 +19,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 
 @Configuration
@@ -73,13 +77,50 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder(@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
                                  @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri,
+                                 @Value("${security.jwt.hmac-secret:}") String hmacSecret,
                                  @Value("${security.jwt.clock-skew-seconds:60}") long clockSkewSeconds) {
-        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                 new JwtTimestampValidator(Duration.ofSeconds(clockSkewSeconds)),
                 new JwtIssuerValidator(issuerUri)
         );
-        jwtDecoder.setJwtValidator(validator);
-        return jwtDecoder;
+
+        NimbusJwtDecoder jwkDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        jwkDecoder.setJwtValidator(validator);
+
+        NimbusJwtDecoder hmacDecoder = null;
+        if (hmacSecret != null && !hmacSecret.isBlank()) {
+            SecretKeySpec secretKey = new SecretKeySpec(
+                    hmacSecret.getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            );
+            hmacDecoder = NimbusJwtDecoder.withSecretKey(secretKey)
+                    .macAlgorithm(MacAlgorithm.HS256)
+                    .build();
+            hmacDecoder.setJwtValidator(validator);
+        }
+
+        NimbusJwtDecoder finalHmacDecoder = hmacDecoder;
+        return token -> {
+            if (finalHmacDecoder != null && isHs256Token(token)) {
+                return finalHmacDecoder.decode(token);
+            }
+            return jwkDecoder.decode(token);
+        };
+    }
+
+    private boolean isHs256Token(String token) {
+        if (token == null) {
+            return false;
+        }
+        String[] parts = token.split("\\.", 2);
+        if (parts.length == 0) {
+            return false;
+        }
+        try {
+            String headerJson = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8);
+            return headerJson.contains("\"alg\":\"HS256\"") || headerJson.contains("\"alg\": \"HS256\"");
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 }
