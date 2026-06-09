@@ -413,7 +413,7 @@ const fetchEvents = async () => {
   loading.value = true
   try {
     const params = {
-      limit: 1000,
+      limit: 30,
       upcomingOnly: false
     }
     if (searchKeyword.value) params.keyword = searchKeyword.value

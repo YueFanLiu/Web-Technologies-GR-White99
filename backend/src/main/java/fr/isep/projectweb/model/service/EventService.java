@@ -40,7 +40,7 @@ public class EventService {
 
     private static final int SEARCH_RESULT_LIMIT = 20;
     private static final int DEFAULT_MAIN_PAGE_LIMIT = 20;
-    private static final int MAX_MAIN_PAGE_LIMIT = 1000;
+    private static final int MAX_MAIN_PAGE_LIMIT = 100;
     private static final String ORGANIZER_ROLE = "ORGANIZER";
     private static final String ADMIN_ROLE = "ADMIN";
 
