@@ -1,0 +1,9 @@
+target/
+.maven-user-home/
+.env
+.env.*
+!.env.example
+.git/
+.idea/
+.vscode/
+*.iml
