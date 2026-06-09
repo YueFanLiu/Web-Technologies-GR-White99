@@ -54,3 +54,7 @@ management:
   health:
     mail:
       enabled: ${MAIL_HEALTH_ENABLED:false}
+
+security:
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
