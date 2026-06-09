@@ -12,6 +12,13 @@ backend/.maven-user-home/
 .mcp.json
 skills-lock.json
 
+### Environment variables ###
+.env
+.env.*
+!.env.example
+!backend/.env.example
+!test/e2e/.env.e2e.example
+
 ### STS ###
 .apt_generated
 .classpath
