@@ -3,6 +3,7 @@ import { getToken, setToken, removeToken } from '@/utils/auth'
 import { isHttp } from '@/utils/validate'
 import defAva from '@/assets/images/profile.jpg'
 import { normalizeRole } from '@/utils/accessControl'
+import { supabase } from '@/utils/supabase'
 
 let getInfoPromise = null
 
@@ -57,7 +58,13 @@ const useUserStore = defineStore(
         return login({
           email: userInfo.email.trim(),
           password: userInfo.password
-        }).then((res) => {
+        }).then(async (res) => {
+          if (res.accessToken && res.refreshToken) {
+            await supabase.auth.setSession({
+              access_token: res.accessToken,
+              refresh_token: res.refreshToken
+            })
+          }
           setToken(res.accessToken)
           this.token = res.accessToken
           return this.getInfo()
@@ -119,6 +126,7 @@ const useUserStore = defineStore(
           this.accessibilityPreferences = {}
           this.avatar = ''
           removeToken()
+          supabase.auth.signOut().catch(() => {})
           resolve()
         })
       }

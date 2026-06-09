@@ -1,11 +1,12 @@
 import axios from 'axios'
 import { ElNotification , ElMessageBox, ElMessage, ElLoading } from 'element-plus'
-import { getToken } from '@/utils/auth'
+import { getToken, setToken } from '@/utils/auth'
 import errorCode from '@/utils/errorCode'
 import { tansParams, blobValidate } from '@/utils/ruoyi'
 import cache from '@/plugins/cache'
 import { saveAs } from 'file-saver'
 import useUserStore from '@/store/modules/user'
+import { supabase } from '@/utils/supabase'
 
 let downloadLoadingInstance
 // 是否已经弹出“重新登录”提示，防止多个 401 请求同时弹出多个弹窗
@@ -28,9 +29,9 @@ const service = axios.create({
 function handleUnauthorized() {
   if (!isRelogin.show) {
     isRelogin.show = true
-    ElMessageBox.confirm('登录状态已过期，您可以继续留在该页面，或者重新登录', '系统提示', {
-      confirmButtonText: '重新登录',
-      cancelButtonText: '取消',
+    ElMessageBox.confirm('Your login session has expired. You can stay on this page or sign in again.', 'System Notice', {
+      confirmButtonText: 'Sign In Again',
+      cancelButtonText: 'Cancel',
       type: 'warning'
     }).then(() => {
       isRelogin.show = false
@@ -45,7 +46,7 @@ function handleUnauthorized() {
 
 // request拦截器
 // 作用：在请求真正发出去之前，统一处理 baseURL、token、GET 参数、重复提交和文件上传请求头
-service.interceptors.request.use(config => {
+service.interceptors.request.use(async config => {
   // 是否需要设置 token
   // 默认所有请求都会带 token；如果某个接口不需要 token，就在 api 文件里写 headers: { isToken: false }
   const isToken = (config.headers || {}).isToken === false
@@ -55,8 +56,13 @@ service.interceptors.request.use(config => {
   // 间隔时间(ms)，小于此时间视为重复提交
   const interval = (config.headers || {}).interval || 1000
   if (getToken() && !isToken) {
+    const { data } = await supabase.auth.getSession()
+    const sessionToken = data?.session?.access_token
+    if (sessionToken) {
+      setToken(sessionToken)
+    }
     // 后端使用 Bearer Token 校验登录状态，所以这里统一把登录后的 token 放到 Authorization 请求头
-    config.headers['Authorization'] = 'Bearer ' + getToken()
+    config.headers['Authorization'] = 'Bearer ' + (sessionToken || getToken())
   }
   // FormData 上传不能沿用全局 JSON Content-Type，需要让浏览器自动补 multipart boundary
   // 例如 post/event/location 图片上传，都应该走这里，避免后端收不到 multipart 文件
@@ -127,7 +133,7 @@ service.interceptors.response.use(res => {
     if (code === 401) {
       // 处理“HTTP 200，但业务 code 是 401”的登录失效情况
       handleUnauthorized()
-      return Promise.reject('无效的会话，或者会话已过期，请重新登录。')
+      return Promise.reject('Invalid or expired session. Please sign in again.')
     } else if (code === 500) {
       ElMessage({ message: msg, type: 'error' })
       return Promise.reject(new Error(msg))
@@ -163,11 +169,11 @@ service.interceptors.response.use(res => {
       ? (permissionMessage || 'You do not have permission to perform this action.')
       : (error?.response?.data?.message || error?.response?.data?.msg || error?.message)
     if (message == "Network Error") {
-      message = "后端接口连接异常"
+      message = "Backend API connection failed"
     } else if (message && message.includes("timeout")) {
-      message = "系统接口请求超时"
+      message = "System API request timed out"
     } else if (message && message.includes("Request failed with status code")) {
-      message = "系统接口" + message.slice(-3) + "异常"
+      message = "System API error " + message.slice(-3)
     }
     if (shouldShowError) {
       ElMessage({ message: message, type: 'error', duration: 5 * 1000 })
@@ -179,7 +185,7 @@ service.interceptors.response.use(res => {
 // 通用下载方法
 // 作用：发送文件下载请求，校验返回内容是否为 blob，成功则保存文件，失败则展示后端错误信息
 export function download(url, params, filename, config) {
-  downloadLoadingInstance = ElLoading.service({ text: "正在下载数据，请稍候", background: "rgba(0, 0, 0, 0.7)", })
+  downloadLoadingInstance = ElLoading.service({ text: "Downloading data, please wait...", background: "rgba(0, 0, 0, 0.7)", })
   return service.post(url, params, {
     transformRequest: [(params) => { return tansParams(params) }],
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -199,7 +205,7 @@ export function download(url, params, filename, config) {
     downloadLoadingInstance.close()
   }).catch((r) => {
     console.error(r)
-    ElMessage.error('下载文件出现错误，请联系管理员！')
+    ElMessage.error('File download failed. Please contact the administrator.')
     downloadLoadingInstance.close()
   })
 }
