@@ -33,6 +33,7 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${SUPABASE_ISSUER_URI:${supabase.url}/auth/v1}
+          jwk-set-uri: ${SUPABASE_JWK_SET_URI:${supabase.url}/auth/v1/.well-known/jwks.json}
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
