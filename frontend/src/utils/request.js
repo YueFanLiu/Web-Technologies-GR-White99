@@ -145,9 +145,18 @@ service.interceptors.response.use(res => {
     console.log('err' + error)
     const shouldShowError = error?.config?.headers?.showErrorMessage !== false
     const permissionMessage = error?.config?.headers?.permissionMessage
+    const isToken = error?.config?.headers?.isToken !== false
     if (error?.response?.status === 401) {
       // 处理后端直接返回 HTTP 401 的情况，避免只显示“系统接口401异常”
-      handleUnauthorized()
+      if (isToken) {
+        handleUnauthorized()
+      } else if (shouldShowError) {
+        ElMessage({
+          message: error?.response?.data?.message || error?.response?.data?.msg || 'Authentication failed',
+          type: 'error',
+          duration: 5 * 1000
+        })
+      }
       return Promise.reject(error)
     }
     let message = error?.response?.status === 403
